@@ -29,4 +29,9 @@ Additionally, there is special handling available for **File Explorer** (both mo
 <img width="1211" height="737" alt="image" src="https://github.com/user-attachments/assets/3953538d-2197-427f-b309-5911aabcf064" />
 </details>
 
+<details>
+  <summary>Task Manager with Blur Behind</summary>
+<img width="1148" height="733" alt="image" src="https://github.com/user-attachments/assets/49998798-0580-4b22-9c67-3c10e4d5f78c" />
+</details>
+
 * more screenshots and details to be added later
