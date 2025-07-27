@@ -18,3 +18,5 @@ All features can be applied globally to all apps or on a per-app / per-class bas
 Additionally, there is special handling available for **File Explorer** (both modern and classic), **Visual Studio Code**, **VSCodium**, **Visual Studio 2022** and **Windows Terminal**. These can have all of the features applied as well but some of these specially handled apps require additional settings as noted in the docs (ImmersiveUX.txt).
 
 ## Screenshots:
+
+* adding screenshots and more details later
