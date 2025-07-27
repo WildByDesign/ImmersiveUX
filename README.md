@@ -15,7 +15,7 @@ Immersive UX is for Windows 11 (build 22621+) only and allows enabling DWM featu
 
 All features can be applied globally to all apps or on a per-app / per-class basis. So each app can have its own set of colors and options. The custom per-app / per-class rules take priority over the global rules. If you have a custom rule that has some options left blank (or selected Global), those options will fall back to global options if the relevant global option is set.
 
-Additionally, there is special handling available for **File Explorer** (both modern and classic), **Visual Studio Code**, **VSCodium**, **Visual Studio 2022** and **Windows Terminal**. These can have all of the features applied as well but some of these specially handled apps require additional settings as noted in the docs (ImmersiveUX.txt).
+Additionally, there is special handling available for **File Explorer** (both modern and classic), **Visual Studio Code**, **VSCodium**, **Visual Studio 2022**, **Task Manager** and **Windows Terminal**. These can have all of the features applied as well but some of these specially handled apps require additional settings as noted in the docs (ImmersiveUX.txt).
 
 ## Screenshots:
 
