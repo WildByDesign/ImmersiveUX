@@ -19,4 +19,9 @@ Additionally, there is special handling available for **File Explorer** (both mo
 
 ## Screenshots:
 
-* adding screenshots and more details later
+<details>
+  <summary>Windows Terminal with Acrylic</summary>
+<img width="1042" height="587" alt="image" src="https://github.com/user-attachments/assets/46bece66-ecee-439a-a4db-b9ed1c0182a2" />
+</details>
+
+* more screenshots and details to be added later
