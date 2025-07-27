@@ -1,0 +1,73 @@
+name: Build Binaries
+run-name: Build version ${{ inputs.version }}
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The version of the library
+        required: true
+        default: 0.1.0
+        type: string
+      release:
+        description: Create a release
+        required: true
+        default: false
+        type: boolean
+permissions:
+  contents: write
+  actions: write
+  checks: write
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache tools
+        uses: actions/cache@v4
+        id: cache
+        with:
+          path: |
+            autoit-v3-setup.exe
+            SciTE4AutoIt3.exe
+            C:\Program Files (x86)\AutoIt3\SciTE\Au3Stripper
+          key: v3
+      - name: Download tools
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          curl -sSfL https://www.autoitscript.com/cgi-bin/getfile.pl?autoit3/autoit-v3-setup.exe -o autoit-v3-setup.exe `
+            -sSfL https://www.autoitscript.com/cgi-bin/getfile.pl?../autoit3/scite/download/SciTE4AutoIt3.exe -o SciTE4AutoIt3.exe `
+            -sSfLO https://www.autoitscript.com/autoit3/scite/download/Au3Stripper.zip
+          Expand-Archive Au3Stripper.zip "${env:ProgramFiles(x86)}\AutoIt3\SciTE\Au3Stripper"
+      - name: Install tools
+        run: |
+          Start-Process autoit-v3-setup.exe -ArgumentList /S -NoNewWindow -Wait
+          Start-Process SciTE4AutoIt3.exe -ArgumentList /S -NoNewWindow -Wait
+      - name: Compile
+        run: |
+          Start-Process "${env:ProgramFiles(x86)}\AutoIt3\AutoIt3.exe" "`"${env:ProgramFiles(x86)}\AutoIt3\SciTE\AutoIt3Wrapper\AutoIt3Wrapper.au3`" /NoStatus /prod /in LaunchAppContainer.au3" -NoNewWindow -Wait
+          Start-Process "${env:ProgramFiles(x86)}\AutoIt3\AutoIt3.exe" "`"${env:ProgramFiles(x86)}\AutoIt3\SciTE\AutoIt3Wrapper\AutoIt3Wrapper.au3`" /NoStatus /prod /in LearningMode.au3" -NoNewWindow -Wait
+          Start-Process "${env:ProgramFiles(x86)}\AutoIt3\AutoIt3.exe" "`"${env:ProgramFiles(x86)}\AutoIt3\SciTE\AutoIt3Wrapper\AutoIt3Wrapper.au3`" /NoStatus /prod /in SetAppContainerACL.au3" -NoNewWindow -Wait
+      - uses: actions/upload-artifact@v4
+        with:
+          name: executable-files
+          path: |
+            ImmersiveEngine*.exe
+            ImmersiveUX*.exe
+          if-no-files-found: error
+      - name: Zip package
+        run: 7z a ImmersiveUX.zip ImmersiveEngine*.exe ImmersiveUX*.exe
+          7z a ImmersiveUX.zip ImmersiveUX.ini
+          7z a ImmersiveUX.zip ImmersiveUX.txt
+      - name: Rename archive with tag
+        shell: pwsh
+        run: |
+          Copy-Item ImmersiveUX.zip -Destination ImmersiveUX-${{ inputs.version }}.zip
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        if: ${{ inputs.release }}
+        with:
+          draft: true
+          name: ImmersiveUX ${{ inputs.version }}
+          tag_name: ${{ inputs.version }}
+          files: |
+            ImmersiveUX-${{ inputs.version }}.zip
