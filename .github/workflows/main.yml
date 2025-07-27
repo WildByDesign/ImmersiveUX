@@ -60,7 +60,7 @@ jobs:
       - name: Rename archive with tag
         shell: pwsh
         run: |
-          Copy-Item ImmersiveUX.zip -Destination ImmersiveUX-${{ inputs.version }}.zip
+          Copy-Item ImmersiveUX.zip -Destination ImmersiveUX-x64-${{ inputs.version }}.zip
       - name: Create release
         uses: softprops/action-gh-release@v2
         if: ${{ inputs.release }}
@@ -69,4 +69,4 @@ jobs:
           name: ImmersiveUX ${{ inputs.version }}
           tag_name: ${{ inputs.version }}
           files: |
-            ImmersiveUX-${{ inputs.version }}.zip
+            ImmersiveUX-x64-${{ inputs.version }}.zip
