@@ -49,5 +49,5 @@ Additionally, there is special handling available for **File Explorer** (both mo
 <img width="961" height="667" alt="image" src="https://github.com/user-attachments/assets/58e5819a-e320-4d26-a602-82a9522abc29" />
 </details>
 
-- (1) Using Visual Studio color theme [Vanta Black](https://marketplace.visualstudio.com/items?itemName=BrijeshRathod.PitchBlackV1) for best results
-- (2) Using Rectify11 Black Mica theme for best results
+(1) Using Visual Studio color theme [Vanta Black](https://marketplace.visualstudio.com/items?itemName=BrijeshRathod.PitchBlackV1) for best results <br>
+(2) Using Rectify11 Black Mica theme for best results
