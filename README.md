@@ -35,12 +35,19 @@ Additionally, there is special handling available for **File Explorer** (both mo
 </details>
 
 <details>
-  <summary>File Explorer (modern) with Acrylic *requires Rectify11 Black Mica theme</summary>
+  <summary>Visual Studio 2022 with Mica Alt (Tabbed) (1)</summary>
+<img width="1252" height="842" alt="image" src="https://github.com/user-attachments/assets/1bb3ac8e-75fa-4253-abad-042ef2edae64" />
+</details>
+
+<details>
+  <summary>File Explorer (modern) with Acrylic (2)</summary>
 <img width="961" height="667" alt="image" src="https://github.com/user-attachments/assets/10b0d146-6a1f-4fcc-b84a-741f151ebff2" />
 </details>
 
 <details>
-  <summary>File Explorer (classic) with Acrylic *requires Rectify11 Black Mica theme</summary>
+  <summary>File Explorer (classic) with Acrylic (2)</summary>
 <img width="961" height="667" alt="image" src="https://github.com/user-attachments/assets/58e5819a-e320-4d26-a602-82a9522abc29" />
 </details>
 
+- (1) Using Visual Studio color theme [Vanta Black](https://marketplace.visualstudio.com/items?itemName=BrijeshRathod.PitchBlackV1) for best results
+- (2) Using Rectify11 Black Mica theme for best results
