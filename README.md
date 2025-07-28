@@ -44,4 +44,3 @@ Additionally, there is special handling available for **File Explorer** (both mo
 <img width="961" height="667" alt="image" src="https://github.com/user-attachments/assets/58e5819a-e320-4d26-a602-82a9522abc29" />
 </details>
 
-* more screenshots and details to be added later
