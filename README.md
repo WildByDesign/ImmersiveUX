@@ -39,4 +39,9 @@ Additionally, there is special handling available for **File Explorer** (both mo
 <img width="961" height="667" alt="image" src="https://github.com/user-attachments/assets/10b0d146-6a1f-4fcc-b84a-741f151ebff2" />
 </details>
 
+<details>
+  <summary>File Explorer (classic) with Acrylic *requires Rectify11 Black Mica theme</summary>
+<img width="961" height="667" alt="image" src="https://github.com/user-attachments/assets/58e5819a-e320-4d26-a602-82a9522abc29" />
+</details>
+
 * more screenshots and details to be added later
