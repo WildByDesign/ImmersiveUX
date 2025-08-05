@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX
-#AutoIt3Wrapper_Res_Fileversion=1.1.2
+#AutoIt3Wrapper_Res_Fileversion=1.1.3
 #AutoIt3Wrapper_Res_ProductName=Immersive UX
-#AutoIt3Wrapper_Res_ProductVersion=1.1.2
+#AutoIt3Wrapper_Res_ProductVersion=1.1.3
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -28,6 +28,7 @@
 #include <GuiToolTip.au3>
 #include <WinAPITheme.au3>
 #include <WinAPIProc.au3>
+#include <File.au3>
 
 #include "include\StringSize.au3"
 #include "include\RoundGUI.au3"
@@ -38,6 +39,7 @@
 #include "include\_WinAPI_DPI.au3"
 #include "include\TaskScheduler.au3"
 #include "include\ExtMsgBox.au3"
+#include "include\JSON.au3"
 
 Global $aCustomRules[0][14]
 
@@ -59,7 +61,7 @@ Global $idInput, $RuleListCombo, $idInputRuleType, $RuleTypeCombo, $idInputDarkT
 Global $DarkTitleCombo, $idInputTitleBarBackdrop, $TitleBarBackdropCombo
 Global $idInputCornerPreference, $CornerPreferenceCombo, $idInputExtendFrame, $ExtendFrameCombo
 Global $idInputBlurBehind, $BlurBehindCombo, $idInputRuleEnabled, $RuleEnabledCombo
-Global $idStatusInput, $idStatusCombo
+Global $idStatusInput, $idStatusCombo, $idSpecialHandlingCombo
 Global $TargetInput, $hBtnRuleType, $hBtnRuleEnabled, $DeleteButton, $SaveButton
 Global $BlurColorIntensitySlider, $idPart0, $idPart1, $idPart2
 Global $TaskIntegrity, $TaskInstalled, $TaskRunning
@@ -112,9 +114,11 @@ Func _StartGUI()
             ; run task
             ShellExecute(@ScriptDir & "\" & $sEngName & ".exe")
             ; might need adlib here to update task running status
-            AdlibRegister("_TaskStatusUpdate_adlib", 2000)
+            ;AdlibRegister("_TaskStatusUpdate_adlib", 2000)
         EndIf
     EndIf
+
+    AdlibRegister("_TaskStatusUpdate_adlib", 2000)
 
     $TaskRunning = _IsTaskRunning()
     If Not $TaskRunning Then $TaskRunning = "No"
@@ -143,7 +147,7 @@ Func _StartGUI()
     GUISetBkColor(0x000000)
 
     _ExtMsgBoxSet(Default)
-    _ExtMsgBoxSet(1, 4, 0x000000, 0xffffff -1, $MainFont, 800)
+    _ExtMsgBoxSet(1, 4, 0x000000, 0xffffff, -1, $MainFont, 800)
 
     Local $hToolTip2 = _GUIToolTip_Create(0)
     _GUIToolTip_SetMaxTipWidth($hToolTip2, 400)
@@ -153,7 +157,7 @@ Func _StartGUI()
     _GUIToolTip_SetTipTextColor($hToolTip2, 0xe0e0e0)
 
 
-    $idStatusCombo = GUICtrlCreateCombo("", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, 185, 20, $CBS_DROPDOWNLIST)
+    $idStatusCombo = GUICtrlCreateCombo("", 344 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, (164 * $iDPI1) - 20, 20, $CBS_DROPDOWNLIST)
     _FillCombo()
     ;GUICtrlSetData($idStatusCombo, "Install Task|Restart Task")
     _GUICtrlComboBoxEx_SetColor($idStatusCombo, 0x202020, 0xffffff)
@@ -161,21 +165,38 @@ Func _StartGUI()
     GUICtrlSetState(-1, $GUI_HIDE)
     ;Local $hidStatusCombo = GUICtrlGetHandle($idStatusCombo)
     ;GUICtrlSetData($idStatusCombo, "Uninstall")
-    If @Compiled Then
-        $idStatusInput = GUICtrlCreateInput("Startup Task  ▼", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, 340, 20, $ES_READONLY, 0)
-        GUICtrlSetBkColor(-1, 0x000000)
-        GUICtrlSetColor(-1, 0xffffff)
-        $idPart0 = GUICtrlCreateLabel("Task Installed: " & $TaskInstalled, 20, ($iH * $iDPI1) - $FontHeight - 2, -1, -1)
-        GUICtrlSetBkColor(-1, 0x000000)
-        GUICtrlSetColor(-1, 0xffffff)
-        $idPart1 = GUICtrlCreateLabel("Task Running: " & $TaskRunning, 180 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, -1, -1)
-        GUICtrlSetBkColor(-1, 0x000000)
-        GUICtrlSetColor(-1, 0xffffff)
-        $idPart2 = GUICtrlCreateLabel("Task Elevated: " & $TaskIntegrity, 344 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, -1, -1)
-        GUICtrlSetBkColor(-1, 0x000000)
-        GUICtrlSetColor(-1, 0xffffff)
-    EndIf
+    ;If @Compiled Then
+    ;$idStatusInput = GUICtrlCreateInput("Startup Task  ▼", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, 340, 20, $ES_READONLY, 0)
+    ;$idStatusInput = GUICtrlCreateInput("Special Handling  ▼", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, 340, 20, $ES_READONLY, 0)
+    $idSpecialHandlingCombo = GUICtrlCreateCombo("", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, (164 * $iDPI1) - 20, 20, $CBS_DROPDOWNLIST)
+    GUICtrlSetData($idSpecialHandlingCombo, "Patch VSCode|Unpatch VSCode")
+    ;_FillCombo()
+    ;GUICtrlSetData($idStatusCombo, "Install Task|Restart Task")
+    _GUICtrlComboBoxEx_SetColor($idSpecialHandlingCombo, 0x202020, 0xffffff)
+    GUICtrlSetOnEvent(-1, "idSpecialHandlingCombo")
+    GUICtrlSetState(-1, $GUI_HIDE)
+    $idPart2 = GUICtrlCreateLabel("Special Handling  ▼", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, 164 * $iDPI1, -1)
+    GUICtrlSetOnEvent(-1, "idSpecialHandlingTest")
+    GUICtrlSetBkColor(-1, 0x000000)
+    GUICtrlSetColor(-1, 0xffffff)
+    ;If Not @Compiled Then GUICtrlSetState(-1, $GUI_DISABLE)
+    $idPart1 = GUICtrlCreateLabel(" ", 20, ($iH * $iDPI1) - $FontHeight - 2, 164 * $iDPI1, -1)
+    GUICtrlSetBkColor(-1, 0x000000)
+    GUICtrlSetColor(-1, 0xffffff)
+    ;If Not @Compiled Then GUICtrlSetState(-1, $GUI_DISABLE)
+    $idPart0 = GUICtrlCreateLabel("Task Installed: " & $TaskInstalled, 180 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, 164 * $iDPI1, -1)
+    GUICtrlSetBkColor(-1, 0x000000)
+    GUICtrlSetColor(-1, 0xffffff)
+    ;If Not @Compiled Then GUICtrlSetState(-1, $GUI_DISABLE)
+    ;$idPart2 = GUICtrlCreateLabel("Task Elevated: " & $TaskIntegrity, 344 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, -1, -1)
+    $idStatusInput = GUICtrlCreateLabel("Startup Task  ▼", 344 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, 164 * $iDPI1, -1)
+    GUICtrlSetOnEvent($idStatusInput, "idStatusInputTest")
+    GUICtrlSetBkColor(-1, 0x000000)
+    GUICtrlSetColor(-1, 0xffffff)
+    ;If Not @Compiled Then GUICtrlSetState(-1, $GUI_DISABLE)
+    ;EndIf
 
+    _IsEngineProcRunning()
 
     $aStringSizeBig = _StringSize("CASCADIA_HOSTING_WINDOW_CLASS", $FontSize, 400, 0, $MainFont)
     ;100 * $iDPI1Big = $aStringSizeBig[2] + 50
@@ -409,15 +430,12 @@ Func _StartGUI()
 
     $aPos = ControlGetPos($hGUI, "", $idInputDarkTitle)
 
-
     $idInputDarkTitlePosV = $aPos[1] + $aPos[3]
     $idInputDarkTitlePosH = $aPos[0] + $aPos[2]
-
 
     $TitleBarBackdropLabel = GUICtrlCreateLabel("Backdrop Material:", 20, $idInputDarkTitlePosV + 20, -1, -1)
     GUICtrlSetColor(-1, 0xffffff)
     $aPos = ControlGetPos($hGUI, "", $TitleBarBackdropLabel)
-
 
     $TitleBarBackdropLabelPosV = $aPos[1] + $aPos[3]
 
@@ -429,7 +447,6 @@ Func _StartGUI()
 
     $aPos = ControlGetPos($hGUI, "", $TitleBarBackdropCombo)
 
-
     $TitleBarBackdropComboPosV = $aPos[1] + $aPos[3]
     $TitleBarBackdropComboPosH = $aPos[0] + $aPos[2]
 
@@ -438,7 +455,6 @@ Func _StartGUI()
     GUICtrlSetBkColor(-1, 0x202020)
 
     $aPos = ControlGetPos($hGUI, "", $idInputTitleBarBackdrop)
-
 
     $idInputTitleBarBackdropPosV = $aPos[1] + $aPos[3]
     $idInputTitleBarBackdropPosH = $aPos[0] + $aPos[2]
@@ -450,11 +466,9 @@ Func _StartGUI()
     GUICtrlSetOnEvent(-1, "hBtnTitleBarBackdrop")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
 
-
     $CornerPreferenceLabel = GUICtrlCreateLabel("Corner Preference:", 20, $idInputTitleBarBackdropPosV + 20, -1, -1)
     GUICtrlSetColor(-1, 0xffffff)
     $aPos = ControlGetPos($hGUI, "", $CornerPreferenceLabel)
-
 
     $CornerPreferenceLabelPosV = $aPos[1] + $aPos[3]
 
@@ -465,7 +479,6 @@ Func _StartGUI()
     GUICtrlSetState(-1, $GUI_HIDE)
 
     $aPos = ControlGetPos($hGUI, "", $CornerPreferenceCombo)
-
 
     $CornerPreferenceComboPosV = $aPos[1] + $aPos[3]
     $CornerPreferenceComboPosH = $aPos[0] + $aPos[2]
@@ -482,15 +495,12 @@ Func _StartGUI()
 
     $aPos = ControlGetPos($hGUI, "", $idInputCornerPreference)
 
-
     $idInputCornerPreferencePosV = $aPos[1] + $aPos[3]
     $idInputCornerPreferencePosH = $aPos[0] + $aPos[2]
-
 
     $BorderColorLabel = GUICtrlCreateLabel("Border Color:", $idInputDarkTitlePosH + $FontHeight + 40, $TargetInputPosV + 20 + 20, -1, -1)
     GUICtrlSetColor(-1, 0xffffff)
     $aPos = ControlGetPos($hGUI, "", $BorderColorLabel)
-
 
     $BorderColorLabelPosV = $aPos[1] + $aPos[3]
     $BorderColorLabelPosV2 = $aPos[1]
@@ -501,7 +511,6 @@ Func _StartGUI()
     GUICtrlSetBkColor(-1, 0x202020)
 
     $aPos = ControlGetPos($hGUI, "", $BorderColorInput)
-
 
     $BorderColorInputPosV = $aPos[1] + $aPos[3]
     $BorderColorInputPosH = $aPos[0] + $aPos[2]
@@ -515,14 +524,12 @@ Func _StartGUI()
 
     $aPos = ControlGetPos($hGUI, "", $colorlabelfill)
 
-
     $colorlabelfillPosV = $aPos[1] + $aPos[3]
     $colorlabelfillPosH = $aPos[0] + $aPos[2]
 
     $TitlebarColorLabel = GUICtrlCreateLabel("Titlebar Color:", $idInputDarkTitlePosH + $FontHeight + 40, $BorderColorInputPosV + 20, -1, -1)
     GUICtrlSetColor(-1, 0xffffff)
     $aPos = ControlGetPos($hGUI, "", $TitlebarColorLabel)
-
 
     $TitlebarColorLabelPosV = $aPos[1] + $aPos[3]
     $TitlebarColorLabelPosV2 = $aPos[1]
@@ -533,7 +540,6 @@ Func _StartGUI()
     GUICtrlSetBkColor(-1, 0x202020)
 
     $aPos = ControlGetPos($hGUI, "", $TitlebarColorInput)
-
 
     $TitlebarColorInputPosV = $aPos[1] + $aPos[3]
     $TitlebarColorInputPosH = $aPos[0] + $aPos[2]
@@ -548,7 +554,6 @@ Func _StartGUI()
     GUICtrlSetColor(-1, 0xffffff)
     $aPos = ControlGetPos($hGUI, "", $TitlebarTextColorLabel)
 
-
     $TitlebarTextColorLabelPosV = $aPos[1] + $aPos[3]
 
     ;$TitlebarTextColorInput = GUICtrlCreateInput("", 20, $TitlebarTextColorLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
@@ -558,7 +563,6 @@ Func _StartGUI()
 
     $aPos = ControlGetPos($hGUI, "", $TitlebarTextColorInput)
 
-
     $TitlebarTextColorInputPosV = $aPos[1] + $aPos[3]
     $TitlebarTextColorInputPosH = $aPos[0] + $aPos[2]
     $TitlebarTextColorInputPosV2 = $aPos[1]
@@ -567,15 +571,12 @@ Func _StartGUI()
     _GUIToolTip_AddTool($hToolTip2, 0, " Change Color ", GUICtrlGetHandle($TitlebarTextColorLabel))
     GUICtrlSetOnEvent(-1, "ColorPickerTitlebarText")
 
-
     $ExtendFrameLabel = GUICtrlCreateLabel("Extend Frame To Client:", $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $TitlebarColorLabelPosV2, -1, -1)
     $aPos = ControlGetPos($hGUI, "", $ExtendFrameLabel)
     GUICtrlSetColor(-1, 0xffffff)
 
-
     $ExtendFrameLabelPosV = $aPos[1] + $aPos[3]
     $ExtendFrameLabelPosH2 = $aPos[0]
-
 
     $aStringSize = _StringSize("Advanced", $FontSize, 400, 0, $MainFont)
     $AdvancedWidth = $aStringSize[2]
@@ -603,9 +604,7 @@ Func _StartGUI()
     GUICtrlSetColor(-1, 0xffffff)
     GUISetFont($FontSize, $FW_NORMAL, -1, $MainFont)
 
-
     $measureadvwidth = $DarkTitleLabelPosH + $colorlabelfillPosH
-
 
     $idGroup = _RGUI_RoundGroup("Advanced", 0xffffff, $ExtendFrameLabelPosH2 - 20, $BorderColorLabelPosV2 + 8, $measureadvwidth, (180 * $iDPI1) + 2, 0x404040, 0x000000, 8, 6)
 
@@ -623,17 +622,14 @@ Func _StartGUI()
 
     $aPos = ControlGetPos($hGUI, "", $ExtendFrameCombo)
 
-
     $ExtendFrameComboPosV = $aPos[1] + $aPos[3]
     $ExtendFrameComboPosH = $aPos[0] + $aPos[2]
-
 
     ;$idInputDarkTitle = GUICtrlCreateInput("", 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
     $idInputExtendFrame = _RGUI_RoundInput("", 0xFFFFFF, $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $ExtendFrameLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
     GUICtrlSetBkColor(-1, 0x202020)
 
     $aPos = ControlGetPos($hGUI, "", $idInputExtendFrame)
-
 
     $idInputExtendFramePosV = $aPos[1] + $aPos[3]
     $idInputExtendFramePosH = $aPos[0] + $aPos[2]
@@ -644,11 +640,9 @@ Func _StartGUI()
     GUICtrlSetOnEvent(-1, "hBtnExtendFrame")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
 
-
     $BlurBehindLabel = GUICtrlCreateLabel("Enable Blur Behind:", $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $idInputExtendFramePosV + 20, -1, -1)
     $aPos = ControlGetPos($hGUI, "", $BlurBehindLabel)
     GUICtrlSetColor(-1, 0xffffff)
-
 
     $BlurBehindLabelPosV = $aPos[1] + $aPos[3]
 
@@ -659,7 +653,6 @@ Func _StartGUI()
     GUICtrlSetState(-1, $GUI_HIDE)
 
     $aPos = ControlGetPos($hGUI, "", $BlurBehindCombo)
-
 
     $BlurBehindComboPosV = $aPos[1] + $aPos[3]
     $BlurBehindComboPosH = $aPos[0] + $aPos[2]
@@ -676,15 +669,12 @@ Func _StartGUI()
 
     $aPos = ControlGetPos($hGUI, "", $idInputBlurBehind)
 
-
     $idInputBlurBehindPosV = $aPos[1] + $aPos[3]
     $idInputBlurBehindPosH = $aPos[0] + $aPos[2]
-
 
     $BlurTintColorLabel = GUICtrlCreateLabel("Blur Tint Color:", $idInputExtendFramePosH + $FontHeight + 40, $TitlebarColorLabelPosV2, -1, -1)
     GUICtrlSetColor(-1, 0xffffff)
     $aPos = ControlGetPos($hGUI, "", $BlurTintColorLabel)
-
 
     $BlurTintColorLabelPosV = $aPos[1] + $aPos[3]
 
@@ -695,7 +685,6 @@ Func _StartGUI()
 
     $aPos = ControlGetPos($hGUI, "", $BlurTintColorInput)
 
-
     $BlurTintColorInputPosV = $aPos[1] + $aPos[3]
     $BlurTintColorInputPosH = $aPos[0] + $aPos[2]
     $BlurTintColorInputPosV2 = $aPos[1]
@@ -704,11 +693,9 @@ Func _StartGUI()
     _GUIToolTip_AddTool($hToolTip2, 0, " Change Color ", GUICtrlGetHandle($BlurTintColorPickLabel))
     GUICtrlSetOnEvent(-1, "ColorPickerBlurTintColor")
 
-
     $BlurColorIntensityLabel = GUICtrlCreateLabel("Blur Color Intensity:", $idInputExtendFramePosH + $FontHeight + 40, $BlurTintColorInputPosV + 20, -1, -1)
     GUICtrlSetColor(-1, 0xffffff)
     $aPos = ControlGetPos($hGUI, "", $BlurColorIntensityLabel)
-
 
     $BlurColorIntensityLabelPosV = $aPos[1] + $aPos[3]
 
@@ -724,7 +711,6 @@ Func _StartGUI()
 
     $aPos = ControlGetPos($hGUI, "", $BlurColorIntensitySlider)
 
-
     $BlurColorIntensitySliderPosV = $aPos[1] + $aPos[3]
     $BlurColorIntensitySliderPosH = $aPos[0] + $aPos[2]
     $BlurColorIntensitySliderV2 = $aPos[1]
@@ -736,7 +722,7 @@ Func _StartGUI()
     GUICtrlCreateGroup("", -99, -99, 1, 1) ;close group
 
     _WinAPI_DwmSetWindowAttribute__($hGUI, 20, 1)
-    _WinAPI_DwmSetWindowAttribute__($hGUI, 38, 4)
+    ;_WinAPI_DwmSetWindowAttribute__($hGUI, 38, 4)
     _WinAPI_DwmExtendFrameIntoClientArea($hGUI, _WinAPI_CreateMargins(-1, -1, -1, -1))
 
     GUICtrlSendMsg( $DarkTitleCombo, $WM_CHANGEUISTATE, 65537, 0 )
@@ -748,26 +734,16 @@ Func _StartGUI()
 
     GUIRegisterMsg($WM_COMMAND, "ED_WM_COMMAND")
 
-
     ControlFocus($hGUI, "", $RuleListCombo)
-    ;_GUICtrlStatusBar_ShowHide($g_hStatus, @SW_HIDE)
-    ;_WinAPI_SetParent(GUICtrlGetHandle($idStatusInput), $hGUI)
-
-
-    ;GUICtrlSetResizing($idStatusCombo, $GUI_DOCKBOTTOM)
-    ;GUICtrlSetResizing($idStatusInput, $GUI_DOCKBOTTOM)
-    ;GUICtrlSetResizing($idPart0, $GUI_DOCKBOTTOM)
-    ;GUICtrlSetResizing($idPart1, $GUI_DOCKBOTTOM)
-    ;GUICtrlSetResizing($idPart2, $GUI_DOCKBOTTOM)
-
+  
     If @Compiled Then
         GUISetIcon(@ScriptFullPath, 201)
     ElseIf Not @Compiled Then
         GUISetIcon(@ScriptDir & "\app.ico")
     EndIf
 
+    GUIRegisterMsg($WM_NCHITTEST, "_MY_NCHITTEST")
     GUISetState()
-
 
     ; Just idle around
     While 1
@@ -862,6 +838,22 @@ Func _UpdateColorBoxes()
 	GUICtrlSetBkColor($BlurTintColorPickLabel, $color4)
 EndFunc
 
+Func idSpecialHandlingTest()
+    _GUICtrlComboBox_ShowDropDown($idSpecialHandlingCombo, True)
+    ControlFocus($hGUI, "", $idSpecialHandlingCombo)
+EndFunc
+
+Func idStatusInputTest()
+    If Not @Compiled Then
+        ;MsgBox(0, "Immersive UX", "Task Scheduler functionality is only available for compiled binaries.")
+        Local $sMsg = "Task Scheduler functionality is only available for compiled binaries." & @CRLF
+        _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+        Return
+    EndIf
+    _GUICtrlComboBox_ShowDropDown($idStatusCombo, True)
+    ControlFocus($hGUI, "", $idStatusCombo)
+EndFunc
+
 Func ED_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
     #forceref $hWnd, $iMsg
     Local $iCode = BitShift($wParam, 16)
@@ -927,14 +919,6 @@ Func ED_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
                 Case $EN_SETFOCUS
                     _GUICtrlComboBox_ShowDropDown($RuleEnabledCombo, True)
                     ControlFocus($hGUI, "", $RuleEnabledCombo)
-                Case $EN_KILLFOCUS
-                    ;GUICtrlSetData($hLabel, "Edit does not have focus")
-            EndSwitch
-        Case GUICtrlGetHandle($idStatusInput)
-            Switch $iCode
-                Case $EN_SETFOCUS
-                    _GUICtrlComboBox_ShowDropDown($idStatusCombo, True)
-                    ControlFocus($hGUI, "", $idStatusCombo)
                 Case $EN_KILLFOCUS
                     ;GUICtrlSetData($hLabel, "Edit does not have focus")
             EndSwitch
@@ -1021,6 +1005,28 @@ EndFunc
 
 Func idComboRuleEnabled()
     GUICtrlSetData($idInputRuleEnabled, GUICtrlRead($RuleEnabledCombo))
+EndFunc
+
+Func idSpecialHandlingCombo()
+    Local $SpecialHandlingComboRead = GUICtrlRead($idSpecialHandlingCombo)
+    If $SpecialHandlingComboRead = "Patch VSCode" Then
+        $sMsg = "This will patch all VSCode and VSCodium installs on the system." & @CRLF & @CRLF
+        $sMsg &= "You will likely have to do this after every VSCode and VSCodium update." & @CRLF & @CRLF
+        $sMsg &= 'NOTE: VSCode and VSCodium will show a message stating that your "...installation appears to be corrupt".' & @CRLF
+        $sMsg &= "This message is harmless. Click on the cogwheel and select Don't Show Again." & @CRLF
+        $sMsg &= " " & @CRLF
+        $sMsg &= "Do you want to continue?" & @CRLF
+        $iRetValue = _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 4, $sProdName, $sMsg)
+
+	If $iRetValue = 1 Then
+		_VSCode_mod()
+	ElseIf $iRetValue = 2 Then
+		Return
+	EndIf
+    ElseIf $SpecialHandlingComboRead = "Unpatch VSCode" Then
+        _VSCode_mod_uninstall()
+    EndIf
+    _GUICtrlComboBox_SetCurSel($idSpecialHandlingCombo, -1)
 EndFunc
 
 Func idStatusCombo()
@@ -1476,7 +1482,7 @@ Func _GetIniDetails()
         For $i = 1 To $aSectionNames[0]
                 ;If StringInStr($aSectionNames[$i], "CustomRules") Then
                 Local $a = $aSectionNames[$i]
-                If $a <> "Configuration" And $a <> "ProcessExclusion" And $a <> "ClassExclusion" And $a <> "Settings" And $a <> "GlobalRules" And $a <> "StartupInfoOnly" Then
+                If $a <> "Configuration" And $a <> "ProcessExclusion" And $a <> "ClassExclusion" And $a <> "Settings" And $a <> "GlobalRules" And $a <> "StartupInfoOnly" And $a <> "VSCodeInstallPath" Then
                         $count += 1
                         ;ConsoleWrite($aSectionNames[$i] & @CRLF)
                         Local $aArray = IniReadSection($sIniPath, $aSectionNames[$i])
@@ -1508,30 +1514,8 @@ Func _GetIniDetails()
         ; $aCustomRules[$i][9] = "EnableBlurBehind"
         ; $aCustomRules[$i][10] = "BlurTintColor"
         ; $aCustomRules[$i][11] = "TintColorIntensity"
+        ; $aCustomRules[$i][12] = rule enabled/disabled
         ; $aCustomRules[$i][13] = contains sectionname
-
-        ; Create an INI section structure as an array. The zeroth element is how many items are in the array, in this case 3.
-        Local $i = 3
-        Local $aSection[13][2] = [[12, ""], ["RuleType", $aCustomRules[$i][0]], ["Target", $aCustomRules[$i][1]], ["DarkTitleBar", $aCustomRules[$i][2]], ["BorderColor", $aCustomRules[$i][3]], ["TitleBarColor", $aCustomRules[$i][4]], ["TitleBarTextColor", $aCustomRules[$i][5]], ["TitleBarBackdrop", $aCustomRules[$i][6]], ["CornerPreference", $aCustomRules[$i][7]], ["ExtendFrameIntoClient", $aCustomRules[$i][8]], ["EnableBlurBehind", $aCustomRules[$i][9]], ["BlurTintColor", $aCustomRules[$i][10]], ["TintColorIntensity", $aCustomRules[$i][11]]]
-
-        Local $aArray = IniReadSection($sIniPath, "CustomRules_win32calc")
-        ;_ArrayDisplay($aArray, "testing reading of real section")
-
-        ;_ArrayDisplay($aSection, "testing creation of same section")
-
-        For $i = 0 To UBound($aCustomRules) - 1
-                Local $aSection[13][2] = [[12, ""], ["RuleType", $aCustomRules[$i][0]], ["Target", $aCustomRules[$i][1]], ["DarkTitleBar", $aCustomRules[$i][2]], ["BorderColor", $aCustomRules[$i][3]], ["TitleBarColor", $aCustomRules[$i][4]], ["TitleBarTextColor", $aCustomRules[$i][5]], ["TitleBarBackdrop", $aCustomRules[$i][6]], ["CornerPreference", $aCustomRules[$i][7]], ["ExtendFrameIntoClient", $aCustomRules[$i][8]], ["EnableBlurBehind", $aCustomRules[$i][9]], ["BlurTintColor", $aCustomRules[$i][10]], ["TintColorIntensity", $aCustomRules[$i][11]]]
-                ;_ArrayDisplay($aSection, "testing creation of same section")
-        Next
-
-
-        #cs the goods
-        _ArrayColDelete($aArray, 0)
-        _ArrayDelete($aArray, 0)
-        
-        _ArrayTranspose($aArray)
-        _ArrayDisplay($aArray, "_ArrayDisplay Transposed", "", 2, Default, "RuleType|Process/Class|DarkMode|BorderColor|TitleBarColor|TitleBarTextColor|CornerPreference|TitleBarBackdrop")
-        #ce
 
         ; sort array
         _ArraySort($aCustomRules, 0, 0, 0 , 1)
@@ -2062,9 +2046,11 @@ Func _TaskStatusUpdate()
     EndIf
     If Not $TaskIntegrity Then $TaskIntegrity = "No"
 
+    _IsEngineProcRunning()
+
     GUICtrlSetData($idPart0, "Task Installed: " & $TaskInstalled)
-    GUICtrlSetData($idPart1, "Task Running: " & $TaskRunning)
-    GUICtrlSetData($idPart2, "Task Elevated: " & $TaskIntegrity)
+    ;GUICtrlSetData($idPart1, "Task Running: " & $TaskRunning)
+    ;GUICtrlSetData($idPart2, "Task Elevated: " & $TaskIntegrity)
 EndFunc
 
 Func _TaskStatusUpdate_adlib()
@@ -2079,22 +2065,33 @@ Func _TaskStatusUpdate_adlib()
     EndIf
     If Not $TaskIntegrity Then $TaskIntegrity = "No"
 
+    _IsEngineProcRunning()
+
     GUICtrlSetData($idPart0, "Task Installed: " & $TaskInstalled)
-    GUICtrlSetData($idPart1, "Task Running: " & $TaskRunning)
-    GUICtrlSetData($idPart2, "Task Elevated: " & $TaskIntegrity)
+    ;GUICtrlSetData($idPart1, "Task Running: " & $TaskRunning)
+    ;GUICtrlSetData($idPart2, "Task Elevated: " & $TaskIntegrity)
 
     AdlibUnRegister("_TaskStatusUpdate_adlib")
 EndFunc
 
 Func _IsEngineProcRunning()
-    $aProcessRunning = ProcessList(@ScriptDir & "\" & $sEngName & ".exe")
-    If $aProcessRunning[0][0] <> 0 Then
-        Local $iPID = $aProcessRunning[1][1]
-        $bProcessRunning = True
-        $IsRunFromTS = _ToBoolean(IniRead($sIniPath, "StartupInfoOnly", "StartedByTask", "False"))
-    ElseIf $aProcessRunning[0][0] = 0 Then
-        $bProcessRunning = False
-        ConsoleWrite($sProdName & " process is NOT running" & @CRLF)
+    Local $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
+    Local $bElevated = _ToBoolean(IniRead($sIniPath, "StartupInfoOnly", "Elevated", "False"))
+    Local $sEngineStatus
+    If $iPID <> "" Then
+        ; engine is running
+        If $bElevated Then
+            ; engine is running as admin
+            $sEngineStatus = "Engine Running: Admin"
+            GUICtrlSetData($idPart1, $sEngineStatus)
+        ElseIf Not $bElevated Then
+            ; engine is running
+            $sEngineStatus = "Engine Running: Yes"
+            GUICtrlSetData($idPart1, $sEngineStatus)
+        EndIf
+    ElseIf $iPID = "" Then
+        $sEngineStatus = "Engine Running: No"
+        GUICtrlSetData($idPart1, $sEngineStatus)
     EndIf
 EndFunc
 
@@ -2119,3 +2116,219 @@ Func _GetHwndFromPID($PID)
 	;Until $hWnd <> 0
 	Return $hWnd
 EndFunc;==>_GetHwndFromPID
+
+; Original code - Prog@ndy
+Func _MY_NCHITTEST($hWnd, $uMsg, $wParam, $lParam)
+    Switch $hWnd
+        Case $hGUI
+            Local $aPos = WinGetPos($hWnd) ; Check if mouse is over top 50 pixels
+            If Abs(BitAND(BitShift($lParam, 16), 0xFFFF) - $aPos[1]) < 2000 Then Return $HTCAPTION
+    EndSwitch
+    Return $GUI_RUNDEFMSG
+EndFunc   ;==>_MY_NCHITTEST
+
+Func _VSCode_mod()
+    ; patch settings.json first
+    Local $iJsonStableExists = FileExists(@AppDataDir & "\Code\User\settings.json")
+    If $iJsonStableExists Then
+        Local $sJsonStablePath = @AppDataDir & "\Code\User\settings.json"
+        _VSCode_mod_json($sJsonStablePath)
+    EndIf
+
+	Local $aArray = IniReadSection($sIniPath, "VSCodeInstallPath")
+
+	; Check if an error occurred.
+	If Not @error Then
+		; Enumerate through the array displaying the keys and their respective values.
+		For $i = 1 To $aArray[0][0]
+			;MsgBox($MB_SYSTEMMODAL, "", "Key: " & $aArray[$i][0] & @CRLF & "Value: " & $aArray[$i][1])
+			If $aArray[$i][1] <> "" Then
+                Local $sReplace = StringReplace($aArray[$i][1], "C:\Program Files", @ProgramFilesDir)
+                Local $sReplace = StringReplace($aArray[$i][1], "C:\Users\username\AppData\Local", @LocalAppDataDir)
+                $aArray[$i][1] = $sReplace
+                ;$aArray[$i][1] = '"' & $sReplace & '"'
+                Local $iFileExists = FileExists($aArray[$i][1])
+				;ConsoleWrite($aArray[$i][1] & " " & $iFileExists & @CRLF)
+                ; if VSC install dir exists, proceed with install/uninstall stuff
+                If $iFileExists Then
+					If StringInStr($aArray[$i][1], @ProgramFilesDir) And Not IsAdmin() Then
+						Local $sMsg = "Error: Please restart Immersive UX as Admin to modify files in this location." & @CRLF
+        				_ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+					Else
+						_VSCode_mod_install($aArray[$i][1])
+						_VSCode_mod_files($aArray[$i][1])
+                        ; check if 'data' dir exists indicating portable mode
+                        Local $iJsonPortableExists = FileExists($aArray[$i][1] & "\data\user-data\User\settings.json")
+                        If $iJsonPortableExists Then
+                            Local $sJsonPath = $aArray[$i][1] & "\data\user-data\User\settings.json"
+                            _VSCode_mod_json($sJsonPath)
+                        EndIf
+					EndIf
+				EndIf
+			EndIf
+		Next
+	EndIf
+EndFunc
+
+Func _VSCode_mod_json($sJsonPath)
+    ; backup original settings.json file
+    FileCopy($sJsonPath, $sJsonPath & ".backup", $FC_OVERWRITE)
+    Local $sJSONRAW = _JSON_Minify($sJsonPath)
+
+    ; parse JSON string
+    Local $vJSON = _JSON_Parse($sJSONRAW)
+    If @error Then
+        MsgBox(0,"Error", "Error " & @error &  " during parsing the JSON string")
+        Return
+    EndIf
+
+    ; for inner nested elements you can use _JSON_addChangeDelete() instead (points must be escaped)
+    _JSON_addChangeDelete($vJSON, "workbench\.colorCustomizations.editor\.background", "#00000060")
+    _JSON_addChangeDelete($vJSON, "workbench\.colorCustomizations.terminal\.background", "#00000000")
+
+    ; add (or change if they already exists) the desired values
+    $vJSON["terminal.integrated.gpuAcceleration"]   = "off"
+    $vJSON["window.customTitleBarVisibility"]       = "auto"
+    $vJSON["window.titleBarStyle"]                  = "custom"
+    $vJSON["window.controlsStyle"]                  = "custom"
+
+    Local $hFileOpen = FileOpen($sJsonPath, $FO_OVERWRITE)
+    FileWrite($hFileOpen, _JSON_Generate($vJSON) & @CRLF)
+    FileClose($hFileOpen)
+EndFunc
+
+Func _VSCode_mod_files($sVSCodePath)
+	Local $sVSCodeModDir = $sVSCodePath & "\resources\app\out\vscode-immersiveux-mod"
+	Local $iFileExists = FileExists($sVSCodeModDir)
+	If Not $iFileExists Then DirCreate($sVSCodeModDir)
+	Local $sVSCodeModDir2 = $sVSCodePath & "\resources\app\out\vscode-immersiveux-mod\methods"
+	Local $iFileExists = FileExists($sVSCodeModDir2)
+	If Not $iFileExists Then DirCreate($sVSCodeModDir2)
+	FileInstall(".\vscode-immersiveux-mod\index.cjs", $sVSCodeModDir & "\index.cjs", $FC_OVERWRITE)
+	FileInstall(".\vscode-immersiveux-mod\methods\index.cjs", $sVSCodeModDir2 & "\index.cjs", $FC_OVERWRITE)
+	FileInstall(".\vscode-immersiveux-mod\methods\interval.cjs", $sVSCodeModDir2 & "\interval.cjs", $FC_OVERWRITE)
+	FileInstall(".\vscode-immersiveux-mod\methods\overwrite.cjs", $sVSCodeModDir2 & "\overwrite.cjs", $FC_OVERWRITE)
+EndFunc
+
+Func _VSCode_mod_install($sVSCodePath)
+    ; workbench
+    Local $sWorkbenchFind = @TAB & "trusted-types"
+    Local $sWorkbenchReplace = @TAB & "trusted-types VscodeVibrancy"
+    Local $sWorkbenchPath = $sVSCodePath & "\resources\app\out\vs\code\electron-browser\workbench\workbench.html"
+    Local $sWorkbenchRead = FileRead($sWorkbenchPath)
+    If Not StringInStr($sWorkbenchRead, "VscodeVibrancy") Then
+        ; backup original file
+	    FileCopy($sWorkbenchPath, $sWorkbenchPath & ".backup", $FC_OVERWRITE)
+        _ReplaceStringInFile($sWorkbenchPath, $sWorkbenchFind, $sWorkbenchReplace)
+    EndIf
+
+    ; main.js
+    Local Const $sMainjsPath = $sVSCodePath & "\resources\app\out\main.js"
+    Local $sIndexPath = $sVSCodePath & "\resources\app\out\vscode-immersiveux-mod\index.cjs"
+	Local $sIndexPath2 = StringReplace($sIndexPath, "\", "/")
+
+    Local $sMainJSFind = "experimentalDarkMode"
+    Local $sMainJSReplace = "frame:false,transparent:true,experimentalDarkMode"
+
+    Local $sMainJSRead = FileRead($sMainjsPath)
+    If Not StringInStr($sMainJSRead, "transparent:true") And Not StringInStr($sMainJSRead, "VSCODE-VIBRANCY-START") Then
+        ; backup original file
+	    FileCopy($sMainjsPath, $sMainjsPath & ".backup", $FC_OVERWRITE)
+        _ReplaceStringInFile($sMainjsPath, $sMainJSFind, $sMainJSReplace)
+
+        ; Open the file for writing (append to the end of a file) and store the handle to a variable.
+        Local $hFileOpen = FileOpen($sMainjsPath, $FO_APPEND)
+        If $hFileOpen = -1 Then
+            MsgBox($MB_SYSTEMMODAL, "", "An error occurred whilst writing the temporary file.")
+            Return False
+        EndIf
+
+        ; Write data to the file using the handle returned by FileOpen.
+        FileWrite($hFileOpen, '' & @CRLF)
+        FileWrite($hFileOpen, '/* !! VSCODE-VIBRANCY-START !! */' & @CRLF)
+        FileWrite($hFileOpen, '' & @CRLF)
+        FileWrite($hFileOpen, ';(function(){' & @CRLF)
+        FileWrite($hFileOpen, 'global.vscode_vibrancy_plugin = {"os":"win10","config":{"type":"auto","opacity":0,"theme":"Default Dark","enableAutoTheme":false,"preferedDarkTheme":"Default Dark","preferedLightTheme":"Default Light","imports":["/path/to/file"],"refreshInterval":"5","preventFlash":false,"forceFramelessWindow":false,"disableFramelessWindow":false,"disableThemeFixes":false},"theme":{"type":{"win10":"acrylic","macos":"under-window"},"background":"1e1e1e","opacity":{"win10":0.8,"macos":0.3},"colorTheme":"Default Dark+","systemColorTheme":"dark"},"themeCSS":".scroll-decoration {\r\n  box-shadow: none !important;\r\n}\r\n\r\n.minimap, .editor-scrollable>.decorationsOverviewRuler {\r\n  opacity: 0.6;\r\n}\r\n\r\n.editor-container {\r\n  background: transparent !important;\r\n}\r\n\r\n.search-view .search-widget .input-box, .search-view .search-widget .input-box .monaco-inputbox,\r\n.monaco-workbench .part.editor>.content>.one-editor-silo>.container>.title .tabs-container>.tab,\r\n.monaco-editor-background,\r\n.monaco-editor .margin,\r\n.monaco-workbench .part>.content,\r\n.monaco-workbench .editor>.content>.one-editor-silo.editor-one,\r\n.monaco-workbench .part.editor>.content>.one-editor-silo>.container>.title,\r\n.monaco-workbench .part>.title,\r\n.monaco-workbench,\r\n.monaco-workbench .part,\r\nbody {\r\n  background: transparent !important;\r\n}\r\n\r\n.editor-group-container>.tabs {\r\n  background-color: transparent !important;\r\n}\r\n\r\n.editor-group-container>.tabs .tab {\r\n  background-color: transparent !important;\r\n}\r\n\r\n.editor-group-container>.tabs .tab.active, .editor-group-container>.tabs .monaco-breadcrumbs {\r\n  background-color: rgba(37, 37, 37,0.3) !important;\r\n}\r\n\r\n.monaco-list.settings-toc-tree .monaco-list-row.focused {\r\n  outline-color: rgb(37, 37, 37,0.6) !important;\r\n}\r\n\r\n.monaco-list.settings-toc-tree .monaco-list-row.selected,\r\n.monaco-list.settings-toc-tree .monaco-list-row.focused,\r\n.monaco-list .monaco-list-row.selected,\r\n.monaco-list.settings-toc-tree:not(.drop-target) .monaco-list-row:hover:not(.selected):not(.focused) {\r\n  background-color: rgb(37, 37, 37,0.6) !important;\r\n}\r\n\r\n.monaco-list.settings-editor-tree .monaco-list-row {\r\n  background-color: transparent !important;\r\n  outline-color: transparent !important;\r\n}\r\n\r\n.monaco-inputbox {\r\n  background-color: rgba(41, 41, 41,0.2) !important;\r\n}\r\n\r\n.monaco-editor .selected-text {\r\n  background-color: rgba(58, 61, 65,0.6) !important;\r\n}\r\n\r\n.monaco-editor .focused .selected-text {\r\n  background-color: rgba(38, 79, 120,0.6) !important;\r\n}\r\n\r\n.monaco-editor .view-overlays .current-line {\r\n  border-color: rgba(41, 41, 41,0.2) !important;\r\n}\r\n\r\n.extension-editor,\r\n.monaco-workbench .part.editor>.content>.one-editor-silo>.container>.title .tabs-container>.tab.active,\r\n.preferences-editor>.preferences-header,\r\n.preferences-editor>.preferences-editors-container.side-by-side-preferences-editor .preferences-header-container,\r\n.monaco-editor, .monaco-editor .inputarea.ime-input,\r\n.monaco-list .monaco-list-rows {\r\n  background: transparent !important;\r\n}\r\n\r\n\r\n.monaco-workbench .part.sidebar {\r\n  background-color: rgba(37, 37, 38, 0.3) !important;\r\n}\r\n\r\n\r\n.editor-group-container>.tabs .tab {\r\n  border: none !important;\r\n}\r\n\r\n.terminal-outer-container,\r\n.xterm-viewport,\r\n.xterm-rows {\r\n  background-color: transparent !important;\r\n}\r\n\r\n.monaco-workbench.fullscreen {\r\n\tbackground-color: #202020 !important;\r\n}\r\n\r\n.notebookOverlay.notebook-editor,\r\n.cell-statusbar-container,\r\n.margin-view-overlays,\r\n.monaco-list-row:hover:not(.selected):not(.focused) {\r\n  background-color: transparent !important;\r\n}","imports":{"css":"","js":""}}; try{ import("file:///')
+            FileWrite($hFileOpen, $sIndexPath2)
+            FileWrite($hFileOpen, '"); } catch (err) {console.error(err)}' & @CRLF)
+            FileWrite($hFileOpen, '})()' & @CRLF)
+            FileWrite($hFileOpen, '/* !! VSCODE-VIBRANCY-END !! */')
+            ;FileWrite($hFileOpen, '' & @CRLF)
+
+        ; Close the handle returned by FileOpen.
+        FileClose($hFileOpen)
+    EndIf
+EndFunc
+
+Func _VSCode_mod_uninstall()
+    ; unpatch settings.json first
+    Local $iJsonStableExists = FileExists(@AppDataDir & "\Code\User\settings.json")
+    If $iJsonStableExists Then
+        Local $sJsonStablePath = @AppDataDir & "\Code\User\settings.json"
+        _VSCode_mod_json_restore($sJsonStablePath)
+    EndIf
+
+	Local $aArray = IniReadSection($sIniPath, "VSCodeInstallPath")
+
+	; Check if an error occurred.
+	If Not @error Then
+		; Enumerate through the array displaying the keys and their respective values.
+		For $i = 1 To $aArray[0][0]
+			;MsgBox($MB_SYSTEMMODAL, "", "Key: " & $aArray[$i][0] & @CRLF & "Value: " & $aArray[$i][1])
+			If $aArray[$i][1] <> "" Then
+                Local $sReplace = StringReplace($aArray[$i][1], "C:\Program Files", @ProgramFilesDir)
+                Local $sReplace = StringReplace($aArray[$i][1], "C:\Users\username\AppData\Local", @LocalAppDataDir)
+                $aArray[$i][1] = $sReplace
+                ;$aArray[$i][1] = '"' & $sReplace & '"'
+                Local $iFileExists = FileExists($aArray[$i][1])
+				;ConsoleWrite($aArray[$i][1] & " " & $iFileExists & @CRLF)
+                ; if VSC install dir exists, proceed with install/uninstall stuff
+                If $iFileExists Then
+					If StringInStr($aArray[$i][1], @ProgramFilesDir) And Not IsAdmin() Then
+						Local $sMsg = "Error: Please restart Immersive UX as Admin to modify files in this location." & @CRLF
+        				_ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+					Else
+						_VSCode_mod_patch_remove($aArray[$i][1])
+						_VSCode_mod_files_remove($aArray[$i][1])
+                        ; check if 'data' dir exists indicating portable mode
+                        Local $iJsonPortableExists = FileExists($aArray[$i][1] & "\data\user-data\User\settings.json")
+                        If $iJsonPortableExists Then
+                            Local $sJsonPath = $aArray[$i][1] & "\data\user-data\User\settings.json"
+                            _VSCode_mod_json_restore($sJsonPath)
+                        EndIf
+					EndIf
+				EndIf
+			EndIf
+		Next
+	EndIf
+EndFunc
+
+Func _VSCode_mod_patch_remove($sVSCodePath)
+	; workbench
+    Local $sWorkbenchPath = $sVSCodePath & "\resources\app\out\vs\code\electron-browser\workbench\workbench.html"
+    Local $sMainjsPath = $sVSCodePath & "\resources\app\out\main.js"
+	Local $sWorkbenchBackup = $sWorkbenchPath & ".backup"
+	Local $sMainjsBackup = $sMainjsPath & ".backup"
+
+	; check if $sWorkbenchBackup and $sMainjsBackup exist on disk first before filecopy
+	Local $iWorkbenchBackupExists = FileExists($sWorkbenchBackup)
+	Local $iMainjsBackupExists = FileExists($sMainjsBackup)
+
+	If $iWorkbenchBackupExists Then FileCopy($sWorkbenchBackup, $sWorkbenchPath, $FC_OVERWRITE)
+	If $iMainjsBackupExists Then FileCopy($sMainjsBackup, $sMainjsPath, $FC_OVERWRITE)
+
+	FileDelete($sWorkbenchBackup)
+	FileDelete($sMainjsBackup)
+EndFunc
+
+Func _VSCode_mod_files_remove($sVSCodePath)
+	Local $sVSCodeModDir = $sVSCodePath & "\resources\app\out\vscode-immersiveux-mod"
+	Local $iFileExists = FileExists($sVSCodeModDir)
+	If $iFileExists Then DirRemove($sVSCodeModDir, $DIR_REMOVE)
+EndFunc
+
+Func _VSCode_mod_json_restore($sJsonPath)
+    ; restore backup settings.json
+    FileCopy($sJsonPath & ".backup", $sJsonPath, $FC_OVERWRITE)
+    FileDelete($sJsonPath & ".backup")
+EndFunc

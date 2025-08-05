@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.1.2
+#AutoIt3Wrapper_Res_Fileversion=1.1.3
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.1.2
+#AutoIt3Wrapper_Res_ProductVersion=1.1.3
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=Y
@@ -21,7 +21,7 @@
 #include <Array.au3>
 #include <Misc.au3>
 
-$iVersion = '1.1.2'
+$iVersion = '1.1.3'
 
 ; HotKey only used temporarily when needing to look for window classes to include/exclude
 ;#include <Process.au3>
@@ -46,6 +46,7 @@ Global $bClassicExplorer, $bExplorerExtendClient
 Global $bGlobalDarkTitleBar, $dGlobalBorderColor, $dGlobalTitleBarColor, $dGlobalTitleBarTextColor, $iGlobalTitleBarBackdrop, $iGlobalCornerPreference, $iGlobalExtendFrameIntoClient, $iGlobalEnableBlurBehind
 Global $iGlobalBlurTintColor
 Global $dTerminalBorderColor, $dTerminalBackdrop, $bWindowsTerminalHandling, $dVSStudioBorderColor
+Global $dVSCodiumBackdrop, $dVSCodeBackdrop
 Global $bEnable = False
 Global $aCustomRules[0][13]
 Global $mMap[]
@@ -54,6 +55,8 @@ Global $TRAY_EVENT_PRIMARYDOWN = -7
 Global $bElevated = False
 Global $sProdName = "ImmersiveUX"
 Global $sEngName = "ImmersiveEngine"
+Global $DWMWA_COLOR_NONE = 0xFFFFFFFE
+Global $DWMWA_COLOR_DEFAULT = 0xFFFFFFFF
 
 ReadIniFile()
 Func ReadIniFile()
@@ -83,7 +86,7 @@ Func ReadIniFile()
     For $i = 1 To $aSectionNames[0]
         ;If StringInStr($aSectionNames[$i], "CustomRules", $STR_NOCASESENSEBASIC) Then
 		Local $a = $aSectionNames[$i]
-        If $a <> "Configuration" And $a <> "ProcessExclusion" And $a <> "ClassExclusion" And $a <> "Settings" And $a <> "GlobalRules" And $a <> "StartupInfoOnly" Then
+        If $a <> "Configuration" And $a <> "ProcessExclusion" And $a <> "ClassExclusion" And $a <> "Settings" And $a <> "GlobalRules" And $a <> "StartupInfoOnly" And $a <> "VSCodeInstallPath" Then
 			Local $aArray = IniReadSection($IniFile, $aSectionNames[$i])
 			;ConsoleWrite("number of lines: " & $aArray[0][0] & @CRLF)
 			If $aArray[0][0] <> '13' Then
@@ -132,6 +135,16 @@ Func ReadIniFile()
 				$dTerminalBackdrop = $aCustomRules[$i][6]
 			Else
 				$dTerminalBackdrop = $iGlobalTitleBarBackdrop
+			EndIf
+		EndIf
+		If StringInStr($aCustomRules[$i][1], "VSCodium.exe", $STR_NOCASESENSEBASIC) Then
+			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][12] <> "False" Then
+				$dVSCodiumBackdrop = $aCustomRules[$i][6]
+			EndIf
+		EndIf
+		If StringInStr($aCustomRules[$i][1], "Code.exe", $STR_NOCASESENSEBASIC) Then
+			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][12] <> "False" Then
+				$dVSCodeBackdrop = $aCustomRules[$i][6]
 			EndIf
 		EndIf
 		If StringInStr($aCustomRules[$i][1], "CASCADIA_HOSTING_WINDOW_CLASS", $STR_NOCASESENSEBASIC) Then
@@ -519,6 +532,7 @@ Func MainColoringFunction($hWnd)
 			If $aCustomRules[$i][2] = "" Then
 				If $bGlobalDarkTitleBar Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
 			EndIf
+			#cs ; don't need border coloring here anymore since dealt with in foreground event
 			; border color, fallback to global if not set
 			If $iBorderColorOptions <> 0 Then
 				If $aCustomRules[$i][3] <> "" Then
@@ -527,6 +541,7 @@ Func MainColoringFunction($hWnd)
 					If $dGlobalBorderColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor($dGlobalBorderColor))
 				EndIf
 			EndIf
+			#ce
 			; titlebar color, fallback to global if not set
 			If $aCustomRules[$i][4] <> "" Then
 				_WinAPI_DwmSetWindowAttribute__($hWnd, 35, _WinAPI_SwitchColor($aCustomRules[$i][4]))
@@ -630,14 +645,19 @@ Func _ColorBorderOnly($hWnd, $sClassName, $sName)
 			If $aCustomRules[$i][3] <> "" Then
 				;_WinAPI_DwmSetWindowAttribute__($hWnd, 34, 0xFFFFFFFF)
 				_WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor($aCustomRules[$i][3]))
-			Else
-				If $dGlobalBorderColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor($dGlobalBorderColor))
+			ElseIf $aCustomRules[$i][3] = "" Then
+				;If $dGlobalBorderColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor($dGlobalBorderColor))
+				_WinAPI_DwmSetWindowAttribute__($hWnd, 34, $DWMWA_COLOR_NONE)
 			EndIf
 		EndIf
     Next
 
 	If Not $bMatchesFound Then
-		If $dGlobalBorderColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor($dGlobalBorderColor))
+		If $dGlobalBorderColor <> "" Then
+			_WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor($dGlobalBorderColor))
+		ElseIf $dGlobalBorderColor = "" Then
+			_WinAPI_DwmSetWindowAttribute__($hWnd, 34, $DWMWA_COLOR_NONE)
+		EndIf
 	EndIf
 EndFunc
 
@@ -647,16 +667,22 @@ Func _DwmExtendFrameIntoClientArea($hWnd, $sName, $sClassName, $i)
 		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(5000, 5000, 0, 0))
 		;_WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor($dVSStudioBorderColor))
 	ElseIf StringInStr($sName, 'VSCodium.exe', $STR_NOCASESENSEBASIC) Then
-		EnableBlurBehind($hWnd, True, $sName, $sClassName)
-		_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False)
-		_WinAPI_DwmEnableBlurBehindWindow($hWnd, 0, 0)
-		_WinAPI_DwmSetWindowAttribute__($hWnd, 38, $dTerminalBackdrop)
+		Sleep(20) ; needs a slight delay to work
+		;_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False) ; only needed for old vibrancy method
+		_WinAPI_DwmSetWindowAttribute__($hWnd, 38, $dVSCodiumBackdrop)
+		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
+		Sleep(20) ; needs a slight delay to work
+		;_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False) ; only needed for old vibrancy method
+		_WinAPI_DwmSetWindowAttribute__($hWnd, 38, $dVSCodiumBackdrop)
 		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
 	ElseIf StringInStr($sName, 'Code.exe', $STR_NOCASESENSEBASIC) Then
-		EnableBlurBehind($hWnd, True, $sName, $sClassName)
-		_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False)
-		_WinAPI_DwmEnableBlurBehindWindow($hWnd, 0, 0)
-		_WinAPI_DwmSetWindowAttribute__($hWnd, 38, $dTerminalBackdrop)
+		Sleep(20) ; needs a slight delay to work
+		;_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False) ; only needed for old vibrancy method
+		_WinAPI_DwmSetWindowAttribute__($hWnd, 38, $dVSCodeBackdrop)
+		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
+		Sleep(20) ; needs a slight delay to work
+		;_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False) ; only needed for old vibrancy method
+		_WinAPI_DwmSetWindowAttribute__($hWnd, 38, $dVSCodeBackdrop)
 		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
 	ElseIf $sClassName = "CASCADIA_HOSTING_WINDOW_CLASS" Then
 		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(5000, 5000, 0, 0))
@@ -739,6 +765,7 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 	Local $sClassNameShow, $sClassName3, $sClassNameReorder, $sClassNameNameChange, $sClassName6, $sClassNameCreate, $sClassNameShow
 	Local $sClassNameForeground
 	Local $hTerminal
+	Local Static $bVSCodeHideLast
     Switch $iEvent
 		Case $EVENT_OBJECT_CREATE
 			; EVENT_OBJECT_CREATE catches process init sooner and works with most apps
@@ -840,7 +867,7 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 					$sNameForeground = _WinAPI_GetWindowFileName($hWnd)
 					; active window changed
 					; remove border color from last window
-					_WinAPI_DwmSetWindowAttribute__($hActiveWndLast, 34, 0xFFFFFFFF)
+					_WinAPI_DwmSetWindowAttribute__($hActiveWndLast, 34, $DWMWA_COLOR_NONE)
 					; add border color for new window
 					;_ColorBorderOnly($hWnd, $sClassName, $sName)
 					$hActiveWndLast = $hActiveWnd
@@ -862,7 +889,7 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 				Sleep(20)
 				_WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor($dVSStudioBorderColor))
 			EndIf
-
+			
 			; special handling for Windows Terminal backdrop
 			If $bWindowsTerminalHandling Then
 				If WinExists("[CLASS:CASCADIA_HOSTING_WINDOW_CLASS]") Then
@@ -1107,7 +1134,7 @@ Func _WinAPI_DwmEnableBlurBehindWindow10($hWnd, $bEnable = True, $iBlurColor = "
 EndFunc
 
 Func _About()
-	MsgBox($MB_SYSTEMMODAL, "Immersive UX", "Version: " & $iVersion & @CRLF & "Created by: " & "WildByDesign")
+	MsgBox(0, "Immersive UX", "Version: " & $iVersion & @CRLF & "Created by: " & "WildByDesign")
 EndFunc
 
 Func ClearHandleMap()
