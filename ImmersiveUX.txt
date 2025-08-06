@@ -60,23 +60,10 @@ Visual Studio 2022:
 It works with the default Dark theme that comes with Visual Studio. However, for best results install Vanta Black (https://marketplace.visualstudio.com/items?itemName=BrijeshRathod.PitchBlackV1) Visual Studio theme.
 
 
-Visual Studio Code:
+Visual Studio Code & VSCodium:
 
-If you intend to use DwmExtendFrameIntoClientArea with Visual Studio Code, you need to install Vibrancy Continued (https://marketplace.visualstudio.com/items?itemName=illixion.vscode-vibrancy-continued) first. This is required to get through the Electron layers.
+Special handling is required to make the Electon layers transparent in order to be able to apply background materials and blur.
 
-Important settings for your settings.json file:
+From the Immersive UX GUI, you can apply this special handling by selecting Patch VSCode in the Special Handling menu. This will patch the Electron files required to allow transparency. This patching gets undone with each update of Visual Studio Code or VSCodium. Therefore you will need to patch it after each update.
 
------------------------------------------------------------
-
-"workbench.colorCustomizations": {
-  "editor.background": "#00000060",
-  "terminal.background": "#00000000"
-},
-"vscode_vibrancy.disableFramelessWindow": true,
-"vscode_vibrancy.opacity": 0,
-"window.menuBarVisibility": "toggle",
-"window.customTitleBarVisibility": "auto",
-"window.titleBarStyle": "native",
-
------------------------------------------------------------
-
+These special handling changes require closing and restarting VSCode/VSCodium if they were running at the time of patching.
