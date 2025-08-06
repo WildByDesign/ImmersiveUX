@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX
-#AutoIt3Wrapper_Res_Fileversion=1.1.3
+#AutoIt3Wrapper_Res_Fileversion=1.1.4
 #AutoIt3Wrapper_Res_ProductName=Immersive UX
-#AutoIt3Wrapper_Res_ProductVersion=1.1.3
+#AutoIt3Wrapper_Res_ProductVersion=1.1.4
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -169,7 +169,7 @@ Func _StartGUI()
     ;$idStatusInput = GUICtrlCreateInput("Startup Task  ▼", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, 340, 20, $ES_READONLY, 0)
     ;$idStatusInput = GUICtrlCreateInput("Special Handling  ▼", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, 340, 20, $ES_READONLY, 0)
     $idSpecialHandlingCombo = GUICtrlCreateCombo("", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, (164 * $iDPI1) - 20, 20, $CBS_DROPDOWNLIST)
-    GUICtrlSetData($idSpecialHandlingCombo, "Patch VSCode|Unpatch VSCode")
+    GUICtrlSetData($idSpecialHandlingCombo, "Patch VSCode|Unpatch VSCode|Patch Terminal|Unpatch Terminal")
     ;_FillCombo()
     ;GUICtrlSetData($idStatusCombo, "Install Task|Restart Task")
     _GUICtrlComboBoxEx_SetColor($idSpecialHandlingCombo, 0x202020, 0xffffff)
@@ -1018,13 +1018,45 @@ Func idSpecialHandlingCombo()
         $sMsg &= "Do you want to continue?" & @CRLF
         $iRetValue = _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 4, $sProdName, $sMsg)
 
-	If $iRetValue = 1 Then
-		_VSCode_mod()
-	ElseIf $iRetValue = 2 Then
-		Return
-	EndIf
+        If $iRetValue = 1 Then
+            _VSCode_mod()
+            $sMsg = "VSCode/VScodium patches have been applied." & @CRLF & @CRLF
+            $sMsg &= "You will need to close and reopen any running instances of" & @CRLF
+            $sMsg &= "VSCode/VSCodium to reflect the changes." & @CRLF
+            _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+        ElseIf $iRetValue = 2 Then
+            _GUICtrlComboBox_SetCurSel($idSpecialHandlingCombo, -1)
+            Return
+        EndIf
     ElseIf $SpecialHandlingComboRead = "Unpatch VSCode" Then
         _VSCode_mod_uninstall()
+        $sMsg = "VSCode/VScodium patches have been removed." & @CRLF & @CRLF
+        $sMsg &= "You will need to close and reopen any running instances of" & @CRLF
+        $sMsg &= "VSCode/VSCodium to reflect the changes." & @CRLF
+        _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+    ElseIf $SpecialHandlingComboRead = "Patch Terminal" Then
+        $sMsg = "This will patch Windows Terminal to apply backdrop materials." & @CRLF & @CRLF
+        $sMsg &= "This works by adding a Mica theme to the Terminal settings file." & @CRLF
+        $sMsg &= " " & @CRLF
+        $sMsg &= "Do you want to continue?" & @CRLF
+        $iRetValue = _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 4, $sProdName, $sMsg)
+
+        If $iRetValue = 1 Then
+            _Terminal_patch()
+            $sMsg = "The ImmersiveUX theme has been added to your Windows Terminal settings." & @CRLF & @CRLF
+            $sMsg &= "Changes should be reflected immediately in any running instances" & @CRLF
+            $sMsg &= "of Windows Terminal." & @CRLF
+            _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+        ElseIf $iRetValue = 2 Then
+            _GUICtrlComboBox_SetCurSel($idSpecialHandlingCombo, -1)
+            Return
+        EndIf
+    ElseIf $SpecialHandlingComboRead = "Unpatch Terminal" Then
+        _Terminal_patch_remove()
+        $sMsg = "Your original Windows Terminal settings have been restored." & @CRLF & @CRLF
+        $sMsg &= "Changes should be reflected immediately in any running instances" & @CRLF
+        $sMsg &= "of Windows Terminal." & @CRLF
+        _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
     EndIf
     _GUICtrlComboBox_SetCurSel($idSpecialHandlingCombo, -1)
 EndFunc
@@ -1091,6 +1123,7 @@ Func idStatusCombo()
         GUICtrlSetData($idStatusCombo, "")
         _FillCombo()
         _GUICtrlComboBox_SetCurSel($idStatusCombo, -1)
+        _IsEngineProcRunning()
         ;GUICtrlSetData($idStatusCombo, "Install Task|Restart Task")
     EndIf
     If $StatusComboRead = "Restart Task" Then
@@ -1098,85 +1131,6 @@ Func idStatusCombo()
         _RestartTask()
         GUICtrlSetData($idStatusCombo, "")
         _FillCombo()
-        _GUICtrlComboBox_SetCurSel($idStatusCombo, -1)
-    EndIf
-EndFunc
-
-Func idStatusCombo_backup()
-    Local $StatusComboRead = GUICtrlRead($idStatusCombo)
-    $IsRunFromTS = _ToBoolean(IniRead($sIniPath, "StartupInfoOnly", "StartedByTask", "False"))
-    If $StatusComboRead = "Install Task" Or $StatusComboRead =  "Install Task (Admin)" Then
-        ; need to kill engine here if already running without task
-        ; obtain PID for engine process
-        Local $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
-        ; get handle from PID
-        Local $hWnd = _GetHwndFromPID($iPID)
-        ; close engine process in a way that allows proper process cleanup
-        WinClose($hWnd)
-        Sleep(200)
-        _InstallTask()
-        Sleep(500)
-        ; start task
-        ShellExecute(@ScriptDir & "\" & $sEngName & ".exe")
-        Sleep(200)
-        _TaskStatusUpdate()
-        GUICtrlSetData($idStatusCombo, "")
-        _FillCombo()
-        _GUICtrlComboBox_SetCurSel($idStatusCombo, -1)
-        ;GUICtrlSetData($idStatusCombo, "Uninstall Task|Restart Task")
-    EndIf
-    If $StatusComboRead = "Uninstall Task" Then
-        If $IsRunFromTS Then
-            _TaskSched_End()
-            Sleep(100)
-        ElseIf Not $IsRunFromTS Then
-            ; obtain PID for engine process
-            Local $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
-            ; get handle from PID
-            Local $hWnd = _GetHwndFromPID($iPID)
-            ; close engine process in a way that allows proper process cleanup
-            WinClose($hWnd)
-            Sleep(200)
-        EndIf
-        _UninstallTask()
-        Sleep(500)
-        _TaskStatusUpdate()
-        GUICtrlSetData($idStatusCombo, "")
-        _FillCombo()
-        _GUICtrlComboBox_SetCurSel($idStatusCombo, -1)
-        ;GUICtrlSetData($idStatusCombo, "Install Task|Restart Task")
-    EndIf
-    If $StatusComboRead = "Uninstall Task (Admin)" Then
-        Local $sMsg = " You need to run as Admin to uninstall Admin task. " & @CRLF
-        _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
-        _GUICtrlComboBox_SetCurSel($idStatusCombo, -1)
-    EndIf
-    If $StatusComboRead = "Upgrade Task (Admin)" Then
-        If $IsRunFromTS Then
-            _TaskSched_End()
-            Sleep(100)
-        ElseIf Not $IsRunFromTS Then
-            ; obtain PID for engine process
-            Local $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
-            ; get handle from PID
-            Local $hWnd = _GetHwndFromPID($iPID)
-            ; close engine process in a way that allows proper process cleanup
-            WinClose($hWnd)
-            Sleep(200)
-        EndIf
-        _InstallTask()
-        Sleep(500)
-        ShellExecute(@ScriptDir & "\" & $sEngName & ".exe")
-        Sleep(200)
-        _TaskStatusUpdate()
-        GUICtrlSetData($idStatusCombo, "")
-        _FillCombo()
-        _GUICtrlComboBox_SetCurSel($idStatusCombo, -1)
-        ;GUICtrlSetData($idStatusCombo, "Install Task|Restart Task")
-    EndIf
-    If $StatusComboRead = "Restart Task" Then
-        ;_IsEngineProcRunning()
-        _RestartTask()
         _GUICtrlComboBox_SetCurSel($idStatusCombo, -1)
     EndIf
 EndFunc
@@ -2172,7 +2126,7 @@ EndFunc
 
 Func _VSCode_mod_json($sJsonPath)
     ; backup original settings.json file
-    FileCopy($sJsonPath, $sJsonPath & ".backup", $FC_OVERWRITE)
+    If Not FileExists($sJsonPath & ".backup") Then FileCopy($sJsonPath, $sJsonPath & ".backup")
     Local $sJSONRAW = _JSON_Minify($sJsonPath)
 
     ; parse JSON string
@@ -2218,7 +2172,7 @@ Func _VSCode_mod_install($sVSCodePath)
     Local $sWorkbenchRead = FileRead($sWorkbenchPath)
     If Not StringInStr($sWorkbenchRead, "VscodeVibrancy") Then
         ; backup original file
-	    FileCopy($sWorkbenchPath, $sWorkbenchPath & ".backup", $FC_OVERWRITE)
+        If Not FileExists($sWorkbenchPath & ".backup") Then FileCopy($sWorkbenchPath, $sWorkbenchPath & ".backup")
         _ReplaceStringInFile($sWorkbenchPath, $sWorkbenchFind, $sWorkbenchReplace)
     EndIf
 
@@ -2233,7 +2187,7 @@ Func _VSCode_mod_install($sVSCodePath)
     Local $sMainJSRead = FileRead($sMainjsPath)
     If Not StringInStr($sMainJSRead, "transparent:true") And Not StringInStr($sMainJSRead, "VSCODE-VIBRANCY-START") Then
         ; backup original file
-	    FileCopy($sMainjsPath, $sMainjsPath & ".backup", $FC_OVERWRITE)
+        If Not FileExists($sMainjsPath & ".backup") Then FileCopy($sMainjsPath, $sMainjsPath & ".backup")
         _ReplaceStringInFile($sMainjsPath, $sMainJSFind, $sMainJSReplace)
 
         ; Open the file for writing (append to the end of a file) and store the handle to a variable.
@@ -2331,4 +2285,94 @@ Func _VSCode_mod_json_restore($sJsonPath)
     ; restore backup settings.json
     FileCopy($sJsonPath & ".backup", $sJsonPath, $FC_OVERWRITE)
     FileDelete($sJsonPath & ".backup")
+EndFunc
+
+Func _Terminal_patch()
+    Local $sTerminal = @LocalAppDataDir & "\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json"
+    Local $sTermPrev = @LocalAppDataDir & "\Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState\settings.json"
+    Local $sTermOther = @LocalAppDataDir & "\Microsoft\Windows Terminal\settings.json"
+
+    Local $iTerminalExists = FileExists($sTerminal)
+    If $iTerminalExists Then
+        ; backup original
+        If Not FileExists($sTerminal & ".backup") Then FileCopy($sTerminal, $sTerminal & ".backup")
+        _Terminal_patch_Json($sTerminal)
+    EndIf
+    Local $iTermPrevExists = FileExists($sTermPrev)
+    If $iTermPrevExists Then
+        ; backup original
+        If Not FileExists($sTermPrev & ".backup") Then FileCopy($sTermPrev, $sTermPrev & ".backup")
+        _Terminal_patch_Json($sTermPrev)
+    EndIf
+    Local $iTermOtherExists = FileExists($sTermOther)
+    If $iTermOtherExists Then
+        ; backup original
+        If Not FileExists($sTermOther & ".backup") Then FileCopy($sTermOther, $sTermOther & ".backup")
+        _Terminal_patch_Json($sTermOther)
+    EndIf
+EndFunc
+
+Func _Terminal_patch_Json($sTerminalJson)
+    Local $bThemeExists = False
+    Local $sJSONRAW = _JSON_Minify($sTerminalJson)
+
+    ; parse JSON string
+    Local $vJSON = _JSON_Parse($sJSONRAW)
+    If @error Then Exit MsgBox(0,"Error", "Error " & @error &  " during parsing the JSON string")
+
+    ; determine the number of elements already in the array "themes"
+    Local $iNewIdx = UBound($vJSON["themes"])
+
+    For $i = 0 To $iNewIdx - 1
+        $sThemeName = _JSON_Get($vJSON, "themes[" & $i & "].name")
+        If $sThemeName = "ImmersiveUX" Then $bThemeExists = True
+        ConsoleWrite("theme name: " & $sThemeName & @CRLF)
+    Next
+
+    ; add opacity setting as default for all profiles
+    _JSON_addChangeDelete($vJSON, "profiles.defaults.opacity", 0)
+
+    ; set ImmersiveUX theme as default
+    _JSON_addChangeDelete($vJSON, "theme", "ImmersiveUX")
+
+    ; add ImmersiveUX theme only if it does not already exist
+    If Not $bThemeExists Then
+        _JSON_addChangeDelete($vJSON, "themes[" & $iNewIdx & "]", _JSON_Parse('{"name":"ImmersiveUX","tab":{"background":"#00000040","unfocusedBackground":"#00000000"},"tabRow":{"background":"#00000000","unfocusedBackground":"#00000000"},"window":{"applicationTheme":"dark","useMica":true}}'))
+    EndIf
+
+    ; save to settings.json
+    Local $hFileOpen = FileOpen($sTerminalJson, $FO_OVERWRITE)
+    FileWrite($hFileOpen, _JSON_Generate($vJSON) & @CRLF)
+    FileClose($hFileOpen)
+EndFunc
+
+Func _Terminal_patch_remove()
+    Local $sTerminal = @LocalAppDataDir & "\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json"
+    Local $sTermPrev = @LocalAppDataDir & "\Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState\settings.json"
+    Local $sTermOther = @LocalAppDataDir & "\Microsoft\Windows Terminal\settings.json"
+
+    Local $iTerminalExists = FileExists($sTerminal)
+    If $iTerminalExists Then
+        ; restore backup file
+        If FileExists($sTerminal & ".backup") Then
+            FileCopy($sTerminal & ".backup", $sTerminal, $FC_OVERWRITE)
+            FileDelete($sTerminal & ".backup")
+        EndIf
+    EndIf
+    Local $iTermPrevExists = FileExists($sTermPrev)
+    If $iTermPrevExists Then
+        ; restore backup file
+        If FileExists($sTermPrev & ".backup") Then
+            FileCopy($sTermPrev & ".backup", $sTermPrev, $FC_OVERWRITE)
+            FileDelete($sTermPrev & ".backup")
+        EndIf
+    EndIf
+    Local $iTermOtherExists = FileExists($sTermOther)
+    If $iTermOtherExists Then
+        ; restore backup file
+        If FileExists($sTermOther & ".backup") Then
+            FileCopy($sTermOther & ".backup", $sTermOther, $FC_OVERWRITE)
+            FileDelete($sTermOther & ".backup")
+        EndIf
+    EndIf
 EndFunc

@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.1.3
+#AutoIt3Wrapper_Res_Fileversion=1.1.4
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.1.3
+#AutoIt3Wrapper_Res_ProductVersion=1.1.4
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=Y
@@ -21,7 +21,7 @@
 #include <Array.au3>
 #include <Misc.au3>
 
-$iVersion = '1.1.3'
+$iVersion = '1.1.4'
 
 ; HotKey only used temporarily when needing to look for window classes to include/exclude
 ;#include <Process.au3>
