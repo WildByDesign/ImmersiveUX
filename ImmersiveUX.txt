@@ -48,53 +48,11 @@ Global exclusions by class name can be added to config file:
 
 Windows Terminal:
 
-You just need to add a custom Mica theme to your Windows Terminal settings file. The snippet below needs to be added in the correct area of your Terminal settings file.
+Windows Terminal requires special handling to be applied which makes the background, tab row and tabs transparent.
 
-Terminal settings location:
-C:\Users\~your-user-name~\AppData\Local\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json
+From the Immersive UX GUI, you can apply this special handling by selecting Patch Terminal in the Special Handling menu.
 
-
------------------------------------------------------------
-
-    "profiles": 
-    {
-        "defaults": 
-        {
-            "opacity": 0
-        },
-
-
------------------------------------------------------------
-
-    "theme": "ImmersiveUX",
-    "themes": 
-    [
-        {
-            "name": "ImmersiveUX",
-            "tab": 
-            {
-                "background": null,
-                "iconStyle": "default",
-                "showCloseButton": "always",
-                "unfocusedBackground": "#00000000"
-            },
-            "tabRow": 
-            {
-                "background": "#00000000",
-                "unfocusedBackground": "#00000000"
-            },
-            "window": 
-            {
-                "applicationTheme": "dark",
-                "experimental.rainbowFrame": false,
-                "frame": null,
-                "unfocusedFrame": null,
-                "useMica": true
-            }
-        }
-    ],
-
------------------------------------------------------------
+These special handling changes happen immediately without the need to restart Windows Terminal.
 
 
 Visual Studio 2022:
@@ -121,3 +79,4 @@ Important settings for your settings.json file:
 "window.titleBarStyle": "native",
 
 -----------------------------------------------------------
+
