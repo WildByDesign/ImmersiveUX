@@ -22,8 +22,8 @@ Additionally, there is special handling available for **File Explorer** (both mo
 ## Screenshots:
 
 <details>
-  <summary>Windows Terminal with Acrylic</summary>
-<img width="1042" height="587" alt="image" src="https://github.com/user-attachments/assets/46bece66-ecee-439a-a4db-b9ed1c0182a2" />
+  <summary>Windows Terminal with Acrylic and square corners</summary>
+<img width="1198" height="564" alt="image" src="https://github.com/user-attachments/assets/bd118a07-b05b-4798-ba21-17f9e3f11825" />
 </details>
 
 <details>
