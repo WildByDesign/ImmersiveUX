@@ -27,8 +27,8 @@ Additionally, there is special handling available for **File Explorer** (both mo
 </details>
 
 <details>
-  <summary>Visual Studio Code / VSCodium with Mica Alt (Tabbed)</summary>
-<img width="1211" height="737" alt="image" src="https://github.com/user-attachments/assets/3953538d-2197-427f-b309-5911aabcf064" />
+  <summary>Visual Studio Code with Mica Alt (Tabbed)</summary>
+<img width="1277" height="723" alt="image" src="https://github.com/user-attachments/assets/fe99b4f0-08f1-4d7a-87dc-1284f7842516" />
 </details>
 
 <details>
