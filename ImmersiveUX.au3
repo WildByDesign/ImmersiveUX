@@ -5,14 +5,14 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX
-#AutoIt3Wrapper_Res_Fileversion=1.1.4
+#AutoIt3Wrapper_Res_Fileversion=1.1.5
 #AutoIt3Wrapper_Res_ProductName=Immersive UX
-#AutoIt3Wrapper_Res_ProductVersion=1.1.4
+#AutoIt3Wrapper_Res_ProductVersion=1.1.5
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
 #AutoIt3Wrapper_Res_Icon_Add=app.ico
-#Au3Stripper_Parameters=/MO
+#AutoIt3Wrapper_Run_Au3Stripper=y
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
 #include <MsgBoxConstants.au3>
@@ -29,6 +29,7 @@
 #include <WinAPITheme.au3>
 #include <WinAPIProc.au3>
 #include <File.au3>
+#include <GuiMenu.au3>
 
 #include "include\StringSize.au3"
 #include "include\RoundGUI.au3"
@@ -52,7 +53,7 @@ Global $SegUIVarExists = FileExists($sSegUIVar)
 
 Opt("GUIOnEventMode", 1)
 
-Global $iDPI1, $iDPI2, $hGUI
+Global $iDPI1, $iDPI2, $hGUI, $hSpecialMenu, $hTaskMenu, $FontHeight
 Global $bGlobalDarkTitleBar, $dGlobalBorderColor, $dGlobalTitleBarColor, $dGlobalTitleBarTextColor, $iGlobalTitleBarBackdrop
 Global $iGlobalCornerPreference, $iGlobalExtendFrameIntoClient, $iGlobalEnableBlurBehind, $dGlobalBlurTintColor, $iGlobalTintColorIntensity
 Global $BorderColorInput, $colorlabelfill, $TitlebarColorInput, $TitlebarColorLabel
@@ -66,7 +67,7 @@ Global $TargetInput, $hBtnRuleType, $hBtnRuleEnabled, $DeleteButton, $SaveButton
 Global $BlurColorIntensitySlider, $idPart0, $idPart1, $idPart2
 Global $TaskIntegrity, $TaskInstalled, $TaskRunning
 Global $aProcessRunning, $IsRunFromTS, $bProcessRunning
-Global $iW = 658, $iH = 440
+Global $iW = 658, $iH = 420
 
 _StartGUI()
 Func _StartGUI()
@@ -125,6 +126,24 @@ Func _StartGUI()
 
     _GetIniDetails()
 
+    $hSubItems1 = _GUICtrlMenu_CreateMenu()
+    _GUICtrlMenu_InsertMenuItem($hSubItems1, 0, "Patch VSCode", 1)
+    _GUICtrlMenu_InsertMenuItem($hSubItems1, 1, "Unpatch VSCode", 2)
+
+    $hSubItems2 = _GUICtrlMenu_CreateMenu()
+    _GUICtrlMenu_InsertMenuItem($hSubItems2, 0, "Patch Terminal", 3)
+    _GUICtrlMenu_InsertMenuItem($hSubItems2, 1, "Unpatch Terminal", 4)
+
+    $hSpecialMenu = _GUICtrlMenu_CreatePopup()
+    _GUICtrlMenu_InsertMenuItem($hSpecialMenu, 0, "VSCode", 0, $hSubItems1)
+    _GUICtrlMenu_InsertMenuItem($hSpecialMenu, 2, "Terminal", 0, $hSubItems2)
+
+    $hTaskMenu = _GUICtrlMenu_CreatePopup()
+    _GUICtrlMenu_InsertMenuItem($hTaskMenu, 0, "Install Task (Admin)", 1)
+    _GUICtrlMenu_InsertMenuItem($hTaskMenu, 1, "Install Task", 2)
+    _GUICtrlMenu_InsertMenuItem($hTaskMenu, 2, "Uninstall Task", 3)
+    _GUICtrlMenu_InsertMenuItem($hTaskMenu, 3, "Restart Task", 4)
+
     $hGUI = GUICreate("Immersive UX", $iW * $iDPI1, $iH * $iDPI1)
     If IsAdmin() Then WinSetTitle($hGUI, "", "Immersive UX" & " [Administrator]")
     ;GUICtrlSetDefColor(0xFFFFFF)
@@ -176,6 +195,7 @@ Func _StartGUI()
     GUICtrlSetOnEvent(-1, "idSpecialHandlingCombo")
     GUICtrlSetState(-1, $GUI_HIDE)
     $idPart2 = GUICtrlCreateLabel("Special Handling  ▼", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, 164 * $iDPI1, -1)
+    ;$idPart2 = GuiFlatButton_Create("Special Handling  ▼", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, -1, -1)
     GUICtrlSetOnEvent(-1, "idSpecialHandlingTest")
     GUICtrlSetBkColor(-1, 0x000000)
     GUICtrlSetColor(-1, 0xffffff)
@@ -252,7 +272,7 @@ Func _StartGUI()
         [0x000000, 0xFFFFFF, 0x000000, _	; normal 	: Background, Text, Border
         0x000000, 0xFFFFFF, 0x000000, _	; focus 	: Background, Text, Border
         0x000000, 0xFFFFFF, 0x606060, _	; hover 	: Background, Text, Border
-        0x000000, 0xFFFFFF, 0x202020]		; selected 	: Background, Text, Border
+        0x202020, 0xFFFFFF, 0x202020]		; selected 	: Background, Text, Border
     GuiFlatButton_SetDefaultColorsEx($aColorsEx)
 
     $hBtn = GuiFlatButton_Create(ChrW(0xE70D), $RuleListComboPosH + 4, $RuleListLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
@@ -743,6 +763,7 @@ Func _StartGUI()
     EndIf
 
     GUIRegisterMsg($WM_NCHITTEST, "_MY_NCHITTEST")
+    DarkMode($hGUI, True)
     GUISetState()
 
     ; Just idle around
@@ -839,11 +860,184 @@ Func _UpdateColorBoxes()
 EndFunc
 
 Func idSpecialHandlingTest()
+    ; need to redo sizes here in case window moved
+    $aWinPos = WinGetPos($hGUI)
+	$MenuResult1 = _GUICtrlMenu_TrackPopupMenu($hSpecialMenu, $hGUI, (508 * $iDPI1) + $aWinPos[0], $aWinPos[1] + $aWinPos[3] - 3, 1, 1, 2)
+	Switch $MenuResult1
+		Case 0
+			; nothing
+		Case 1
+			; patch vscode
+            $sMsg = "This will patch all VSCode and VSCodium installs on the system." & @CRLF & @CRLF
+            $sMsg &= "You will likely have to do this after every VSCode and VSCodium update." & @CRLF & @CRLF
+            $sMsg &= 'NOTE: VSCode and VSCodium will show a message stating that your "...installation appears to be corrupt".' & @CRLF
+            $sMsg &= "This message is harmless. Click on the cogwheel and select Don't Show Again." & @CRLF
+            $sMsg &= " " & @CRLF
+            $sMsg &= "Do you want to continue?" & @CRLF
+            $iRetValue = _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 4, $sProdName, $sMsg)
+
+            If $iRetValue = 1 Then
+                _VSCode_mod()
+                $sMsg = "VSCode/VScodium patches have been applied." & @CRLF & @CRLF
+                $sMsg &= "You will need to close and reopen any running instances of" & @CRLF
+                $sMsg &= "VSCode/VSCodium to reflect the changes." & @CRLF
+                _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+            ElseIf $iRetValue = 2 Then
+                Return
+            EndIf
+		Case 2
+			; unpatch vscode
+            _VSCode_mod_uninstall()
+            $sMsg = "VSCode/VScodium patches have been removed." & @CRLF & @CRLF
+            $sMsg &= "You will need to close and reopen any running instances of" & @CRLF
+            $sMsg &= "VSCode/VSCodium to reflect the changes." & @CRLF
+            _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+		Case 3
+			; patch terminal
+            $sMsg = "This will patch Windows Terminal to apply backdrop materials." & @CRLF & @CRLF
+            $sMsg &= "This works by adding a Mica theme to the Terminal settings file." & @CRLF
+            $sMsg &= " " & @CRLF
+            $sMsg &= "Do you want to continue?" & @CRLF
+            $iRetValue = _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 4, $sProdName, $sMsg)
+
+            If $iRetValue = 1 Then
+                _Terminal_patch()
+                $sMsg = "The ImmersiveUX theme has been added to your Windows Terminal settings." & @CRLF & @CRLF
+                $sMsg &= "Changes should be reflected immediately in any running instances" & @CRLF
+                $sMsg &= "of Windows Terminal." & @CRLF
+                _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+            ElseIf $iRetValue = 2 Then
+                Return
+            EndIf
+		Case 4
+			; unpatch terminal
+            _Terminal_patch_remove()
+            $sMsg = "Your original Windows Terminal settings have been restored." & @CRLF & @CRLF
+            $sMsg &= "Changes should be reflected immediately in any running instances" & @CRLF
+            $sMsg &= "of Windows Terminal." & @CRLF
+            _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+	EndSwitch
+EndFunc
+
+Func idSpecialHandlingTest_old()
     _GUICtrlComboBox_ShowDropDown($idSpecialHandlingCombo, True)
     ControlFocus($hGUI, "", $idSpecialHandlingCombo)
 EndFunc
 
 Func idStatusInputTest()
+    #cs
+    If Not @Compiled Then
+        ;MsgBox(0, "Immersive UX", "Task Scheduler functionality is only available for compiled binaries.")
+        Local $sMsg = "Task Scheduler functionality is only available for compiled binaries." & @CRLF
+        _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+        Return
+    EndIf
+    #ce
+    ; update task status info
+    _updateTaskMenu()
+    ; need to redo sizes here in case window moved
+    $aWinPos = WinGetPos($hGUI)
+	$MenuResult1 = _GUICtrlMenu_TrackPopupMenu($hTaskMenu, $hGUI, (344 * $iDPI1) + $aWinPos[0], $aWinPos[1] + $aWinPos[3] - 3, 1, 1, 2)
+	Switch $MenuResult1
+		Case 0
+			; nothing
+		Case 1
+			; Install Task (Admin)
+            ; obtain PID for engine process
+            Local $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
+            If $iPID <> "" Then
+                ; get handle from PID
+                Local $hWnd = _GetHwndFromPID($iPID)
+                ; close engine process in a way that allows proper process cleanup
+                WinClose($hWnd)
+            EndIf
+            Sleep(200)
+            _InstallTask()
+            Sleep(500)
+            ; start task
+            ShellExecute(@ScriptDir & "\" & $sEngName & ".exe", "starttask", @ScriptDir, $SHEX_OPEN, @SW_HIDE)
+            Sleep(500)
+            _TaskStatusUpdate()
+            _IsEngineProcRunning()
+		Case 2
+			; Install Task
+            ; obtain PID for engine process
+            Local $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
+            If $iPID <> "" Then
+                ; get handle from PID
+                Local $hWnd = _GetHwndFromPID($iPID)
+                ; close engine process in a way that allows proper process cleanup
+                WinClose($hWnd)
+            EndIf
+            Sleep(200)
+            _InstallTask()
+            Sleep(500)
+            ; start task
+            ShellExecute(@ScriptDir & "\" & $sEngName & ".exe", "starttask", @ScriptDir, $SHEX_OPEN, @SW_HIDE)
+            Sleep(500)
+            _TaskStatusUpdate()
+            _IsEngineProcRunning()
+		Case 3
+            ; Uninstall Task
+            ; obtain PID for engine process
+            Local $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
+            ; get handle from PID
+            Local $hWnd = _GetHwndFromPID($iPID)
+            ; close engine process in a way that allows proper process cleanup
+            WinClose($hWnd)
+            Sleep(200)
+            _UninstallTask()
+            Sleep(500)
+            _TaskStatusUpdate()
+            _IsEngineProcRunning()
+        Case 4
+			; Restart Task
+            _RestartTask()
+            Sleep(500)
+            _IsEngineProcRunning()
+	EndSwitch
+EndFunc
+
+Func _updateTaskMenu()
+    ; update state of each item in the task menu
+    $TaskIntegrity = "No"
+    $TaskInstalled = _IsTaskInstalled()
+    ;Global $TaskRunning = "No"
+    $TaskRunning = _IsTaskRunning()
+    If Not $TaskRunning Then $TaskRunning = "No"
+    ; only try to get task integrity level if it exists
+    If $TaskInstalled = "Yes" Then
+        $TaskIntegrity = _GetTaskIntegrityLevel()
+    EndIf
+    If Not $TaskIntegrity Then $TaskIntegrity = "No"
+
+    If Not IsAdmin() Then _GUICtrlMenu_SetItemEnabled($hTaskMenu, 1, False, False)
+    If $TaskRunning = "Yes" Then _GUICtrlMenu_SetItemEnabled($hTaskMenu, 4, True, False)
+    If $TaskRunning = "No" Then _GUICtrlMenu_SetItemEnabled($hTaskMenu, 4, False, False)
+    If $TaskInstalled = "Yes" Then
+        _GUICtrlMenu_SetItemEnabled($hTaskMenu, 3, True, False)
+        _GUICtrlMenu_SetItemEnabled($hTaskMenu, 2, False, False)
+    EndIf
+    If $TaskInstalled = "No" Then
+        _GUICtrlMenu_SetItemEnabled($hTaskMenu, 3, False, False)
+        _GUICtrlMenu_SetItemEnabled($hTaskMenu, 2, True, False)
+        If IsAdmin() Then
+            _GUICtrlMenu_SetItemEnabled($hTaskMenu, 2, False, False)
+            _GUICtrlMenu_SetItemEnabled($hTaskMenu, 1, True, False)
+        EndIf
+    EndIf
+    ; allow upgrading a task to highest privileges
+    If $TaskInstalled = "Yes" And $TaskIntegrity = "No" Then
+        If IsAdmin() Then _GUICtrlMenu_SetItemEnabled($hTaskMenu, 1, True, False)
+    ElseIf $TaskInstalled = "Yes" And $TaskIntegrity = "Yes" Then
+        If IsAdmin() Then _GUICtrlMenu_SetItemEnabled($hTaskMenu, 1, False, False)
+    EndIf
+    If Not IsAdmin() And $TaskInstalled = "Yes" And $TaskIntegrity = "Yes" Then
+        _GUICtrlMenu_SetItemEnabled($hTaskMenu, 3, False, False)
+    EndIf
+EndFunc
+
+Func idStatusInputTest_old()
     If Not @Compiled Then
         ;MsgBox(0, "Immersive UX", "Task Scheduler functionality is only available for compiled binaries.")
         Local $sMsg = "Task Scheduler functionality is only available for compiled binaries." & @CRLF
@@ -2376,3 +2570,57 @@ Func _Terminal_patch_remove()
         EndIf
     EndIf
 EndFunc
+
+;--------------------------------------------------------------------------------------------------------------------------------
+; https://www.autoitscript.com/forum/topic/211475-darkmode-udf-for-autoits-win32guis/#comment-1530103
+;--------------------------------------------------------------------------------------------------------------------------------
+Func DarkMode($hGUI, $bDarkMode = True)                               ; DarkMode
+
+    Local Enum $DWMWA_USE_IMMERSIVE_DARK_MODE = (@OSBuild <= 18985) ? 19 : 20
+    ;ConsoleWrite("$DWMWA_USE_IMMERSIVE_DARK_MODE=" & $DWMWA_USE_IMMERSIVE_DARK_MODE & @CRLF)
+    ;       DWMWA_USE_IMMERSIVE_DARK_MODE ; https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwmwindowattribute
+    ;       Use with DwmSetWindowAttribute. Allows the window frame for this window to be drawn in dark mode colors when the dark mode system setting is enabled.
+    ;       For compatibility reasons, all windows default to light mode regardless of the system setting.
+    ;       The pvAttribute parameter points to a value of type BOOL. TRUE to honor dark mode for the window, FALSE to always use light mode.
+    ;       This value is supported starting with Windows 11 Build 22000.
+
+    Local $iRet = _WinAPI_DwmSetWindowAttribute_unr($hGUI, $DWMWA_USE_IMMERSIVE_DARK_MODE, $bDarkMode)
+    If Not $iRet Then Return SetError(1, 0, -1)
+
+    ;_SetCtrlColorMode($Button_OK, $bDarkMode)
+    ;_SetCtrlColorMode($Button_copy, $bDarkMode)
+	_SetCtrlColorMode($hGUI, $bDarkMode)
+    ;_WinAPI_SetWindowTheme_unr(GUICtrlGetHandle($ChbxDrkMode), 0, 0) ; this control needs the theme
+
+EndFunc   ;==>DarkMode
+;--------------------------------------------------------------------------------------------------------------------------------
+Func _SetCtrlColorMode($hWnd, $bDarkMode = True, $sName = Default)    ; 'Explorer', 'CFD', 'DarkMode_ItemsView', etc.
+    If $sName = Default Then $sName = $bDarkMode ? 'DarkMode_Explorer' : 'Explorer'
+    $bDarkMode = Not Not $bDarkMode ; https://www.vbforums.com/showthread.php?900444-Windows-10-Dark-Mode-amp-VB6-apps
+    If Not IsHWnd($hWnd) Then $hWnd = GUICtrlGetHandle($hWnd)
+    Local Enum $eDefault, $eAllowDark, $eForceDark, $eForceLight, $eMax ; enum PreferredAppMode
+    DllCall('uxtheme.dll', 'bool', 133, 'hwnd', $hWnd, 'bool', $bDarkMode) ; fnAllowDarkModeForWindow = 133
+    DllCall('uxtheme.dll', 'int', 135, 'int', ($bDarkMode ? $eForceDark : $eForceLight)) ; fnAllowDarkModeForApp = 135
+    _WinAPI_SetWindowTheme_unr($hWnd, $sName) ; https://www.autoitscript.com/forum/index.php?showtopic=211475&view=findpost&p=1530103
+    DllCall('uxtheme.dll', 'none', 104) ; fnRefreshImmersiveColorPolicyState = 104  ; not needed ?
+    _SendMessage($hWnd, $WM_THEMECHANGED, 0, 0) ; not needed ?
+EndFunc   ;==>_SetCtrlColorMode
+;--------------------------------------------------------------------------------------------------------------------------------
+Func _WinAPI_SetWindowTheme_unr($hWnd, $sName = Null, $sList = Null)  ; #include <WinAPITheme.au3> ; unthoughtful unrestricting mod.
+    ;Causes a window to use a different set of visual style information than its class normally uses
+    Local $sResult = DllCall('UxTheme.dll', 'long', 'SetWindowTheme', 'hwnd', $hWnd, 'wstr', $sName, 'wstr', $sList)
+    If @error Then Return SetError(@error, @extended, 0)
+    If $sResult[0] Then Return SetError(10, $sResult[0], 0)
+    Return 1
+EndFunc   ;==>_WinAPI_SetWindowTheme_unr
+;--------------------------------------------------------------------------------------------------------------------------------
+Func _WinAPI_DwmSetWindowAttribute_unr($hWnd, $iAttribute, $iData)    ; #include <WinAPIGdi.au3> ; unthoughtful unrestricting mod.
+    ;Sets the value of the specified attributes for non-client rendering to apply to the window
+    Local $aCall = DllCall('dwmapi.dll', 'long', 'DwmSetWindowAttribute', 'hwnd', $hWnd, 'dword', $iAttribute, _
+            'dword*', $iData, 'dword', 4)
+    If @error Then Return SetError(@error, @extended, 0)
+    If $aCall[0] Then Return SetError(10, $aCall[0], 0)
+    Return 1
+EndFunc   ;==>_WinAPI_DwmSetWindowAttribute_unr
+;--------------------------------------------------------------------------------------------------------------------------------
+

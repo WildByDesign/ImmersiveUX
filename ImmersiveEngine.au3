@@ -5,14 +5,14 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.1.4
+#AutoIt3Wrapper_Res_Fileversion=1.1.5.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.1.4
+#AutoIt3Wrapper_Res_ProductVersion=1.1.5
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=Y
 #AutoIt3Wrapper_Res_Icon_Add=app.ico
-#Au3Stripper_Parameters=/MO
+#AutoIt3Wrapper_Run_Au3Stripper=y
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
 #include <WinAPIProc.au3>
@@ -21,7 +21,7 @@
 #include <Array.au3>
 #include <Misc.au3>
 
-$iVersion = '1.1.4'
+$iVersion = '1.1.5'
 
 ; HotKey only used temporarily when needing to look for window classes to include/exclude
 ;#include <Process.au3>
@@ -1158,7 +1158,7 @@ Func idGUI()
 	; only start GUI if not already running
 	Local $aWinList = WinList()
 	For $i = 1 To $aWinList[0][0]
-		If $aWinList[$i][0] = "Immersive UX" Then
+		If StringInStr($aWinList[$i][0], "Immersive UX") Then
 			WinActivate($aWinList[$i][1])
 			Return
 		EndIf
