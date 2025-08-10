@@ -21,16 +21,6 @@ Requirements:
     - or generally a GUI with dark background
 
 
-Command lines:
-
-    ImmersiveEngine addtask        ; installs the scheduled task (Highest privileges if run as Admin) *
-    ImmersiveEngine removetask     ; uninstalls the scheduled task
-    ImmersiveEngine stoptask       ; stops the scheduled task from running
-    ImmersiveEngine starttask      ; starts the scheduled task
-
-    * Highest privilege Admin level task will catch more windows
-
-
 Internally, blank window titles are excluded from coloring.
 
 
