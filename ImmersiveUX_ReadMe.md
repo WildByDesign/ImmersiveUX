@@ -4,7 +4,7 @@
 
 
 
-###### **Requirements:**
+## **Requirements:**
 
 
 
@@ -14,7 +14,7 @@ Due to the API Requirements (bottom of this ReadMe), Immersive UX requires Windo
 
 
 
-###### **How to Use:**
+## **How to Use:**
 
 
 
@@ -27,7 +27,7 @@ Due to the API Requirements (bottom of this ReadMe), Immersive UX requires Windo
 
 
 
-###### **Start with Windows:**
+## **Start with Windows:**
 
 
 
@@ -47,7 +47,7 @@ If you intend to continue using Immersive UX and want it to start every time Win
 
 
 
-###### **Special Handling:**
+## **Special Handling:**
 
 
 
@@ -103,7 +103,7 @@ Most Win32 apps accept the effects of these DWM settings quite well. However, ce
 
 
 
-###### **Global Exclusions:**
+## **Global Exclusions:**
 
 
 
@@ -135,7 +135,7 @@ ExcludeFromAllClass=Progman, Xaml\_WindowedPopupClass
 
 
 
-###### **API Requirements:**
+## **API Requirements:**
 
 
 
@@ -154,3 +154,4 @@ ExcludeFromAllClass=Progman, Xaml\_WindowedPopupClass
 
   * EnableBlurBehind works best with a dark theme like *Rectify11 Black Mica*
   * or generally a GUI with dark background
+
