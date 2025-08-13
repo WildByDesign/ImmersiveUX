@@ -118,6 +118,7 @@ If you run into any problems with any specific apps, you can exclude them by pro
 
 
 \[ProcessExclusion]
+
 ExcludeFromAllProc=SearchHost.exe, StartMenuExperienceHost.exe
 
 
@@ -129,6 +130,7 @@ ExcludeFromAllProc=SearchHost.exe, StartMenuExperienceHost.exe
 
 
 \[ClassExclusion]
+
 ExcludeFromAllClass=Progman, Xaml\_WindowedPopupClass
 
 
@@ -139,13 +141,13 @@ ExcludeFromAllClass=Progman, Xaml\_WindowedPopupClass
 
 
 
-* ChangeTitleBarBackdrop (DWMWA\_SYSTEMBACKDROP\_TYPE) requires *Windows 11 Build 22621+*
-* DarkModeEnabled (DWMWA\_USE\_IMMERSIVE\_DARK\_MODE) requires *Windows 11 Build 22000+*
-* ChangeTitleBarColor (DWMWA\_CAPTION\_COLOR) requires *Windows 11 Build 22000+*
-* ChangeTitleBarTextColor (DWMWA\_TEXT\_COLOR) requires *Windows 11 Build 22000+*
-* ChangeBorderColor (DWMWA\_BORDER\_COLOR) requires *Windows 11 Build 22000+*
-* ChangeCornerPreference (DWMWA\_WINDOW\_CORNER\_PREFERENCE) requires *Windows 11 Build 22000+*
-* EnableBlurBehind (DwmEnableBlurBehindWindow) works on *Windows Vista+*
+* ChangeTitleBarBackdrop (DWMWA\_SYSTEMBACKDROP\_TYPE) requires Windows 11 Build 22621+
+* DarkModeEnabled (DWMWA\_USE\_IMMERSIVE\_DARK\_MODE) requires Windows 11 Build 22000+
+* ChangeTitleBarColor (DWMWA\_CAPTION\_COLOR) requires Windows 11 Build 22000+
+* ChangeTitleBarTextColor (DWMWA\_TEXT\_COLOR) requires Windows 11 Build 22000+
+* ChangeBorderColor (DWMWA\_BORDER\_COLOR) requires Windows 11 Build 22000+
+* ChangeCornerPreference (DWMWA\_WINDOW\_CORNER\_PREFERENCE) requires Windows 11 Build 22000+
+* EnableBlurBehind (DwmEnableBlurBehindWindow) works on Windows Vista+
 
   * EnableBlurBehind works best with a dark theme like *Rectify11 Black Mica*
   * or generally a GUI with dark background
@@ -154,4 +156,5 @@ ExcludeFromAllClass=Progman, Xaml\_WindowedPopupClass
 
   * EnableBlurBehind works best with a dark theme like *Rectify11 Black Mica*
   * or generally a GUI with dark background
+
 
