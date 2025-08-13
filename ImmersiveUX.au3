@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX
-#AutoIt3Wrapper_Res_Fileversion=1.1.5
+#AutoIt3Wrapper_Res_Fileversion=1.2.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX
-#AutoIt3Wrapper_Res_ProductVersion=1.1.5
+#AutoIt3Wrapper_Res_ProductVersion=1.2.0
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -36,12 +36,13 @@
 #include "include\GuiFlatButton.au3"
 
 #include "include\GUIComboBoxColor.au3"
-#include "include\GUIComboBoxFont.au3"
+;#include "include\GUIComboBoxFont.au3"
 #include "include\_WinAPI_DPI.au3"
 #include "include\TaskScheduler.au3"
 #include "include\ExtMsgBox.au3"
 #include "include\JSON.au3"
 
+Global $iVersion = '1.2.0'
 Global $aCustomRules[0][14]
 
 Global $sIniPath = @ScriptDir & "\ImmersiveUX.ini"
@@ -51,32 +52,69 @@ Global $sEngName = "ImmersiveEngine"
 Global Const $sSegUIVar = @WindowsDir & "\fonts\SegUIVar.ttf"
 Global $SegUIVarExists = FileExists($sSegUIVar)
 
+If $SegUIVarExists Then
+    _ExtMsgBoxSet(1, 4, 0x000000, 0xffffff, -1, "Segoe UI Variable Display", 800)
+Else
+    _ExtMsgBoxSet(1, 4, 0x000000, 0xffffff, -1, "Segoe UI", 800)
+EndIf
+
 Opt("GUIOnEventMode", 1)
 
-Global $iDPI1, $iDPI2, $hGUI, $hSpecialMenu, $hTaskMenu, $FontHeight
+Opt("TrayMenuMode", 3)
+Opt("TrayAutoPause", 0)
+Opt("TrayOnEventMode", 1)
+
+Global $hGUI, $hSpecialMenu, $hTaskMenu, $FontHeight
 Global $bGlobalDarkTitleBar, $dGlobalBorderColor, $dGlobalTitleBarColor, $dGlobalTitleBarTextColor, $iGlobalTitleBarBackdrop
 Global $iGlobalCornerPreference, $iGlobalExtendFrameIntoClient, $iGlobalEnableBlurBehind, $dGlobalBlurTintColor, $iGlobalTintColorIntensity
 Global $BorderColorInput, $colorlabelfill, $TitlebarColorInput, $TitlebarColorLabel
 Global $TitlebarTextColorInput, $TitlebarTextColorLabel, $BlurTintColorInput, $BlurTintColorPickLabel
-Global $idInput, $RuleListCombo, $idInputRuleType, $RuleTypeCombo, $idInputDarkTitle
+Global $idInput, $RuleListCombo, $idInputRuleType, $RuleTypeCombo, $idInputDarkTitle, $idStatusInput
 Global $DarkTitleCombo, $idInputTitleBarBackdrop, $TitleBarBackdropCombo
 Global $idInputCornerPreference, $CornerPreferenceCombo, $idInputExtendFrame, $ExtendFrameCombo
 Global $idInputBlurBehind, $BlurBehindCombo, $idInputRuleEnabled, $RuleEnabledCombo
-Global $idStatusInput, $idStatusCombo, $idSpecialHandlingCombo
 Global $TargetInput, $hBtnRuleType, $hBtnRuleEnabled, $DeleteButton, $SaveButton
 Global $BlurColorIntensitySlider, $idPart0, $idPart1, $idPart2
 Global $TaskIntegrity, $TaskInstalled, $TaskRunning
 Global $aProcessRunning, $IsRunFromTS, $bProcessRunning
+Global $bHideGUI = False
+Global $TRAY_EVENT_PRIMARYDOWN = -7
+Global $fOver = False
+Global $fOver2 = False
 Global $iW = 658, $iH = 420
 
+Global $iDPI = _WinAPI_SetDPIAwareness(), $iDPI_def = 96
+If $iDPI = 0 Then Exit MsgBox($MB_ICONERROR, "ERROR", "Unable to set DPI awareness!!!", 10)
+Global $iDPI1 = $iDPI / $iDPI_def
+Global $iDPI2 = $iDPI_def / $iDPI
+
+If StringInStr($CmdLineRaw, "hidegui") Then $bHideGUI = True
+
+If _Singleton($sProdName, 1) = 0 Then
+    ; handle situation when engine process is elevated and GUI process is not
+    Local $bElevated = _ToBoolean(IniRead($sIniPath, "StartupInfoOnly", "Elevated", "False"))
+    If $bElevated And Not IsAdmin() Then
+        $sMsg = "Immersive UX is already running in the system tray." & @CRLF & @CRLF
+        $sMsg &= "To avoid mismatching of integrity levels between engine process" & @CRLF
+        $sMsg &= "and GUI process, please start Immersive UX GUI from the system" & @CRLF
+        $sMsg &= "tray menu." & @CRLF
+        _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+        Exit
+    Else
+        ; show and activate the GUI window
+        $hWnd = WinGetHandle("Immersive UX")
+        _WinAPI_ShowWindow($hWnd, @SW_SHOW)
+        _WinAPI_SetForegroundWindow($hWnd)
+        Exit
+    EndIf
+EndIf
+
+TraySetOnEvent($TRAY_EVENT_PRIMARYDOWN, 'idGUI')
+TraySetClick(16)
+
+_GetIniDetails()
 _StartGUI()
 Func _StartGUI()
-
-    Local $iDPI = _WinAPI_SetDPIAwareness(), $iDPI_def = 96
-    If $iDPI = 0 Then Exit MsgBox($MB_ICONERROR, "ERROR", "Unable to set DPI awareness!!!", 10)
-    $iDPI1 = $iDPI / $iDPI_def
-    $iDPI2 = $iDPI_def / $iDPI
-
     $aProcessRunning = ProcessList($sEngName & ".exe")
     If $aProcessRunning[0][0] <> 0 Then
         Local $iPID = $aProcessRunning[1][1]
@@ -114,17 +152,16 @@ Func _StartGUI()
         ElseIf $TaskInstalled = "Yes" Then
             ; run task
             ShellExecute(@ScriptDir & "\" & $sEngName & ".exe")
-            ; might need adlib here to update task running status
-            ;AdlibRegister("_TaskStatusUpdate_adlib", 2000)
         EndIf
     EndIf
 
+    ; check engine/task status after 2 seconds only
     AdlibRegister("_TaskStatusUpdate_adlib", 2000)
+    ; check engine/task status every 20 seconds for changes
+    AdlibRegister("_TaskStatusUpdate_adlib20", 20000)
 
     $TaskRunning = _IsTaskRunning()
     If Not $TaskRunning Then $TaskRunning = "No"
-
-    _GetIniDetails()
 
     $hSubItems1 = _GUICtrlMenu_CreateMenu()
     _GUICtrlMenu_InsertMenuItem($hSubItems1, 0, "Patch VSCode", 1)
@@ -165,9 +202,6 @@ Func _StartGUI()
     GUISetOnEvent($GUI_EVENT_CLOSE, "SpecialEvents")
     GUISetBkColor(0x000000)
 
-    _ExtMsgBoxSet(Default)
-    _ExtMsgBoxSet(1, 4, 0x000000, 0xffffff, -1, $MainFont, 800)
-
     Local $hToolTip2 = _GUIToolTip_Create(0)
     _GUIToolTip_SetMaxTipWidth($hToolTip2, 400)
 
@@ -175,41 +209,22 @@ Func _StartGUI()
     _GUIToolTip_SetTipBkColor($hToolTip2, 0x202020)
     _GUIToolTip_SetTipTextColor($hToolTip2, 0xe0e0e0)
 
-
-    $idStatusCombo = GUICtrlCreateCombo("", 344 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, (164 * $iDPI1) - 20, 20, $CBS_DROPDOWNLIST)
-    _FillCombo()
-    ;GUICtrlSetData($idStatusCombo, "Install Task|Restart Task")
-    _GUICtrlComboBoxEx_SetColor($idStatusCombo, 0x202020, 0xffffff)
-    GUICtrlSetOnEvent(-1, "idStatusCombo")
-    GUICtrlSetState(-1, $GUI_HIDE)
-    ;Local $hidStatusCombo = GUICtrlGetHandle($idStatusCombo)
-    ;GUICtrlSetData($idStatusCombo, "Uninstall")
-    ;If @Compiled Then
-    ;$idStatusInput = GUICtrlCreateInput("Startup Task  ▼", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, 340, 20, $ES_READONLY, 0)
-    ;$idStatusInput = GUICtrlCreateInput("Special Handling  ▼", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, 340, 20, $ES_READONLY, 0)
-    $idSpecialHandlingCombo = GUICtrlCreateCombo("", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, (164 * $iDPI1) - 20, 20, $CBS_DROPDOWNLIST)
-    GUICtrlSetData($idSpecialHandlingCombo, "Patch VSCode|Unpatch VSCode|Patch Terminal|Unpatch Terminal")
-    ;_FillCombo()
-    ;GUICtrlSetData($idStatusCombo, "Install Task|Restart Task")
-    _GUICtrlComboBoxEx_SetColor($idSpecialHandlingCombo, 0x202020, 0xffffff)
-    GUICtrlSetOnEvent(-1, "idSpecialHandlingCombo")
-    GUICtrlSetState(-1, $GUI_HIDE)
-    $idPart2 = GUICtrlCreateLabel("Special Handling  ▼", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, 164 * $iDPI1, -1)
-    ;$idPart2 = GuiFlatButton_Create("Special Handling  ▼", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, -1, -1)
+    ;$idPart2 = GUICtrlCreateLabel("Special Handling  ▼", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6, 164 * $iDPI1, -1)
+    $idPart2 = GUICtrlCreateLabel(" Special Handling  ▼ ", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6, -1, -1, $SS_CENTER)
     GUICtrlSetOnEvent(-1, "idSpecialHandlingTest")
     GUICtrlSetBkColor(-1, 0x000000)
     GUICtrlSetColor(-1, 0xffffff)
     ;If Not @Compiled Then GUICtrlSetState(-1, $GUI_DISABLE)
-    $idPart1 = GUICtrlCreateLabel(" ", 20, ($iH * $iDPI1) - $FontHeight - 2, 164 * $iDPI1, -1)
+    $idPart1 = GUICtrlCreateLabel(" ", 20, ($iH * $iDPI1) - $FontHeight - 6, 164 * $iDPI1, -1)
     GUICtrlSetBkColor(-1, 0x000000)
     GUICtrlSetColor(-1, 0xffffff)
     ;If Not @Compiled Then GUICtrlSetState(-1, $GUI_DISABLE)
-    $idPart0 = GUICtrlCreateLabel("Task Installed: " & $TaskInstalled, 180 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, 164 * $iDPI1, -1)
+    $idPart0 = GUICtrlCreateLabel("Task Installed: " & $TaskInstalled, 180 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6, 164 * $iDPI1, -1)
     GUICtrlSetBkColor(-1, 0x000000)
     GUICtrlSetColor(-1, 0xffffff)
     ;If Not @Compiled Then GUICtrlSetState(-1, $GUI_DISABLE)
-    ;$idPart2 = GUICtrlCreateLabel("Task Elevated: " & $TaskIntegrity, 344 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, -1, -1)
-    $idStatusInput = GUICtrlCreateLabel("Startup Task  ▼", 344 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 2, 164 * $iDPI1, -1)
+    ;$idStatusInput = GUICtrlCreateLabel("Startup Task  ▼", 344 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6, 164 * $iDPI1, -1)
+    $idStatusInput = GUICtrlCreateLabel(" Startup Task  ▼ ", 344 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6, -1, -1, $SS_CENTER)
     GUICtrlSetOnEvent($idStatusInput, "idStatusInputTest")
     GUICtrlSetBkColor(-1, 0x000000)
     GUICtrlSetColor(-1, 0xffffff)
@@ -243,6 +258,7 @@ Func _StartGUI()
     ;Global $idInput = GUICtrlCreateInput("Select a rule", 20, 40, 100 * $iDPI1Big, $FontHeight, $ES_READONLY, 0)
     $idInput = _RGUI_RoundInput("Select a rule", 0xFFFFFF, 20, $RuleListLabelPosV, 260 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
     GUICtrlSetBkColor(-1, 0x202020)
+    GUICtrlSetCursor(-1, $MCID_ARROW)
 
     $aRegistry = ""
     ;$aRegistry &= "|" & "Global Rules"
@@ -253,10 +269,6 @@ Func _StartGUI()
     GUICtrlSetData($RuleListCombo, $aRegistry)
 
     _GUICtrlComboBox_InsertString($RuleListCombo, "Global Rules", 0)
-    ;_GUICtrlComboBox_InsertString($RuleListCombo, "─────────────────────────────────────────────────────────────────", 1)
-
-    ;_GUICtrlComboBox_SetCueBanner($RuleListCombo, "Custom Rules")
-
     $aPos = ControlGetPos($hGUI, "", $RuleListCombo)
 
 
@@ -363,6 +375,7 @@ Func _StartGUI()
     ;$idInputRuleType = GUICtrlCreateInput("", $TargetInputPosH + 20, $RuleTypeLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
     $idInputRuleType = _RGUI_RoundInput("", 0xFFFFFF, $TargetInputPosH + 30, $RuleTypeLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
     GUICtrlSetBkColor(-1, 0x202020)
+    GUICtrlSetCursor(-1, $MCID_ARROW)
 
     $aPos = ControlGetPos($hGUI, "", $RuleTypeCombo)
 
@@ -403,6 +416,7 @@ Func _StartGUI()
     ;$idInputRuleType = GUICtrlCreateInput("", $TargetInputPosH + 20, $RuleTypeLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
     $idInputRuleEnabled = _RGUI_RoundInput("", 0xFFFFFF, $hBtnRuleTypePosH + 20, $RuleTypeLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
     GUICtrlSetBkColor(-1, 0x202020)
+    GUICtrlSetCursor(-1, $MCID_ARROW)
 
     $aPos = ControlGetPos($hGUI, "", $RuleEnabledCombo)
 
@@ -447,6 +461,7 @@ Func _StartGUI()
     ;$idInputDarkTitle = GUICtrlCreateInput("", 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
     $idInputDarkTitle = _RGUI_RoundInput("", 0xFFFFFF, 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
     GUICtrlSetBkColor(-1, 0x202020)
+    GUICtrlSetCursor(-1, $MCID_ARROW)
 
     $aPos = ControlGetPos($hGUI, "", $idInputDarkTitle)
 
@@ -473,6 +488,7 @@ Func _StartGUI()
     ;$idInputTitleBarBackdrop = GUICtrlCreateInput("", 20, $TitleBarBackdropLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
     $idInputTitleBarBackdrop = _RGUI_RoundInput("", 0xFFFFFF, 20, $TitleBarBackdropLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
     GUICtrlSetBkColor(-1, 0x202020)
+    GUICtrlSetCursor(-1, $MCID_ARROW)
 
     $aPos = ControlGetPos($hGUI, "", $idInputTitleBarBackdrop)
 
@@ -512,6 +528,7 @@ Func _StartGUI()
     ;$idInputCornerPreference = GUICtrlCreateInput("", 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
     $idInputCornerPreference = _RGUI_RoundInput("", 0xFFFFFF, 20, $CornerPreferenceLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0x202020, 8, 1, $ES_READONLY)
     GUICtrlSetBkColor(-1, 0x202020)
+    GUICtrlSetCursor(-1, $MCID_ARROW)
 
     $aPos = ControlGetPos($hGUI, "", $idInputCornerPreference)
 
@@ -648,6 +665,7 @@ Func _StartGUI()
     ;$idInputDarkTitle = GUICtrlCreateInput("", 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
     $idInputExtendFrame = _RGUI_RoundInput("", 0xFFFFFF, $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $ExtendFrameLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
     GUICtrlSetBkColor(-1, 0x202020)
+    GUICtrlSetCursor(-1, $MCID_ARROW)
 
     $aPos = ControlGetPos($hGUI, "", $idInputExtendFrame)
 
@@ -686,6 +704,7 @@ Func _StartGUI()
     ;$idInputDarkTitle = GUICtrlCreateInput("", 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
     $idInputBlurBehind = _RGUI_RoundInput("", 0xFFFFFF, $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $BlurBehindLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
     GUICtrlSetBkColor(-1, 0x202020)
+    GUICtrlSetCursor(-1, $MCID_ARROW)
 
     $aPos = ControlGetPos($hGUI, "", $idInputBlurBehind)
 
@@ -764,11 +783,54 @@ Func _StartGUI()
 
     GUIRegisterMsg($WM_NCHITTEST, "_MY_NCHITTEST")
     DarkMode($hGUI, True)
-    GUISetState()
+    If $bHideGUI Then GUISetState(@SW_HIDE)
+    If Not $bHideGUI Then GUISetState(@SW_SHOW)
+
+    $idGUI = TrayCreateItem("Immersive UX")
+    TrayItemSetOnEvent($idGUI, "idGUI")
+    TrayCreateItem("")
+    $idAbout = TrayCreateItem('About')
+    TrayItemSetOnEvent($idAbout, "_About")
+    $idExit = TrayCreateItem('Exit')
+    TrayItemSetOnEvent($idExit, "_Exit")
+
+    ; set tray icon and tooltip
+    If @Compiled = 0 Then
+        TraySetIcon(@ScriptDir & '\app.ico')
+    Else
+        TraySetIcon(@ScriptFullPath, 201)
+    EndIf
+    TraySetToolTip("Immersive UX")
 
     ; Just idle around
     While 1
-        Sleep(1000)
+        Sleep(100)
+
+        $aCInfo = GUIGetCursorInfo($hGUI)
+        If $aCInfo[4] = $idStatusInput Then
+            If $fOver = False Then
+                GUICtrlSetBkColor($idStatusInput, 0x151515)
+                $fOver = True
+            EndIf
+        Else
+            If $fOver = True Then
+                GUICtrlSetBkColor($idStatusInput, 0x000000)
+                $fOver = False
+            EndIf
+        EndIf
+
+        $aCInfo2 = GUIGetCursorInfo($hGUI)
+        If $aCInfo2[4] = $idPart2 Then
+            If $fOver2 = False Then
+                GUICtrlSetBkColor($idPart2, 0x151515)
+                $fOver2 = True
+            EndIf
+        Else
+            If $fOver2 = True Then
+                GUICtrlSetBkColor($idPart2, 0x000000)
+                $fOver2 = False
+            EndIf
+        EndIf
     WEnd
 
 EndFunc
@@ -776,7 +838,7 @@ EndFunc
 Func SpecialEvents()
     Select
         Case @GUI_CtrlId = $GUI_EVENT_CLOSE
-            Exit
+            GUISetState(@SW_HIDE)
     EndSelect
 EndFunc
 
@@ -860,9 +922,10 @@ Func _UpdateColorBoxes()
 EndFunc
 
 Func idSpecialHandlingTest()
+    GUICtrlSetBkColor($idPart2, 0x000000)
     ; need to redo sizes here in case window moved
     $aWinPos = WinGetPos($hGUI)
-	$MenuResult1 = _GUICtrlMenu_TrackPopupMenu($hSpecialMenu, $hGUI, (508 * $iDPI1) + $aWinPos[0], $aWinPos[1] + $aWinPos[3] - 3, 1, 1, 2)
+	$MenuResult1 = _GUICtrlMenu_TrackPopupMenu($hSpecialMenu, $hGUI, (508 * $iDPI1) + $aWinPos[0], $aWinPos[1] + $aWinPos[3] - 6, 1, 1, 2)
 	Switch $MenuResult1
 		Case 0
 			; nothing
@@ -919,25 +982,20 @@ Func idSpecialHandlingTest()
 	EndSwitch
 EndFunc
 
-Func idSpecialHandlingTest_old()
-    _GUICtrlComboBox_ShowDropDown($idSpecialHandlingCombo, True)
-    ControlFocus($hGUI, "", $idSpecialHandlingCombo)
-EndFunc
-
 Func idStatusInputTest()
-    #cs
+    GUICtrlSetBkColor($idStatusInput, 0x000000)
     If Not @Compiled Then
         ;MsgBox(0, "Immersive UX", "Task Scheduler functionality is only available for compiled binaries.")
         Local $sMsg = "Task Scheduler functionality is only available for compiled binaries." & @CRLF
         _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
         Return
     EndIf
-    #ce
+
     ; update task status info
     _updateTaskMenu()
     ; need to redo sizes here in case window moved
     $aWinPos = WinGetPos($hGUI)
-	$MenuResult1 = _GUICtrlMenu_TrackPopupMenu($hTaskMenu, $hGUI, (344 * $iDPI1) + $aWinPos[0], $aWinPos[1] + $aWinPos[3] - 3, 1, 1, 2)
+	$MenuResult1 = _GUICtrlMenu_TrackPopupMenu($hTaskMenu, $hGUI, (344 * $iDPI1) + $aWinPos[0], $aWinPos[1] + $aWinPos[3] - 6, 1, 1, 2)
 	Switch $MenuResult1
 		Case 0
 			; nothing
@@ -1035,17 +1093,6 @@ Func _updateTaskMenu()
     If Not IsAdmin() And $TaskInstalled = "Yes" And $TaskIntegrity = "Yes" Then
         _GUICtrlMenu_SetItemEnabled($hTaskMenu, 3, False, False)
     EndIf
-EndFunc
-
-Func idStatusInputTest_old()
-    If Not @Compiled Then
-        ;MsgBox(0, "Immersive UX", "Task Scheduler functionality is only available for compiled binaries.")
-        Local $sMsg = "Task Scheduler functionality is only available for compiled binaries." & @CRLF
-        _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
-        Return
-    EndIf
-    _GUICtrlComboBox_ShowDropDown($idStatusCombo, True)
-    ControlFocus($hGUI, "", $idStatusCombo)
 EndFunc
 
 Func ED_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
@@ -1201,134 +1248,6 @@ Func idComboRuleEnabled()
     GUICtrlSetData($idInputRuleEnabled, GUICtrlRead($RuleEnabledCombo))
 EndFunc
 
-Func idSpecialHandlingCombo()
-    Local $SpecialHandlingComboRead = GUICtrlRead($idSpecialHandlingCombo)
-    If $SpecialHandlingComboRead = "Patch VSCode" Then
-        $sMsg = "This will patch all VSCode and VSCodium installs on the system." & @CRLF & @CRLF
-        $sMsg &= "You will likely have to do this after every VSCode and VSCodium update." & @CRLF & @CRLF
-        $sMsg &= 'NOTE: VSCode and VSCodium will show a message stating that your "...installation appears to be corrupt".' & @CRLF
-        $sMsg &= "This message is harmless. Click on the cogwheel and select Don't Show Again." & @CRLF
-        $sMsg &= " " & @CRLF
-        $sMsg &= "Do you want to continue?" & @CRLF
-        $iRetValue = _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 4, $sProdName, $sMsg)
-
-        If $iRetValue = 1 Then
-            _VSCode_mod()
-            $sMsg = "VSCode/VScodium patches have been applied." & @CRLF & @CRLF
-            $sMsg &= "You will need to close and reopen any running instances of" & @CRLF
-            $sMsg &= "VSCode/VSCodium to reflect the changes." & @CRLF
-            _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
-        ElseIf $iRetValue = 2 Then
-            _GUICtrlComboBox_SetCurSel($idSpecialHandlingCombo, -1)
-            Return
-        EndIf
-    ElseIf $SpecialHandlingComboRead = "Unpatch VSCode" Then
-        _VSCode_mod_uninstall()
-        $sMsg = "VSCode/VScodium patches have been removed." & @CRLF & @CRLF
-        $sMsg &= "You will need to close and reopen any running instances of" & @CRLF
-        $sMsg &= "VSCode/VSCodium to reflect the changes." & @CRLF
-        _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
-    ElseIf $SpecialHandlingComboRead = "Patch Terminal" Then
-        $sMsg = "This will patch Windows Terminal to apply backdrop materials." & @CRLF & @CRLF
-        $sMsg &= "This works by adding a Mica theme to the Terminal settings file." & @CRLF
-        $sMsg &= " " & @CRLF
-        $sMsg &= "Do you want to continue?" & @CRLF
-        $iRetValue = _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 4, $sProdName, $sMsg)
-
-        If $iRetValue = 1 Then
-            _Terminal_patch()
-            $sMsg = "The ImmersiveUX theme has been added to your Windows Terminal settings." & @CRLF & @CRLF
-            $sMsg &= "Changes should be reflected immediately in any running instances" & @CRLF
-            $sMsg &= "of Windows Terminal." & @CRLF
-            _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
-        ElseIf $iRetValue = 2 Then
-            _GUICtrlComboBox_SetCurSel($idSpecialHandlingCombo, -1)
-            Return
-        EndIf
-    ElseIf $SpecialHandlingComboRead = "Unpatch Terminal" Then
-        _Terminal_patch_remove()
-        $sMsg = "Your original Windows Terminal settings have been restored." & @CRLF & @CRLF
-        $sMsg &= "Changes should be reflected immediately in any running instances" & @CRLF
-        $sMsg &= "of Windows Terminal." & @CRLF
-        _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
-    EndIf
-    _GUICtrlComboBox_SetCurSel($idSpecialHandlingCombo, -1)
-EndFunc
-
-Func idStatusCombo()
-    Local $StatusComboRead = GUICtrlRead($idStatusCombo)
-    If $StatusComboRead = "Install Task" Or $StatusComboRead =  "Install Task (Admin)" Then
-        ; obtain PID for engine process
-        Local $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
-        If $iPID <> "" Then
-            ; get handle from PID
-            Local $hWnd = _GetHwndFromPID($iPID)
-            ; close engine process in a way that allows proper process cleanup
-            WinClose($hWnd)
-        EndIf
-        Sleep(200)
-        _InstallTask()
-        Sleep(500)
-        ; start task
-        ShellExecute(@ScriptDir & "\" & $sEngName & ".exe", "starttask", @ScriptDir, $SHEX_OPEN, @SW_HIDE)
-        Sleep(200)
-        _TaskStatusUpdate()
-        GUICtrlSetData($idStatusCombo, "")
-        _FillCombo()
-        _GUICtrlComboBox_SetCurSel($idStatusCombo, -1)
-        ;GUICtrlSetData($idStatusCombo, "Uninstall Task|Restart Task")
-    EndIf
-    If $StatusComboRead = "Uninstall Task" Then
-        ; obtain PID for engine process
-        Local $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
-        ; get handle from PID
-        Local $hWnd = _GetHwndFromPID($iPID)
-        ; close engine process in a way that allows proper process cleanup
-        WinClose($hWnd)
-        Sleep(200)
-        _UninstallTask()
-        Sleep(500)
-        _TaskStatusUpdate()
-        GUICtrlSetData($idStatusCombo, "")
-        _FillCombo()
-        _GUICtrlComboBox_SetCurSel($idStatusCombo, -1)
-        ;GUICtrlSetData($idStatusCombo, "Install Task|Restart Task")
-    EndIf
-    If $StatusComboRead = "Uninstall Task (Admin)" Then
-        Local $sMsg = " You need to run as Admin to uninstall Admin task. " & @CRLF
-        _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
-        GUICtrlSetData($idStatusCombo, "")
-        _FillCombo()
-        _GUICtrlComboBox_SetCurSel($idStatusCombo, -1)
-    EndIf
-    If $StatusComboRead = "Upgrade Task (Admin)" Then
-        ; obtain PID for engine process
-        Local $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
-        ; get handle from PID
-        Local $hWnd = _GetHwndFromPID($iPID)
-        ; close engine process in a way that allows proper process cleanup
-        WinClose($hWnd)
-        Sleep(200)
-        _InstallTask()
-        Sleep(500)
-        ShellExecute(@ScriptDir & "\" & $sEngName & ".exe")
-        Sleep(200)
-        _TaskStatusUpdate()
-        GUICtrlSetData($idStatusCombo, "")
-        _FillCombo()
-        _GUICtrlComboBox_SetCurSel($idStatusCombo, -1)
-        _IsEngineProcRunning()
-        ;GUICtrlSetData($idStatusCombo, "Install Task|Restart Task")
-    EndIf
-    If $StatusComboRead = "Restart Task" Then
-        ;_IsEngineProcRunning()
-        _RestartTask()
-        GUICtrlSetData($idStatusCombo, "")
-        _FillCombo()
-        _GUICtrlComboBox_SetCurSel($idStatusCombo, -1)
-    EndIf
-EndFunc
-
 Func hBtnAddRule()
     GUICtrlSetState($TargetInput, $GUI_ENABLE)
     GUICtrlSetState($idInputRuleType, $GUI_ENABLE)
@@ -1339,6 +1258,8 @@ Func hBtnAddRule()
     GUICtrlSetState($hBtnRuleEnabled, $GUI_ENABLE)
     GUICtrlSetState($DeleteButton, $GUI_ENABLE)
     GUICtrlSetState($SaveButton, $GUI_ENABLE)
+    ; reset combos
+    _ResetCombos()
     ; clear everything
     _GUICtrlComboBox_SetCurSel($BlurBehindCombo, -1)
     GUICtrlSetData($idInputBlurBehind, "")
@@ -1368,36 +1289,6 @@ Func hBtnAddRule()
     GUICtrlSetData($idInputRuleEnabled, "")
     ; set focus to Target input
     GUICtrlSetState($TargetInput, $GUI_FOCUS)
-EndFunc
-
-Func hBtnAddRule_nofocus()
-    ; clear everything
-    _GUICtrlComboBox_SetCurSel($BlurBehindCombo, -1)
-    GUICtrlSetData($idInputBlurBehind, "")
-    GUICtrlSetData($idInputExtendFrame, "")
-	_GUICtrlComboBox_SetCurSel($ExtendFrameCombo, -1)
-    GUICtrlSetData($BlurTintColorInput, "")
-    GUICtrlSetBkColor($BlurTintColorPickLabel, 0x000000)
-    GUICtrlSetData($idInputCornerPreference, "")
-    _GUICtrlComboBox_SetCurSel($CornerPreferenceCombo, -1)
-    GUICtrlSetData($idInputTitleBarBackdrop, "")
-    _GUICtrlComboBox_SetCurSel($TitleBarBackdropCombo, -1)
-    GUICtrlSetData($BorderColorInput, "")
-    GUICtrlSetBkColor($colorlabelfill, 0x000000)
-    GUICtrlSetData($TitlebarColorInput, "")
-    GUICtrlSetBkColor($TitlebarColorLabel, 0x000000)
-    GUICtrlSetData($TitlebarTextColorInput, "")
-    GUICtrlSetBkColor($TitlebarTextColorLabel, 0x000000)
-    GUICtrlSetData($idInputDarkTitle, "")
-	_GUICtrlComboBox_SetCurSel($DarkTitleCombo, -1)
-    GUICtrlSetData($TargetInput, "")
-    GUICtrlSetData($idInputRuleType, "")
-    _GUICtrlComboBox_SetCurSel($RuleTypeCombo, -1)
-    GUICtrlSetData($idInput, "")
-    ;_GUICtrlComboBox_SetCurSel($RuleListCombo, -1)
-    GUICtrlSetData($BlurColorIntensitySlider, 50)
-    _GUICtrlComboBox_SetCurSel($RuleEnabledCombo, -1)
-    GUICtrlSetData($idInputRuleEnabled, "")
 EndFunc
 
 Func hBtnAddRule_nofocusGlobal()
@@ -1453,17 +1344,7 @@ Func hBtnDeleteRule()
     hBtnAddRule()
 
     _GUICtrlComboBox_InsertString($RuleListCombo, "Global Rules", 0)
-    ;_GUICtrlComboBox_InsertString($RuleListCombo, "─────────────────────────────────────────────────────────────────", 1)
 EndFunc
-
-#cs
-Func _WinAPI_DwmSetWindowAttribute__($hwnd, $attribute = 34, $value = 0x00FF00, $valLen = 4)
-	Local $aCall = DllCall('dwmapi.dll', 'long', 'DwmSetWindowAttribute', 'hwnd', $hWnd, 'dword', $attribute, 'dword*', $value, 'dword', $valLen)
-	If @error Then Return SetError(@error, @extended, 0)
-	If $aCall[0] Then Return SetError(10, $aCall[0], 0)
-	Return 1
-EndFunc   ;==>_WinAPI_DwmSetWindowAttribute__
-#ce
 
 Func _WriteIniSection()
     ; read all input controls to store variables
@@ -1571,9 +1452,6 @@ Func _WriteIniSection()
     GUICtrlSetData($RuleListCombo, GUICtrlRead($TargetInput))
 
     _GUICtrlComboBox_InsertString($RuleListCombo, "Global Rules", 0)
-    ;_GUICtrlComboBox_InsertString($RuleListCombo, "─────────────────────────────────────────────────────────────────", 1)
-
-    ;_SaveReloadRules()
 EndFunc
 
 Func _SaveReloadRules()
@@ -1596,8 +1474,6 @@ Func _ReloadRulesCombo()
             $aRegistry &= "|" & $aCustomRules[$i][13]
     Next
     GUICtrlSetData($RuleListCombo, $aRegistry)
-
-    ;_GUICtrlComboBox_InsertString($RuleListCombo, "─────────────────────────────────────────────────────────────────", 1)
 EndFunc
 
 Func _GetIniDetails()
@@ -1618,11 +1494,31 @@ Func _GetIniDetails()
         $dGlobalBlurTintColor = IniRead($sIniPath, "GlobalRules", "GlobalBlurTintColor", "")
         $iGlobalTintColorIntensity = IniRead($sIniPath, "GlobalRules", "GlobalTintColorIntensity", "")
 
-        ; Create an INI section structure as a string.
-        ;Local $sSection = "Title=AutoIt" & @LF & "Version=" & @AutoItVersion & @LF & "OS=" & @OSVersion
-
-        ; Write the string to the section labelled 'General'.
-        ;IniWriteSection($sIniPath, "General", $sSection)
+        ; temporary fix for mistakenly allowing Global on dropdown, remove later
+        If $bGlobalDarkTitleBar = "Global" Then
+            $bGlobalDarkTitleBar = "True"
+            IniWrite($sIniPath, "GlobalRules", "GlobalDarkTitleBar", "True")
+        EndIf
+        ; temporary fix for mistakenly allowing Global on dropdown, remove later
+        If $iGlobalTitleBarBackdrop = "Global" Then
+            $iGlobalTitleBarBackdrop = "0"
+            IniWrite($sIniPath, "GlobalRules", "GlobalTitleBarBackdrop", "0")
+        EndIf
+        ; temporary fix for mistakenly allowing Global on dropdown, remove later
+        If $iGlobalCornerPreference = "Global" Then
+            $iGlobalCornerPreference = "0"
+            IniWrite($sIniPath, "GlobalRules", "GlobalCornerPreference", "0")
+        EndIf
+        ; temporary fix for mistakenly allowing Global on dropdown, remove later
+        If $iGlobalExtendFrameIntoClient = "Global" Then
+            $iGlobalExtendFrameIntoClient = "True"
+            IniWrite($sIniPath, "GlobalRules", "GlobalExtendFrameIntoClient", "True")
+        EndIf
+        ; temporary fix for mistakenly allowing Global on dropdown, remove later
+        If $iGlobalEnableBlurBehind = "Global" Then
+            $iGlobalEnableBlurBehind = "True"
+            IniWrite($sIniPath, "GlobalRules", "GlobalEnableBlurBehind", "True")
+        EndIf
 
         ; Read the INI section labelled 'General'. This will return a 2 dimensional array.
         Local $aSectionNames = IniReadSectionNames($sIniPath)
@@ -1671,26 +1567,40 @@ Func _GetIniDetails()
 
 EndFunc   ;==>_GetIniDetails
 
+Func _ResetCombos()
+    ; clear combos
+    GUICtrlSetData($DarkTitleCombo, "")
+    GUICtrlSetData($TitleBarBackdropCombo, "")
+    GUICtrlSetData($CornerPreferenceCombo, "")
+    GUICtrlSetData($ExtendFrameCombo, "")
+    GUICtrlSetData($BlurBehindCombo, "")
+    ; fill combos
+    GUICtrlSetData($DarkTitleCombo, "True|False|Global")
+    GUICtrlSetData($TitleBarBackdropCombo, "Auto|None|Mica|Acrylic|Mica Alt|Global")
+    GUICtrlSetData($CornerPreferenceCombo, "Default|Square|Round|Round Small|Global")
+    GUICtrlSetData($ExtendFrameCombo, "True|False|Global")
+    GUICtrlSetData($BlurBehindCombo, "True|False|Global")
+EndFunc
+
+Func _ResetCombosGlobal()
+    ; clear combos
+    GUICtrlSetData($DarkTitleCombo, "")
+    GUICtrlSetData($TitleBarBackdropCombo, "")
+    GUICtrlSetData($CornerPreferenceCombo, "")
+    GUICtrlSetData($ExtendFrameCombo, "")
+    GUICtrlSetData($BlurBehindCombo, "")
+    ; fill combos
+    GUICtrlSetData($DarkTitleCombo, "True|False")
+    GUICtrlSetData($TitleBarBackdropCombo, "Auto|None|Mica|Acrylic|Mica Alt")
+    GUICtrlSetData($CornerPreferenceCombo, "Default|Square|Round|Round Small")
+    GUICtrlSetData($ExtendFrameCombo, "True|False")
+    GUICtrlSetData($BlurBehindCombo, "True|False")
+EndFunc
+
 Func _RuleList()
 	$IFEOname = GUICtrlRead($RuleListCombo)
-	;ConsoleWrite("selected: " & $IFEOname & @CRLF)
 
-    #cs
     If $IFEOname = "Global Rules" Then
-        ConsoleWrite("show the global rules" & @CRLF)
-        ConsoleWrite("and disable the target and rule type stuff" & @CRLF)
-        hBtnAddRule()
-        Return
-    EndIf
-    #ce
-    If $IFEOname = "─────────────────────────────────────────────────────────────────" Then
-         hBtnAddRule_nofocus()
-         GUICtrlSetState($DeleteButton, $GUI_DISABLE)
-         Return
-         ;_GUICtrlComboBox_ShowDropDown($RuleListCombo, True)
-    EndIf
-
-    If $IFEOname = "Global Rules" Or $IFEOname = "─────────────────────────────────────────────────────────────────" Then
         hBtnAddRule_nofocusGlobal()
         ; need to disable some things
         GUICtrlSetState($TargetInput, $GUI_DISABLE)
@@ -1704,6 +1614,7 @@ Func _RuleList()
         ;GUICtrlSetBkColor($TargetInput, 0x101010)
         ;GUICtrlSetBkColor($idInputRuleType, 0x101010)
         GUICtrlSetState($SaveButton, $GUI_ENABLE)
+        _ResetCombosGlobal()
     Else
         GUICtrlSetState($TargetInput, $GUI_ENABLE)
         GUICtrlSetState($idInputRuleType, $GUI_ENABLE)
@@ -1716,6 +1627,7 @@ Func _RuleList()
         ;GUICtrlSetBkColor($TargetInput, 0x202020)
         ;GUICtrlSetBkColor($idInputRuleType, 0x202020)
         GUICtrlSetState($SaveButton, $GUI_ENABLE)
+        _ResetCombos()
     EndIf
 
     If $IFEOname = "Global Rules" Then
@@ -1962,51 +1874,18 @@ Func _IsTaskRunning()
     _TS_Close($oService)
 EndFunc
 
-Func _FillCombo()
-    #cs
-    If $TaskInstalled = "Yes" And IsAdmin() Then
-        If $TaskRunning = "No" Then
-            GUICtrlSetData($idStatusCombo, "Uninstall Task")
-        Else
-            GUICtrlSetData($idStatusCombo, "Uninstall Task|Restart Task")
-        EndIf
-    EndIf
-    #ce
-    If $TaskInstalled = "No" And IsAdmin() Then GUICtrlSetData($idStatusCombo, "Install Task (Admin)")
-    If $TaskInstalled = "No" And Not IsAdmin() Then GUICtrlSetData($idStatusCombo, "Install Task")
-    If $TaskInstalled = "Yes" Then
-        If $TaskIntegrity = "No" And IsAdmin() Then
-            If $TaskRunning = "No" Then
-                GUICtrlSetData($idStatusCombo, "Upgrade Task (Admin)|Uninstall Task")
-            Else
-                GUICtrlSetData($idStatusCombo, "Upgrade Task (Admin)|Uninstall Task|Restart Task")
-            EndIf
-        ElseIf $TaskIntegrity = "Yes" And IsAdmin() Then
-            If $TaskRunning = "No" Then
-                GUICtrlSetData($idStatusCombo, "Uninstall Task")
-            Else
-                GUICtrlSetData($idStatusCombo, "Uninstall Task|Restart Task")
-            EndIf
-        ElseIf $TaskIntegrity = "Yes" And Not IsAdmin() Then
-            If $TaskRunning = "No" Then
-                GUICtrlSetData($idStatusCombo, "Uninstall Task (Admin)")
-            Else
-                GUICtrlSetData($idStatusCombo, "Uninstall Task (Admin)|Restart Task")
-            EndIf
-        ElseIf Not IsAdmin() Then
-            If $TaskRunning = "No" Then
-                GUICtrlSetData($idStatusCombo, "Uninstall Task")
-            Else
-                GUICtrlSetData($idStatusCombo, "Uninstall Task|Restart Task")
-            EndIf
-        EndIf
-    EndIf
-EndFunc
-
 Func _RestartTask()
     $IsRunFromTS = _ToBoolean(IniRead($sIniPath, "StartupInfoOnly", "StartedByTask", "False"))
     If Not $IsRunFromTS Then
         If @Compiled Then
+            ; handle situation when engine process is elevated and GUI process is not
+            Local $bElevated = _ToBoolean(IniRead($sIniPath, "StartupInfoOnly", "Elevated", "False"))
+            If $bElevated And Not IsAdmin() Then
+                $sMsg = "Error: Unable to control elevated engine process without Admin privileges." & @CRLF & @CRLF
+                $sMsg &= "Please consider installing " & @CRLF
+        		_ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+                Return
+            EndIf
             ; obtain PID for engine process
             Local $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
             ; get handle from PID
@@ -2216,30 +2095,68 @@ Func _TaskStatusUpdate_adlib()
     _IsEngineProcRunning()
 
     GUICtrlSetData($idPart0, "Task Installed: " & $TaskInstalled)
-    ;GUICtrlSetData($idPart1, "Task Running: " & $TaskRunning)
-    ;GUICtrlSetData($idPart2, "Task Elevated: " & $TaskIntegrity)
 
     AdlibUnRegister("_TaskStatusUpdate_adlib")
 EndFunc
 
+Func _TaskStatusUpdate_adlib20()
+    $TaskIntegrity = "No"
+    $TaskInstalled = _IsTaskInstalled()
+    ;Global $TaskRunning = "No"
+    $TaskRunning = _IsTaskRunning()
+    If Not $TaskRunning Then $TaskRunning = "No"
+    ; only try to get task integrity level if it exists
+    If $TaskInstalled = "Yes" Then
+        $TaskIntegrity = _GetTaskIntegrityLevel()
+    EndIf
+    If Not $TaskIntegrity Then $TaskIntegrity = "No"
+
+    _IsEngineProcRunning()
+
+    GUICtrlSetData($idPart0, "Task Installed: " & $TaskInstalled)
+EndFunc
+
 Func _IsEngineProcRunning()
-    Local $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
+    Local $iPID
     Local $bElevated = _ToBoolean(IniRead($sIniPath, "StartupInfoOnly", "Elevated", "False"))
     Local $sEngineStatus
-    If $iPID <> "" Then
-        ; engine is running
-        If $bElevated Then
-            ; engine is running as admin
-            $sEngineStatus = "Engine Running: Admin"
-            GUICtrlSetData($idPart1, $sEngineStatus)
-        ElseIf Not $bElevated Then
+
+    If @Compiled Then
+        $aProcessRunning = ProcessList($sEngName & ".exe")
+        If $aProcessRunning[0][0] <> 0 Then
             ; engine is running
-            $sEngineStatus = "Engine Running: Yes"
+            If $bElevated Then
+                ; engine is running as admin
+                $sEngineStatus = "Engine Running: Admin"
+                GUICtrlSetData($idPart1, $sEngineStatus)
+            ElseIf Not $bElevated Then
+                ; engine is running
+                $sEngineStatus = "Engine Running: Yes"
+                GUICtrlSetData($idPart1, $sEngineStatus)
+            EndIf
+        ElseIf $aProcessRunning[0][0] = 0 Then
+            $sEngineStatus = "Engine Running: No"
             GUICtrlSetData($idPart1, $sEngineStatus)
         EndIf
-    ElseIf $iPID = "" Then
-        $sEngineStatus = "Engine Running: No"
-        GUICtrlSetData($idPart1, $sEngineStatus)
+    EndIf
+
+    If Not @Compiled Then
+        $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
+        If $iPID <> "" Then
+            ; engine is running
+            If $bElevated Then
+                ; engine is running as admin
+                $sEngineStatus = "Engine Running: Admin"
+                GUICtrlSetData($idPart1, $sEngineStatus)
+            ElseIf Not $bElevated Then
+                ; engine is running
+                $sEngineStatus = "Engine Running: Yes"
+                GUICtrlSetData($idPart1, $sEngineStatus)
+            EndIf
+        ElseIf $iPID = "" Then
+            $sEngineStatus = "Engine Running: No"
+            GUICtrlSetData($idPart1, $sEngineStatus)
+        EndIf
     EndIf
 EndFunc
 
@@ -2624,3 +2541,51 @@ Func _WinAPI_DwmSetWindowAttribute_unr($hWnd, $iAttribute, $iData)    ; #include
 EndFunc   ;==>_WinAPI_DwmSetWindowAttribute_unr
 ;--------------------------------------------------------------------------------------------------------------------------------
 
+Func idGUI()
+    ; get GUI window state
+    Local $iState = WinGetState($hGUI)
+    If $iState <> $WIN_STATE_VISIBLE Then GUISetState(@SW_SHOW)
+EndFunc
+
+Func _About()
+	MsgBox(0, "Immersive UX", "Version: " & $iVersion & @CRLF & "Created by: " & "WildByDesign")
+EndFunc
+
+Func _Exit()
+    ; need to close engine process here
+    $IsRunFromTS = _ToBoolean(IniRead($sIniPath, "StartupInfoOnly", "StartedByTask", "False"))
+    If Not $IsRunFromTS Then
+        If @Compiled Then
+            ; handle situation when engine process is elevated and GUI process is not
+            Local $bElevated = _ToBoolean(IniRead($sIniPath, "StartupInfoOnly", "Elevated", "False"))
+            If $bElevated And Not IsAdmin() Then
+                $sMsg = "Error: Unable to control elevated engine process without Admin privileges." & @CRLF & @CRLF
+                $sMsg &= "Please consider installing " & @CRLF
+        		_ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+                Return
+            EndIf
+            ; obtain PID for engine process
+            Local $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
+            ; get handle from PID
+            Local $hWnd = _GetHwndFromPID($iPID)
+            ; close engine process in a way that allows proper process cleanup
+            WinClose($hWnd)
+            ProcessWaitClose($iPID)
+        ElseIf Not @Compiled Then
+            ; get program files x86 folder
+            Local $sAutoIt3 = @ProgramFilesDir & "\AutoIt3\AutoIt3.exe"
+            $sAutoIt3 = StringReplace($sAutoIt3, "Program Files", "Program Files (x86)")
+            ; get PID of running script
+            Local $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
+            ; get handle from PID
+            Local $hWnd = _GetHwndFromPID($iPID)
+            ; close engine process in a way that allows proper process cleanup
+            WinClose($hWnd)
+            ProcessWaitClose($iPID)
+        EndIf
+    ElseIf $IsRunFromTS Then
+        _TaskSched_End()
+    EndIf
+
+    Exit
+EndFunc

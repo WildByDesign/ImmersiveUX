@@ -5,23 +5,21 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.1.5.0
+#AutoIt3Wrapper_Res_Fileversion=1.2.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.1.5
+#AutoIt3Wrapper_Res_ProductVersion=1.2.0
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=Y
-#AutoIt3Wrapper_Res_Icon_Add=app.ico
 #AutoIt3Wrapper_Run_Au3Stripper=y
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
+#include <AutoItExitCodes.au3>
 #include <WinAPIProc.au3>
 #include <WinAPISys.au3>
 #include <WinAPIGdi.au3>
 #include <Array.au3>
 #include <Misc.au3>
-
-$iVersion = '1.1.5'
 
 ; HotKey only used temporarily when needing to look for window classes to include/exclude
 ;#include <Process.au3>
@@ -48,10 +46,10 @@ Global $iGlobalBlurTintColor
 Global $dTerminalBorderColor, $dTerminalBackdrop, $bWindowsTerminalHandling, $dVSStudioBorderColor
 Global $dVSCodiumBackdrop, $dVSCodeBackdrop
 Global $bEnable = False
+Global $bBoot = True
 Global $aCustomRules[0][13]
 Global $mMap[]
 Global Static $hActiveWndLast
-Global $TRAY_EVENT_PRIMARYDOWN = -7
 Global $bElevated = False
 Global $sProdName = "ImmersiveUX"
 Global $sEngName = "ImmersiveEngine"
@@ -59,184 +57,6 @@ Global $DWMWA_COLOR_NONE = 0xFFFFFFFE
 Global $DWMWA_COLOR_DEFAULT = 0xFFFFFFFF
 
 ReadIniFile()
-Func ReadIniFile()
-	Global $aCustomRules[0][13]
-
-	; Global rules
-	$bGlobalDarkTitleBar = _ToBoolean(IniRead($IniFile, "GlobalRules", "GlobalDarkTitleBar", "True"))
-	$dGlobalBorderColor = IniRead($IniFile, "GlobalRules", "GlobalBorderColor", "")
-	$dGlobalTitleBarColor = IniRead($IniFile, "GlobalRules", "GlobalTitleBarColor", "")
-	$dGlobalTitleBarTextColor = IniRead($IniFile, "GlobalRules", "GlobalTitleBarTextColor", "")
-	$iGlobalTitleBarBackdrop = Int(IniRead($IniFile, "GlobalRules", "GlobalTitleBarBackdrop", "0"))
-	$iGlobalCornerPreference = Int(IniRead($IniFile, "GlobalRules", "GlobalCornerPreference", "0"))
-	$iGlobalExtendFrameIntoClient = _ToBoolean(IniRead($IniFile, "GlobalRules", "GlobalExtendFrameIntoClient", "False"))
-	$iGlobalEnableBlurBehind = _ToBoolean(IniRead($IniFile, "GlobalRules", "GlobalEnableBlurBehind", "False"))
-	$dGlobalBlurTintColor = IniRead($IniFile, "GlobalRules", "GlobalBlurTintColor", "")
-	$iGlobalTintColorIntensity = Int(IniRead($IniFile, "GlobalRules", "GlobalTintColorIntensity", ""))
-
-	$bClearChangesOnExit = _ToBoolean(IniRead($IniFile, "Settings", "ClearChangesOnExit", "True"))
-	$bRequireWindows11 = _ToBoolean(IniRead($IniFile, "Settings", "RequireWindows11", "True"))
-	$iBorderColorOptions = Int(IniRead($IniFile, "Configuration", "BorderColorOptions", "0"))
-	$sExcludeFromAllProc = IniRead($IniFile, "ProcessExclusion", "ExcludeFromAllProc", "SearchHost.exe, StartMenuExperienceHost.exe")
-	$sExcludeFromAllClass = IniRead($IniFile, "ClassExclusion", "ExcludeFromAllClass", "Progman, Xaml_WindowedPopupClass")
-
-	; put together array for custom per-app and per-class rules
-	Local $aSectionNames = IniReadSectionNames($IniFile)
-
-    For $i = 1 To $aSectionNames[0]
-        ;If StringInStr($aSectionNames[$i], "CustomRules", $STR_NOCASESENSEBASIC) Then
-		Local $a = $aSectionNames[$i]
-        If $a <> "Configuration" And $a <> "ProcessExclusion" And $a <> "ClassExclusion" And $a <> "Settings" And $a <> "GlobalRules" And $a <> "StartupInfoOnly" And $a <> "VSCodeInstallPath" Then
-			Local $aArray = IniReadSection($IniFile, $aSectionNames[$i])
-			;ConsoleWrite("number of lines: " & $aArray[0][0] & @CRLF)
-			If $aArray[0][0] <> '13' Then
-				; problem detected in CustomRules section
-				$msg = 'A problem has been detected in CustomRules section: ' & $aSectionNames[$i] & @CRLF & @CRLF
-				$msg &= $sProdName & ' will exit now to prevent issue.'
-				MsgBox($MB_SYSTEMMODAL, "Error", $msg)
-				Exit
-			EndIf
-			_ArrayColDelete($aArray, 0)
-			_ArrayDelete($aArray, 0)
-			_ArrayTranspose($aArray)
-			_ArrayAdd($aCustomRules, $aArray)
-        EndIf
-    Next
-
-	; need to loop through custom rules to sanitize
-	For $i = 0 To UBound($aCustomRules) - 1
-        $aCustomRules[$i][6] = Int($aCustomRules[$i][6])
-        $aCustomRules[$i][7] = Int($aCustomRules[$i][7])
-    Next
-
-	; need to loop through custom rules to store details for Terminal, Explorer, VSCode, VS Studio
-	$bExplorerExtendClient = False
-	$bWindowsTerminalHandling = False
-
-	For $i = 0 To UBound($aCustomRules) - 1
-        If StringInStr($aCustomRules[$i][1], "explorer.exe", $STR_NOCASESENSEBASIC) Then
-			; fix for Explorer blur behind titlebar
-			If $aCustomRules[$i][9] = "True" Then $aCustomRules[$i][8] = "True"
-			If $aCustomRules[$i][8] = "True" Then $bExplorerExtendClient = True
-			If $aCustomRules[$i][12] = "False" Then $bExplorerExtendClient = False
-		EndIf
-		If StringInStr($aCustomRules[$i][1], "CabinetWClass", $STR_NOCASESENSEBASIC) Then
-			; fix for Explorer blur behind titlebar
-			If $aCustomRules[$i][9] = "True" Then $aCustomRules[$i][8] = "True"
-			If $aCustomRules[$i][8] = "True" Then $bExplorerExtendClient = True
-			If $aCustomRules[$i][12] = "False" Then $bExplorerExtendClient = False
-		EndIf
-		If StringInStr($aCustomRules[$i][1], "Terminal.exe", $STR_NOCASESENSEBASIC) Then
-			If $aCustomRules[$i][8] = "True" Then $bWindowsTerminalHandling = True
-			If $aCustomRules[$i][9] = "True" Then $bWindowsTerminalHandling = True
-			If $aCustomRules[$i][12] = "False" Then $bWindowsTerminalHandling = False
-			If $aCustomRules[$i][12] <> "False" Then $dTerminalBorderColor = $aCustomRules[$i][3]
-			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][12] <> "False" Then
-				$dTerminalBackdrop = $aCustomRules[$i][6]
-			Else
-				$dTerminalBackdrop = $iGlobalTitleBarBackdrop
-			EndIf
-		EndIf
-		If StringInStr($aCustomRules[$i][1], "VSCodium.exe", $STR_NOCASESENSEBASIC) Then
-			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][12] <> "False" Then
-				$dVSCodiumBackdrop = $aCustomRules[$i][6]
-			EndIf
-		EndIf
-		If StringInStr($aCustomRules[$i][1], "Code.exe", $STR_NOCASESENSEBASIC) Then
-			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][12] <> "False" Then
-				$dVSCodeBackdrop = $aCustomRules[$i][6]
-			EndIf
-		EndIf
-		If StringInStr($aCustomRules[$i][1], "CASCADIA_HOSTING_WINDOW_CLASS", $STR_NOCASESENSEBASIC) Then
-			If $aCustomRules[$i][8] = "True" Then $bWindowsTerminalHandling = True
-			If $aCustomRules[$i][9] = "True" Then $bWindowsTerminalHandling = True
-			If $aCustomRules[$i][12] = "False" Then $bWindowsTerminalHandling = False
-			If $aCustomRules[$i][12] <> "False" Then $dTerminalBorderColor = $aCustomRules[$i][3]
-			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][12] <> "False" Then
-				$dTerminalBackdrop = $aCustomRules[$i][6]
-			Else
-				$dTerminalBackdrop = $iGlobalTitleBarBackdrop
-			EndIf
-		EndIf
-		If StringInStr($aCustomRules[$i][1], "devenv.exe", $STR_NOCASESENSEBASIC) Then
-			If $aCustomRules[$i][3] <> "" Then
-				$dVSStudioBorderColor = $aCustomRules[$i][3]
-			Else
-				$dVSStudioBorderColor = $dGlobalTitleBarColor
-			EndIf
-		EndIf
-    Next
-
-	; special handling related to global values if set
-	If $iGlobalExtendFrameIntoClient Then
-		$bExplorerExtendClient = True
-		$bWindowsTerminalHandling = True
-	EndIf
-
-	If $iGlobalEnableBlurBehind Then
-		$bExplorerExtendClient = True
-		$bWindowsTerminalHandling = True
-	EndIf
-
-	; determine if dark mode or light mode for titlebar option
-	$bAppsUseDarkTheme = RegRead('HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize', 'AppsUseLightTheme') == 0 ? True : False
-	$bSystemUsesDarkTheme = RegRead('HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize', 'SystemUsesLightTheme') == 0 ? True : False
-
-	If $bAppsUseDarkTheme Or $bSystemUsesDarkTheme Then
-		$bDarkModeEnabled = True
-	Else
-		$bDarkModeEnabled = False
-	EndIf
-
-	$aGlobalExclusions = StringSplit($sExcludeFromAllProc, ",")
-	$aExcludeFromAllClass = StringSplit($sExcludeFromAllClass, ",")
-
-	; create process exclusion array for all functions
-	For $i = 1 To $aGlobalExclusions[0]
-		$aGlobalExclusions[$i] = StringStripWS($aGlobalExclusions[$i], $STR_STRIPLEADING + $STR_STRIPTRAILING)
-		$aGlobalExclusions[$i] = StringReplace($aGlobalExclusions[$i], "*", "")
-	Next
-
-	; create class exclusion array for all functions
-	For $i = 1 To $aExcludeFromAllClass[0]
-		$aExcludeFromAllClass[$i] = StringStripWS($aExcludeFromAllClass[$i], $STR_STRIPLEADING + $STR_STRIPTRAILING)
-		$aExcludeFromAllClass[$i] = StringReplace($aExcludeFromAllClass[$i], "*", "")
-	Next
-
-	; combine process and class exlusions into one global exclusion list
-	_ArrayDelete($aGlobalExclusions, 0)
-	_ArrayDelete($aExcludeFromAllClass, 0)
-	_ArrayConcatenate($aGlobalExclusions, $aExcludeFromAllClass)
-	;_ArrayDisplay($aGlobalExclusions, "1D Target and Source concatenated")
-
-	; obtain system accent color for borders and/or title bars
-	Local $sReadColor = RegRead("HKEY_CURRENT_USER\Software\Microsoft\Windows\DWM", "AccentColor")
-	Local $sAccentColor = Hex($sReadColor)
-	$sAccentColor = StringRight($sAccentColor, 6)
-
-	$sPart1 = StringMid($sAccentColor, 5, 2)
-	$sPart2 = StringMid($sAccentColor, 3, 2)
-	$sPart3 = StringMid($sAccentColor, 1, 2)
-
-	$sAccentColor = '0x' & $sPart1 & $sPart2 & $sPart3
-
-	; blur behind color tinting and intensity
-	Local $iTintColor = $dGlobalBlurTintColor
-	Local $iIntensity = _percentageOfHex($iGlobalTintColorIntensity)
-	Local $iTintColorSwitch = Hex(_WinAPI_SwitchColor($iTintColor), 6)
-	$iGlobalBlurTintColor = '0x' & $iIntensity & $iTintColorSwitch
-
-	; check registry settings as well, will get checked on settings refresh also
-	ReadFromRegistry()
-EndFunc
-
-Func ReadFromRegistry()
-	$bClassicExplorer = False
-	Local $sExplorerReg1 = RegRead("HKCU\Software\Classes\CLSID\{2aa9162e-c906-4dd9-ad0b-3d24a8eef5a0}\InProcServer32", "ThreadingModel")
-	Local $sExplorerReg2 = RegRead("HKCU\Software\Classes\CLSID\{6480100b-5a83-4d1e-9f69-8ae5a88e9a33}\InProcServer32", "ThreadingModel")
-	If $sExplorerReg1 = "Apartment" Then $bClassicExplorer = True
-	If $sExplorerReg2 = "Apartment" Then $bClassicExplorer = True
-EndFunc
 
 ; requires Windows 11 build 22621+
 $OSBuild = @OSBuild
@@ -254,6 +74,7 @@ If Not _WinAPI_DwmIsCompositionEnabled() Then
         Exit
 EndIf
 
+#cs
 If StringInStr($CmdLineRaw, "addtask") Then
 	_TaskSched_Add()
 	Exit
@@ -274,6 +95,7 @@ If StringInStr($CmdLineRaw, "starttask") Then
 	_TaskSched_Run()
 	Exit
 EndIf
+#ce
 
 If StringInStr($CmdLineRaw, "removeall") Then
 	SetBorderColor_removeall()
@@ -284,14 +106,13 @@ Global $g_iIsTaskSchedInstalled = _TaskSched_AlreadyInstalled()
 Global $g_iIsTaskSchedRun = False
 If StringInStr($CmdLineRaw, 'runtask') Then $g_iIsTaskSchedRun = True
 
-;If Not IsAdmin() Then
-	If $g_iIsTaskSchedInstalled And Not $g_iIsTaskSchedRun Then
-		_TaskSched_Run()
-		Exit
-	Else
-		ConsoleWrite('No TaskSched conditions.' & @CRLF)
-	EndIf
-;EndIf
+; if scheduled task is installed but not running, run the task instead
+If $g_iIsTaskSchedInstalled And Not $g_iIsTaskSchedRun Then
+	_TaskSched_Run()
+	Exit
+Else
+	ConsoleWrite('No TaskSched conditions.' & @CRLF)
+EndIf
 
 ; ensure that only one instance is running
 If _Singleton($sEngName, 1) = 0 Then
@@ -309,20 +130,7 @@ IniWriteSection($IniFile, "StartupInfoOnly", $aSectionTS)
 ; register cleanup function every 1 hour to clear handle cache map
 AdlibRegister ("ClearHandleMap", 3600000)
 
-Opt("TrayMenuMode", 3)
-Opt("TrayAutoPause", 0)
-Opt("TrayOnEventMode", 1)
-
-TraySetOnEvent($TRAY_EVENT_PRIMARYDOWN, 'idGUI')
-TraySetClick(16)
-
-$idGUI = TrayCreateItem("Immersive UX")
-TrayItemSetOnEvent($idGUI, "idGUI")
-TrayCreateItem("")
-$idAbout = TrayCreateItem('About')
-TrayItemSetOnEvent($idAbout, "_About")
-$idExit = TrayCreateItem('Exit')
-TrayItemSetOnEvent($idExit, "_Exit")
+Opt("SetExitCode", 1)
 
 OnAutoItExitRegister(DoCleanUp)
 
@@ -333,17 +141,10 @@ Func _ToBoolean($sString)
     Return (StringStripWS(StringUpper($sString), 8) = "TRUE" ? True : False)
 EndFunc   ;==>_ToBoolean
 
-; set tray icon and tooltip
-If @Compiled = 0 Then
-	TraySetIcon(@ScriptDir & '\app.ico')
-Else
-	TraySetIcon(@ScriptFullPath, 201)
-EndIf
-TraySetToolTip("Immersive UX")
-
 ; don't apply to all during boot as there is no need
 $Uptime = _WinAPI_StrFromTimeInterval(_WinAPI_GetTickCount64())
 If StringInStr($Uptime, "min") Then
+	$bBoot = False
 	; apply settings to all currently running apps
 	SetBorderColor_apply2all()
 EndIf
@@ -351,21 +152,24 @@ EndIf
 ; set process priority
 ProcessSetPriority($sEngName & ".exe", 4)
 
+; start GUI/tray process
+idGUI()
+
 While 1
     Sleep(10000)
 WEnd
-
-Func _Exit()
-	;SetBorderColor_removeall()
-    ;_Free()
-	;IniDelete($IniFile, "StartupInfoOnly")
-    Exit
-EndFunc   ;==>_Exit
 
 Func DoCleanUp()
     SetBorderColor_removeall()
     _Free()
 	IniDelete($IniFile, "StartupInfoOnly")
+	; show crash details if possible
+	If @exitCode <> 0 Then
+        $sMsg = "The Immersive UX engine process has crashed." & @CRLF & @CRLF
+        $sMsg &= "Error Code: " & "(0x" & Hex(@exitCode) & ')' & @CRLF & @CRLF
+        $sMsg &= '"' & _FormatAutoItExitCode() & '"'
+        MsgBox(0, "Immersive UX", $sMsg)
+    EndIf
 EndFunc
 
 Func _Free()
@@ -417,13 +221,24 @@ Func SetBorderColor_removeall()
 			If $sClassName = "XamlExplorerHostIslandWindow" Then ContinueLoop
 			;ConsoleWrite("$EVENT_OBJECT_SHOW: " & $sClassName & " " & "Title: " & $sActiveWindowCreate & @CRLF)
 
+			If WinExists("[CLASS:CabinetWClass]") Then
+				If $bClassicExplorer Then
+					Local $hWnd = WinGetHandle("[CLASS:CabinetWClass]")
+					Local $aPos = WinGetPos($hWnd)
+					WinMove($hWnd, "", $aPos[0], $aPos[1], $aPos[2], $aPos[3] + 1)
+				EndIf
+			EndIf
+
 			; don't bother if class/process is on global exclusion list
 			$sName = _WinAPI_GetWindowFileName($aArray[$n][1])
 			For $i = 0 To UBound($aGlobalExclusions) -1
 				;If StringInStr($sName, $aGlobalExclusions[$i], $STR_NOCASESENSEBASIC) Then ContinueLoop
-				If StringInStr($sName, $aGlobalExclusions[$i], 2) Or StringInStr($sClassName, $aGlobalExclusions[$i], 2) Then ContinueLoop
+				If StringInStr($sName, $aGlobalExclusions[$i], 2) Or StringInStr($sClassName, $aGlobalExclusions[$i], 2) Then ContinueLoop 2
 			Next
 
+			MainColoringRemoval($aArray[$n][1], $sClassName, $sName)
+
+			#cs ; old removal method
 			; reset any modified attributes back to default values on exit
 			_WinAPI_DwmSetWindowAttribute__($aArray[$n][1], 34, 0xFFFFFFFF)
 			_WinAPI_DwmSetWindowAttribute__($aArray[$n][1], 35, 0xFFFFFFFF)
@@ -433,19 +248,103 @@ Func SetBorderColor_removeall()
 			_WinAPI_DwmExtendFrameIntoClientArea($aArray[$n][1], _WinAPI_CreateMargins(0, 0, 0, 0))
 			_WinAPI_DwmEnableBlurBehindWindow10($aArray[$n][1], False)
 			_WinAPI_DwmEnableBlurBehindWindow($aArray[$n][1], 0, 0)
+			#ce
 		Next
-
-		If WinExists("[CLASS:CabinetWClass]") Then
-			If $bClassicExplorer Then
-				Local $hWnd = WinGetHandle("[CLASS:CabinetWClass]")
-				ConsoleWrite("classic explorer running, handle: " & $hWnd & @CRLF)
-				;_WinAPI_RedrawWindow($hWnd, 0, 0, $RDW_ERASE + $RDW_FRAME + $RDW_INTERNALPAINT + $RDW_INVALIDATE + $RDW_UPDATENOW)
-				Local $aPos = WinGetPos($hWnd)
-				WinMove($hWnd, "", $aPos[0], $aPos[1], $aPos[2], $aPos[3] + 1)
-			EndIf
-		EndIf
 	EndIf
 EndFunc   ;==>SetBorderColor_removeall
+
+Func MainColoringRemoval($hWnd, $sClassName, $sName)
+	Local $i
+	Local $bMatchesFound = False
+
+	; determine if process rule or class rule matches for custom rules
+	For $i = 0 To UBound($aCustomRules) - 1
+		; run through all of the custom process/class rules for a match
+		If StringInStr($sName, $aCustomRules[$i][1], 2) Or StringInStr($sClassName, $aCustomRules[$i][1], 2) Then
+			; skip custom rules that are not Enabled
+			If $aCustomRules[$i][12] = "False" Then
+				;If $bGlobalDarkTitleBar Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
+				If $iBorderColorOptions <> 0 Then
+					If $dGlobalBorderColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, 0xFFFFFFFF)
+				EndIf
+				If $dGlobalTitleBarColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 35, 0xFFFFFFFF)
+				If $dGlobalTitleBarTextColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, 0xFFFFFFFF)
+				If $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, 0)
+				If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, 0)
+				If $iGlobalEnableBlurBehind Then
+					_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False)
+					_WinAPI_DwmEnableBlurBehindWindow($hWnd, 0, 0)
+					_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+				EndIf
+				If Not $iGlobalEnableBlurBehind Then
+					; only enable ExtendFrameIntoClientArea if blur behind is not enabled
+					If $iGlobalExtendFrameIntoClient Then _WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+				EndIf
+				Return
+			EndIf
+			; dark mode titlebar, fallback to global if not set
+			If $aCustomRules[$i][2] = "True" Then
+				;_WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
+			EndIf
+			If $aCustomRules[$i][2] = "" Then
+				;If $bGlobalDarkTitleBar Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
+			EndIf
+			; border color reset to default
+			If $aCustomRules[$i][3] <> "" Or $dGlobalBorderColor <> "" Then
+				_WinAPI_DwmSetWindowAttribute__($hWnd, 34, 0xFFFFFFFF)
+			EndIf
+			; titlebar color reset to default
+			If $aCustomRules[$i][4] <> "" Or $dGlobalTitleBarColor <> "" Then
+				_WinAPI_DwmSetWindowAttribute__($hWnd, 35, 0xFFFFFFFF)
+			EndIf
+			; titlebar text color reset to default
+			If $aCustomRules[$i][5] <> "" Or $dGlobalTitleBarTextColor <> "" Then
+				_WinAPI_DwmSetWindowAttribute__($hWnd, 36, 0xFFFFFFFF)
+			EndIf
+			; titlebar backdrop reset to default
+			If $aCustomRules[$i][6] <> "" Or $iGlobalTitleBarBackdrop <> "" Then
+				_WinAPI_DwmSetWindowAttribute__($hWnd, 38, 0)
+			EndIf
+			; corner preference reset to default
+			If $aCustomRules[$i][7] <> "" Or $iGlobalCornerPreference <> "" Then
+				_WinAPI_DwmSetWindowAttribute__($hWnd, 33, 0)
+			EndIf
+			; blur behind removal
+			If $aCustomRules[$i][9] = "True" Or $iGlobalEnableBlurBehind Then
+				_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False)
+				_WinAPI_DwmEnableBlurBehindWindow($hWnd, 0, 0)
+				_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+			EndIf
+			; ExtendFrameIntoClientArea removal
+			If $aCustomRules[$i][8] = "True" Or $iGlobalExtendFrameIntoClient Then
+				; only enable ExtendFrameIntoClientArea if blur behind is not enabled
+				If $aCustomRules[$i][9] <> "True" Or Not $iGlobalEnableBlurBehind Then
+					_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+				EndIf
+			EndIf
+			$bMatchesFound = True
+		EndIf
+    Next
+
+	; fallback to global when no custom rules match
+	If Not $bMatchesFound Then
+		;If $bGlobalDarkTitleBar Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
+		If $dGlobalBorderColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, 0xFFFFFFFF)
+		If $dGlobalTitleBarColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 35, 0xFFFFFFFF)
+		If $dGlobalTitleBarTextColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, 0xFFFFFFFF)
+		If $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, 0)
+		If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, 0)
+		; also need to determine if custom rules has this set, if so, then skip this
+		If $iGlobalEnableBlurBehind Then
+			_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False)
+			_WinAPI_DwmEnableBlurBehindWindow($hWnd, 0, 0)
+			_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+		EndIf
+		If $iGlobalExtendFrameIntoClient Then
+			If Not $iGlobalEnableBlurBehind Then _WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+		EndIf
+	EndIf
+EndFunc
 
 Func SetBorderColor_apply2all()
 	Local $hActiveWnd2all
@@ -467,7 +366,7 @@ Func SetBorderColor_apply2all()
 
 		; filter some by class name
 		$sClassName = _WinAPI_GetClassName($aArray[$n][1])
-		;If $sClassName = "Windows.UI.Core.CoreWindow" Then ContinueCase ; this covers Start, Search + much more
+		;If $sClassName = "Windows.UI.Core.CoreWindow" Then ContinueLoop ; this covers Start, Search + much more
 		If StringInStr($sClassName, "Windows.UI.") Then ContinueLoop
 		If $sClassName = "XamlExplorerHostIslandWindow" Then ContinueLoop
 
@@ -488,10 +387,6 @@ Func SetBorderColor_apply2all()
 EndFunc   ;==>SetBorderColor_apply2all
 
 Func MainColoringFunction($hWnd)
-	Local $i
-	Local $iIntensity, $iTintColor, $iTintColorSwitch, $iTintColorBlur
-	Local $bMatchesFound = False
-
 	; don't bother if class/process is on global exclusion list
 	Local $sClassName = _WinAPI_GetClassName($hWnd)
 	Local $sName = _WinAPI_GetWindowFileName($hWnd)
@@ -501,8 +396,15 @@ Func MainColoringFunction($hWnd)
 	EndIf
 	For $i = 0 To UBound($aGlobalExclusions) -1
 		;If StringInStr($sName, $aGlobalExclusions[$i], $STR_NOCASESENSEBASIC) Then ContinueLoop
-		If StringInStr($sName, $aGlobalExclusions[$i], 2) Or StringInStr($sClassName, $aGlobalExclusions[$i], 2) Then ContinueLoop
+		If StringInStr($sName, $aGlobalExclusions[$i], 2) Or StringInStr($sClassName, $aGlobalExclusions[$i], 2) Then Return
 	Next
+	MainColoringContinue($hWnd, $sClassName, $sName)
+EndFunc
+
+Func MainColoringContinue($hWnd, $sClassName, $sName)
+	Local $i
+	Local $iIntensity, $iTintColor, $iTintColorSwitch, $iTintColorBlur
+	Local $bMatchesFound = False
 
 	; determine if process rule or class rule matches for custom rules
 	For $i = 0 To UBound($aCustomRules) - 1
@@ -773,65 +675,65 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 			If $hWnd<>$hWndLastCreate Then
 				$hWndLastCreate = $hWnd
 			ElseIf $hWnd=$hWndLastCreate Then
-				ContinueCase
+				Return
 			EndIf
 			$sActiveWindowCreate = _WinAPI_GetWindowTextMod($hWnd)
 			;$sClassName = _WinAPI_GetClassName($hWnd)
 			;ConsoleWrite("$EVENT_OBJECT_SHOW: " & $sClassName & " " & "Title: " & $sActiveWindowCreate & @CRLF)
-			If $sActiveWindowCreate = "" Then ContinueCase
-			If $sActiveWindowCreate = "Program Manager" Then ContinueCase
-			If $sActiveWindowCreate = "PopupHost" Then ContinueCase ; Xaml_WindowedPopupClass
-			;If $sActiveWindowCreate = "CoreInput" Then ContinueCase ; Windows.UI.Core.CoreComponentInputSource
-			;If $sActiveWindowCreate = "Search" Then ContinueCase ; Windows.UI.Core.CoreWindow
-			;If $sActiveWindowCreate = "Start" Then ContinueCase ; Windows.UI.Core.CoreWindow
-			;If $sActiveWindowCreate = "DesktopWindowXamlSource" Then ContinueCase ; Windows.UI.Composition.DesktopWindowContentBridge
-			If $sActiveWindowCreate = "Chrome Legacy Window" Then ContinueCase ; Chrome_RenderWidgetHostHWND
-			If $sActiveWindowCreate = "Quick settings" Then ContinueCase ; ControlCenterWindow
-			If $sActiveWindowCreate = "System tray overflow window." Then ContinueCase ; TopLevelWindowForOverflowXamlIsland
-			If $sActiveWindowCreate = "Drag" Then ContinueCase ; SysDragImage
+			If $sActiveWindowCreate = "" Then Return
+			If $sActiveWindowCreate = "Program Manager" Then Return
+			If $sActiveWindowCreate = "PopupHost" Then Return ; Xaml_WindowedPopupClass
+			;If $sActiveWindowCreate = "CoreInput" Then Return ; Windows.UI.Core.CoreComponentInputSource
+			;If $sActiveWindowCreate = "Search" Then Return ; Windows.UI.Core.CoreWindow
+			;If $sActiveWindowCreate = "Start" Then Return ; Windows.UI.Core.CoreWindow
+			;If $sActiveWindowCreate = "DesktopWindowXamlSource" Then Return ; Windows.UI.Composition.DesktopWindowContentBridge
+			If $sActiveWindowCreate = "Chrome Legacy Window" Then Return ; Chrome_RenderWidgetHostHWND
+			If $sActiveWindowCreate = "Quick settings" Then Return ; ControlCenterWindow
+			If $sActiveWindowCreate = "System tray overflow window." Then Return ; TopLevelWindowForOverflowXamlIsland
+			If $sActiveWindowCreate = "Drag" Then Return ; SysDragImage
 
 			; filter some by class name
 			$sClassNameCreate = _WinAPI_GetClassName($hWnd)
-			;If $sClassNameCreate = "Windows.UI.Core.CoreWindow" Then ContinueCase ; this covers Start, Search + much more
-			If StringInStr($sClassNameCreate, "Windows.UI.") Then ContinueCase
-			;If StringInStr($sClassNameCreate, "Windows.UI.Core") Then ContinueCase
-			If $sClassNameCreate = "XamlExplorerHostIslandWindow" Then ContinueCase
+			;If $sClassNameCreate = "Windows.UI.Core.CoreWindow" Then Return ; this covers Start, Search + much more
+			If StringInStr($sClassNameCreate, "Windows.UI.") Then Return
+			;If StringInStr($sClassNameCreate, "Windows.UI.Core") Then Return
+			If $sClassNameCreate = "XamlExplorerHostIslandWindow" Then Return
 			;ConsoleWrite("$EVENT_OBJECT_SHOW: " & $sClassNameCreate & " " & "Title: " & $sActiveWindowCreate & @CRLF)
 
 			MainColoringFunction($hWnd)
 
 		Case $EVENT_OBJECT_SHOW
 			$sActiveWindowShow = _WinAPI_GetWindowTextMod($hWnd)
-			If $sActiveWindowShow = "" Then ContinueCase
-			If $sActiveWindowShow = "Program Manager" Then ContinueCase
-			If $sActiveWindowShow = "PopupHost" Then ContinueCase ; Xaml_WindowedPopupClass
-			;If $sActiveWindowShow = "CoreInput" Then ContinueCase ; Windows.UI.Core.CoreComponentInputSource
-			;If $sActiveWindowShow = "Search" Then ContinueCase ; Windows.UI.Core.CoreWindow
-			;If $sActiveWindowShow = "Start" Then ContinueCase ; Windows.UI.Core.CoreWindow
-			;If $sActiveWindowShow = "DesktopWindowXamlSource" Then ContinueCase ; Windows.UI.Composition.DesktopWindowContentBridge
-			If $sActiveWindowShow = "Chrome Legacy Window" Then ContinueCase ; Chrome_RenderWidgetHostHWND
-			If $sActiveWindowShow = "Quick settings" Then ContinueCase ; ControlCenterWindow
-			If $sActiveWindowShow = "System tray overflow window." Then ContinueCase ; TopLevelWindowForOverflowXamlIsland
-			If $sActiveWindowShow = "Drag" Then ContinueCase ; SysDragImage
+			If $sActiveWindowShow = "" Then Return
+			If $sActiveWindowShow = "Program Manager" Then Return
+			If $sActiveWindowShow = "PopupHost" Then Return ; Xaml_WindowedPopupClass
+			;If $sActiveWindowShow = "CoreInput" Then Return ; Windows.UI.Core.CoreComponentInputSource
+			;If $sActiveWindowShow = "Search" Then Return ; Windows.UI.Core.CoreWindow
+			;If $sActiveWindowShow = "Start" Then Return ; Windows.UI.Core.CoreWindow
+			;If $sActiveWindowShow = "DesktopWindowXamlSource" Then Return ; Windows.UI.Composition.DesktopWindowContentBridge
+			If $sActiveWindowShow = "Chrome Legacy Window" Then Return ; Chrome_RenderWidgetHostHWND
+			If $sActiveWindowShow = "Quick settings" Then Return ; ControlCenterWindow
+			If $sActiveWindowShow = "System tray overflow window." Then Return ; TopLevelWindowForOverflowXamlIsland
+			If $sActiveWindowShow = "Drag" Then Return ; SysDragImage
 
 			; filter some by class name
 			$sClassNameShow = _WinAPI_GetClassName($hWnd)
-			;If $sClassNameShow = "Windows.UI.Core.CoreWindow" Then ContinueCase ; this covers Start, Search + much more
-			If StringInStr($sClassNameShow, "Windows.UI.") Then ContinueCase ; Start menu, Search, etc.
-			;If StringInStr($sClassNameShow, "Windows.UI.Core") Then ContinueCase
-			If $sClassNameShow = "XamlExplorerHostIslandWindow" Then ContinueCase
+			;If $sClassNameShow = "Windows.UI.Core.CoreWindow" Then Return ; this covers Start, Search + much more
+			If StringInStr($sClassNameShow, "Windows.UI.") Then Return ; Start menu, Search, etc.
+			;If StringInStr($sClassNameShow, "Windows.UI.Core") Then Return
+			If $sClassNameShow = "XamlExplorerHostIslandWindow" Then Return
 			;ConsoleWrite("$EVENT_OBJECT_SHOW: " & $sClassNameShow & " " & "Title: " & $sActiveWindowShow & @CRLF)
 
 			; explorer, no cache
 			If $sClassNameShow = "CabinetWClass" Then
 				MainColoringFunction($hWnd)
-				ContinueCase
+				Return
 			EndIf
 
 			; terminal, no cache
 			If $sClassNameShow = "CASCADIA_HOSTING_WINDOW_CLASS" Then
 				MainColoringFunction($hWnd)
-				ContinueCase
+				Return
 			EndIf
 
 			;#cs
@@ -839,7 +741,7 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 			For $vKey In $aMapKeys
 				If $hWnd = $mMap[$vKey] Then
 				ConsoleWrite("Already exists on map: " & $hWnd & " (skipping)" & @CRLF)	
-				ContinueCase
+				Return
 				EndIf
 			Next
 			;#ce
@@ -856,7 +758,7 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 			If $hWnd<>$hWndLastForeground Then
 				$hWndLastForeground = $hWnd
 			ElseIf $hWnd=$hWndLastForeground Then
-				ContinueCase
+				Return
 			EndIf
 
 			If $iBorderColorOptions = 0 Then
@@ -918,25 +820,25 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 			$sActiveWindowForeground = _WinAPI_GetWindowTextMod($hWnd)
 			;$sClassName = _WinAPI_GetClassName($hWnd)
 			;ConsoleWrite("$EVENT_OBJECT_SHOW: " & $sClassName & " " & "Title: " & $sActiveWindow & @CRLF)
-			If $sActiveWindowForeground = "" Then ContinueCase
-			If $sActiveWindowForeground = "Program Manager" Then ContinueCase
-			If $sActiveWindowForeground = "PopupHost" Then ContinueCase ; Xaml_WindowedPopupClass
-			;If $sActiveWindowForeground = "CoreInput" Then ContinueCase ; Windows.UI.Core.CoreComponentInputSource
-			;If $sActiveWindowForeground = "Search" Then ContinueCase ; Windows.UI.Core.CoreWindow
-			;If $sActiveWindowForeground = "Start" Then ContinueCase ; Windows.UI.Core.CoreWindow
-			;If $sActiveWindowForeground = "DesktopWindowXamlSource" Then ContinueCase ; Windows.UI.Composition.DesktopWindowContentBridge
-			If $sActiveWindowForeground = "Chrome Legacy Window" Then ContinueCase ; Chrome_RenderWidgetHostHWND
-			If $sActiveWindowForeground = "Quick settings" Then ContinueCase ; ControlCenterWindow
-			If $sActiveWindowForeground = "System tray overflow window." Then ContinueCase ; TopLevelWindowForOverflowXamlIsland
-			If $sActiveWindowForeground = "Drag" Then ContinueCase ; SysDragImage
+			If $sActiveWindowForeground = "" Then Return
+			If $sActiveWindowForeground = "Program Manager" Then Return
+			If $sActiveWindowForeground = "PopupHost" Then Return ; Xaml_WindowedPopupClass
+			;If $sActiveWindowForeground = "CoreInput" Then Return ; Windows.UI.Core.CoreComponentInputSource
+			;If $sActiveWindowForeground = "Search" Then Return ; Windows.UI.Core.CoreWindow
+			;If $sActiveWindowForeground = "Start" Then Return ; Windows.UI.Core.CoreWindow
+			;If $sActiveWindowForeground = "DesktopWindowXamlSource" Then Return ; Windows.UI.Composition.DesktopWindowContentBridge
+			If $sActiveWindowForeground = "Chrome Legacy Window" Then Return ; Chrome_RenderWidgetHostHWND
+			If $sActiveWindowForeground = "Quick settings" Then Return ; ControlCenterWindow
+			If $sActiveWindowForeground = "System tray overflow window." Then Return ; TopLevelWindowForOverflowXamlIsland
+			If $sActiveWindowForeground = "Drag" Then Return ; SysDragImage
 
 			; filter some by class name
 			;$sClassNameForeground = _WinAPI_GetClassName($hWnd)
-			;If $sClassNameForeground = "Windows.UI.Core.CoreWindow" Then ContinueCase ; this covers Start, Search + much more
-			If StringInStr($sClassNameForeground, "Windows.UI.") Then ContinueCase
-			;If StringInStr($sClassNameForeground, "Windows.UI.Core") Then ContinueCase
-			If $sClassNameForeground = "XamlExplorerHostIslandWindow" Then ContinueCase
-			;If $sClassNameForeground = 'TaskManagerWindow' Then ContinueCase
+			;If $sClassNameForeground = "Windows.UI.Core.CoreWindow" Then Return ; this covers Start, Search + much more
+			If StringInStr($sClassNameForeground, "Windows.UI.") Then Return
+			;If StringInStr($sClassNameForeground, "Windows.UI.Core") Then Return
+			If $sClassNameForeground = "XamlExplorerHostIslandWindow" Then Return
+			;If $sClassNameForeground = 'TaskManagerWindow' Then Return
 
 			; get process name
 			;$sNameForeground = _WinAPI_GetWindowFileName($hWnd)
@@ -952,37 +854,37 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 			If $hWnd<>$hWndLastReorder Then
 				$hWndLastReorder = $hWnd
 			ElseIf $hWnd=$hWndLastReorder Then
-				ContinueCase
+				Return
 			EndIf
 
-			If Not $bExplorerExtendClient Then ContinueCase
+			If Not $bExplorerExtendClient Then Return
 
 			; deal with file explorer (modern and classic)
 			$sClassNameReorder = _WinAPI_GetClassName($hWnd)
 
-			If $sClassNameReorder <> "CabinetWClass" Then ContinueCase
+			If $sClassNameReorder <> "CabinetWClass" Then Return
 
 			; apply only to classic file explorer
 			If $bClassicExplorer Then _WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
 
 		Case $EVENT_OBJECT_NAMECHANGE
 			; special handling for Windows Terminal backdrop
-			If Not $bWindowsTerminalHandling Then ContinueCase
+			If Not $bWindowsTerminalHandling Then Return
 
 			$sClassNameNameChange = _WinAPI_GetClassName($hWnd)
 
-			If $sClassNameNameChange <> 'CASCADIA_HOSTING_WINDOW_CLASS' Then ContinueCase
+			If $sClassNameNameChange <> 'CASCADIA_HOSTING_WINDOW_CLASS' Then Return
 			_WinAPI_DwmSetWindowAttribute__($hWnd, 38, $dTerminalBackdrop)
 			Sleep(20)
 			_WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor($dTerminalBorderColor))
 
 		Case $EVENT_SYSTEM_MINIMIZEEND
 			; special handling for Windows Terminal backdrop
-			If Not $bWindowsTerminalHandling Then ContinueCase
+			If Not $bWindowsTerminalHandling Then Return
 
 			$sClassNameNameChange = _WinAPI_GetClassName($hWnd)
 
-			If $sClassNameNameChange <> 'CASCADIA_HOSTING_WINDOW_CLASS' Then ContinueCase
+			If $sClassNameNameChange <> 'CASCADIA_HOSTING_WINDOW_CLASS' Then Return
 			_WinAPI_DwmSetWindowAttribute__($hWnd, 38, $dTerminalBackdrop)
 			Sleep(20)
 			_WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor($dTerminalBorderColor))
@@ -990,6 +892,7 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
     EndSwitch
 EndFunc
 
+#cs
 #Region TaskSched
 
 Func _TaskSched_Add()
@@ -1093,6 +996,17 @@ Func _TaskSched_End()
 EndFunc   ;==>_TaskSched_End
 
 #EndRegion TaskSched
+#ce
+
+Func _TaskSched_AlreadyInstalled()
+	If RunWait('schtasks.exe /Query /TN ' & $sProdName, '', @SW_HIDE) <> 0 Then Return 0
+	Return 1
+EndFunc   ;==>_TaskSched_AlreadyInstalled
+
+Func _TaskSched_Run()
+	Local $sRun = 'schtasks.exe /Run /HRESULT /TN ' & $sProdName
+	RunWait($sRun, '', @SW_HIDE)
+EndFunc   ;==>_TaskSched_Run
 
 ; #FUNCTION# ====================================================================================================================
 ; Name ..........: _WinAPI_DwmEnableBlurBehindWindow10
@@ -1133,10 +1047,6 @@ Func _WinAPI_DwmEnableBlurBehindWindow10($hWnd, $bEnable = True, $iBlurColor = "
 	Return $aResult[0]
 EndFunc
 
-Func _About()
-	MsgBox(0, "Immersive UX", "Version: " & $iVersion & @CRLF & "Created by: " & "WildByDesign")
-EndFunc
-
 Func ClearHandleMap()
 	; clear handle map every 1 hour
 	Global $mMap[]
@@ -1155,21 +1065,303 @@ Func _percentageOfHex($iVal)
 EndFunc
 
 Func idGUI()
+	Local $hActiveWin = WinGetHandle("[ACTIVE]")
 	; only start GUI if not already running
-	Local $aWinList = WinList()
-	For $i = 1 To $aWinList[0][0]
-		If StringInStr($aWinList[$i][0], "Immersive UX") Then
-			WinActivate($aWinList[$i][1])
+	If @Compiled Then
+		If $bBoot Then
+			ShellExecute(@ScriptDir & "\" & $sProdName & ".exe", "hidegui", @ScriptDir, $SHEX_OPEN)
 			Return
 		EndIf
-	Next
 
-	If @Compiled Then
-		ShellExecute(@ScriptDir & "\" & $sProdName & ".exe", "", @ScriptDir, $SHEX_OPEN)
-	ElseIf Not @Compiled Then
-		ShellExecute(@ScriptDir & "\" & $sProdName & ".au3")
+		Local $iPID = ProcessExists("ImmersiveUX.exe")
+		If ProcessExists("ImmersiveUX.exe") Then
+			If IsAdmin() Then
+				Local $iElev = _WinAPI_IsElevated_PID($iPID)
+				If Not $iElev Then
+					ProcessClose($iPID)
+					ProcessWaitClose($iPID)
+					ShellExecute(@ScriptDir & "\" & $sProdName & ".exe", "", @ScriptDir, $SHEX_OPEN)
+				EndIf
+				Return
+			EndIf
+		Else
+			; start gui hidden
+			ShellExecute(@ScriptDir & "\" & $sProdName & ".exe", "hidegui", @ScriptDir, $SHEX_OPEN)
+			; since gui was hidden, bring original active window to foreground
+			$hProcess = WinWait("Immersive UX", "", 10)
+			$iPID = _WinAPI_GetProcessID($hProcess)
+			$iParentPID = _WinAPI_GetParentProcess($iPID)
+			$hParentProc = _GetHwndFromPID($iParentPID)
+			$sParentProcName = _WinAPI_GetProcessName($iParentPID)
+			If $sParentProcName = "explorer.exe" Then
+				WinActivate("[CLASS:CabinetWClass]")
+			Else
+				WinActivate($hParentProc)
+			EndIf
+		EndIf
+	EndIf
+
+	Local $bAu3Running = False
+	If Not @Compiled Then
+		Local $aWinList = WinList()
+		For $i = 1 To $aWinList[0][0]
+			If StringInStr($aWinList[$i][0], "Immersive UX") Then
+				$bAu3Running = True
+				WinActivate($aWinList[$i][1])
+				Return
+			EndIf
+		Next
+		If Not $bAu3Running Then ShellExecute(@ScriptDir & "\" & $sProdName & ".au3", "hidegui")
+		; since gui was hidden, bring original active window to foreground
+		$hProcess = WinWait("Immersive UX", "", 10)
+		$iPID = _WinAPI_GetProcessID($hProcess)
+		$iParentPID = _WinAPI_GetParentProcess($iPID)
+		$hParentProc = _GetHwndFromPID($iParentPID)
+		$sParentProcName = _WinAPI_GetProcessName($iParentPID)
+		If $sParentProcName = "explorer.exe" Then
+			WinActivate("[CLASS:CabinetWClass]")
+		Else
+			WinActivate($hParentProc)
+		EndIf
 	EndIf
 EndFunc
+
+;Function for getting HWND from PID
+Func _GetHwndFromPID($PID)
+	$hWnd = 0
+	$winlist = WinList()
+	;Do
+		For $i = 1 To $winlist[0][0]
+			If $winlist[$i][0] <> "" Then
+				$iPID2 = WinGetProcess($winlist[$i][1])
+				If $iPID2 = $PID Then
+					$hWnd = $winlist[$i][1]
+					ExitLoop
+				EndIf
+			EndIf
+		Next
+	;Until $hWnd <> 0
+	Return $hWnd
+EndFunc;==>_GetHwndFromPID
+
+Func ReadIniFile()
+	Global $aCustomRules[0][13]
+
+	; Global rules
+	$bGlobalDarkTitleBar = _ToBoolean(IniRead($IniFile, "GlobalRules", "GlobalDarkTitleBar", "True"))
+	$dGlobalBorderColor = IniRead($IniFile, "GlobalRules", "GlobalBorderColor", "")
+	$dGlobalTitleBarColor = IniRead($IniFile, "GlobalRules", "GlobalTitleBarColor", "")
+	$dGlobalTitleBarTextColor = IniRead($IniFile, "GlobalRules", "GlobalTitleBarTextColor", "")
+	$iGlobalTitleBarBackdrop = Int(IniRead($IniFile, "GlobalRules", "GlobalTitleBarBackdrop", "0"))
+	$iGlobalCornerPreference = Int(IniRead($IniFile, "GlobalRules", "GlobalCornerPreference", "0"))
+	$iGlobalExtendFrameIntoClient = _ToBoolean(IniRead($IniFile, "GlobalRules", "GlobalExtendFrameIntoClient", "False"))
+	$iGlobalEnableBlurBehind = _ToBoolean(IniRead($IniFile, "GlobalRules", "GlobalEnableBlurBehind", "False"))
+	$dGlobalBlurTintColor = IniRead($IniFile, "GlobalRules", "GlobalBlurTintColor", "")
+	$iGlobalTintColorIntensity = Int(IniRead($IniFile, "GlobalRules", "GlobalTintColorIntensity", ""))
+
+	$bClearChangesOnExit = _ToBoolean(IniRead($IniFile, "Settings", "ClearChangesOnExit", "True"))
+	$bRequireWindows11 = _ToBoolean(IniRead($IniFile, "Settings", "RequireWindows11", "True"))
+	$iBorderColorOptions = Int(IniRead($IniFile, "Configuration", "BorderColorOptions", "0"))
+	$sExcludeFromAllProc = IniRead($IniFile, "ProcessExclusion", "ExcludeFromAllProc", "SearchHost.exe, StartMenuExperienceHost.exe")
+	$sExcludeFromAllClass = IniRead($IniFile, "ClassExclusion", "ExcludeFromAllClass", "Progman, Xaml_WindowedPopupClass")
+
+	; put together array for custom per-app and per-class rules
+	Local $aSectionNames = IniReadSectionNames($IniFile)
+
+    For $i = 1 To $aSectionNames[0]
+        ;If StringInStr($aSectionNames[$i], "CustomRules", $STR_NOCASESENSEBASIC) Then
+		Local $a = $aSectionNames[$i]
+        If $a <> "Configuration" And $a <> "ProcessExclusion" And $a <> "ClassExclusion" And $a <> "Settings" And $a <> "GlobalRules" And $a <> "StartupInfoOnly" And $a <> "VSCodeInstallPath" Then
+			Local $aArray = IniReadSection($IniFile, $aSectionNames[$i])
+			;ConsoleWrite("number of lines: " & $aArray[0][0] & @CRLF)
+			If $aArray[0][0] <> '13' Then
+				; problem detected in CustomRules section
+				$msg = 'A problem has been detected in CustomRules section: ' & $aSectionNames[$i] & @CRLF & @CRLF
+				$msg &= $sProdName & ' will exit now to prevent issue.'
+				MsgBox($MB_SYSTEMMODAL, "Error", $msg)
+				Exit
+			EndIf
+			_ArrayColDelete($aArray, 0)
+			_ArrayDelete($aArray, 0)
+			_ArrayTranspose($aArray)
+			_ArrayAdd($aCustomRules, $aArray)
+        EndIf
+    Next
+
+	; need to loop through custom rules to sanitize
+	For $i = 0 To UBound($aCustomRules) - 1
+        $aCustomRules[$i][6] = Int($aCustomRules[$i][6])
+        $aCustomRules[$i][7] = Int($aCustomRules[$i][7])
+    Next
+
+	; need to loop through custom rules to store details for Terminal, Explorer, VSCode, VS Studio
+	$bExplorerExtendClient = False
+	$bWindowsTerminalHandling = False
+
+	For $i = 0 To UBound($aCustomRules) - 1
+        If StringInStr($aCustomRules[$i][1], "explorer.exe", $STR_NOCASESENSEBASIC) Then
+			; fix for Explorer blur behind titlebar
+			If $aCustomRules[$i][9] = "True" Then $aCustomRules[$i][8] = "True"
+			If $aCustomRules[$i][8] = "True" Then $bExplorerExtendClient = True
+			If $aCustomRules[$i][12] = "False" Then $bExplorerExtendClient = False
+		EndIf
+		If StringInStr($aCustomRules[$i][1], "CabinetWClass", $STR_NOCASESENSEBASIC) Then
+			; fix for Explorer blur behind titlebar
+			If $aCustomRules[$i][9] = "True" Then $aCustomRules[$i][8] = "True"
+			If $aCustomRules[$i][8] = "True" Then $bExplorerExtendClient = True
+			If $aCustomRules[$i][12] = "False" Then $bExplorerExtendClient = False
+		EndIf
+		If StringInStr($aCustomRules[$i][1], "Terminal.exe", $STR_NOCASESENSEBASIC) Then
+			If $aCustomRules[$i][8] = "True" Then $bWindowsTerminalHandling = True
+			If $aCustomRules[$i][9] = "True" Then $bWindowsTerminalHandling = True
+			If $aCustomRules[$i][12] = "False" Then $bWindowsTerminalHandling = False
+			If $aCustomRules[$i][12] <> "False" Then $dTerminalBorderColor = $aCustomRules[$i][3]
+			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][12] <> "False" Then
+				$dTerminalBackdrop = $aCustomRules[$i][6]
+			Else
+				$dTerminalBackdrop = $iGlobalTitleBarBackdrop
+			EndIf
+		EndIf
+		If StringInStr($aCustomRules[$i][1], "VSCodium.exe", $STR_NOCASESENSEBASIC) Then
+			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][12] <> "False" Then
+				$dVSCodiumBackdrop = $aCustomRules[$i][6]
+			EndIf
+		EndIf
+		If StringInStr($aCustomRules[$i][1], "Code.exe", $STR_NOCASESENSEBASIC) Then
+			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][12] <> "False" Then
+				$dVSCodeBackdrop = $aCustomRules[$i][6]
+			EndIf
+		EndIf
+		If StringInStr($aCustomRules[$i][1], "CASCADIA_HOSTING_WINDOW_CLASS", $STR_NOCASESENSEBASIC) Then
+			If $aCustomRules[$i][8] = "True" Then $bWindowsTerminalHandling = True
+			If $aCustomRules[$i][9] = "True" Then $bWindowsTerminalHandling = True
+			If $aCustomRules[$i][12] = "False" Then $bWindowsTerminalHandling = False
+			If $aCustomRules[$i][12] <> "False" Then $dTerminalBorderColor = $aCustomRules[$i][3]
+			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][12] <> "False" Then
+				$dTerminalBackdrop = $aCustomRules[$i][6]
+			Else
+				$dTerminalBackdrop = $iGlobalTitleBarBackdrop
+			EndIf
+		EndIf
+		If StringInStr($aCustomRules[$i][1], "devenv.exe", $STR_NOCASESENSEBASIC) Then
+			If $aCustomRules[$i][3] <> "" Then
+				$dVSStudioBorderColor = $aCustomRules[$i][3]
+			Else
+				$dVSStudioBorderColor = $dGlobalTitleBarColor
+			EndIf
+		EndIf
+    Next
+
+	; special handling related to global values if set
+	If $iGlobalExtendFrameIntoClient Then
+		$bExplorerExtendClient = True
+		$bWindowsTerminalHandling = True
+	EndIf
+
+	If $iGlobalEnableBlurBehind Then
+		$bExplorerExtendClient = True
+		$bWindowsTerminalHandling = True
+	EndIf
+
+	; determine if dark mode or light mode for titlebar option
+	$bAppsUseDarkTheme = RegRead('HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize', 'AppsUseLightTheme') == 0 ? True : False
+	$bSystemUsesDarkTheme = RegRead('HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize', 'SystemUsesLightTheme') == 0 ? True : False
+
+	If $bAppsUseDarkTheme Or $bSystemUsesDarkTheme Then
+		$bDarkModeEnabled = True
+	Else
+		$bDarkModeEnabled = False
+	EndIf
+
+	$aGlobalExclusions = StringSplit($sExcludeFromAllProc, ",")
+	$aExcludeFromAllClass = StringSplit($sExcludeFromAllClass, ",")
+
+	; create process exclusion array for all functions
+	For $i = 1 To $aGlobalExclusions[0]
+		$aGlobalExclusions[$i] = StringStripWS($aGlobalExclusions[$i], $STR_STRIPLEADING + $STR_STRIPTRAILING)
+		$aGlobalExclusions[$i] = StringReplace($aGlobalExclusions[$i], "*", "")
+	Next
+
+	; create class exclusion array for all functions
+	For $i = 1 To $aExcludeFromAllClass[0]
+		$aExcludeFromAllClass[$i] = StringStripWS($aExcludeFromAllClass[$i], $STR_STRIPLEADING + $STR_STRIPTRAILING)
+		$aExcludeFromAllClass[$i] = StringReplace($aExcludeFromAllClass[$i], "*", "")
+	Next
+
+	; combine process and class exlusions into one global exclusion list
+	_ArrayDelete($aGlobalExclusions, 0)
+	_ArrayDelete($aExcludeFromAllClass, 0)
+	_ArrayConcatenate($aGlobalExclusions, $aExcludeFromAllClass)
+	;_ArrayDisplay($aGlobalExclusions, "1D Target and Source concatenated")
+
+	; obtain system accent color for borders and/or title bars
+	Local $sReadColor = RegRead("HKEY_CURRENT_USER\Software\Microsoft\Windows\DWM", "AccentColor")
+	Local $sAccentColor = Hex($sReadColor)
+	$sAccentColor = StringRight($sAccentColor, 6)
+
+	$sPart1 = StringMid($sAccentColor, 5, 2)
+	$sPart2 = StringMid($sAccentColor, 3, 2)
+	$sPart3 = StringMid($sAccentColor, 1, 2)
+
+	$sAccentColor = '0x' & $sPart1 & $sPart2 & $sPart3
+
+	; blur behind color tinting and intensity
+	Local $iTintColor = $dGlobalBlurTintColor
+	Local $iIntensity = _percentageOfHex($iGlobalTintColorIntensity)
+	Local $iTintColorSwitch = Hex(_WinAPI_SwitchColor($iTintColor), 6)
+	$iGlobalBlurTintColor = '0x' & $iIntensity & $iTintColorSwitch
+
+	; check registry settings as well, will get checked on settings refresh also
+	ReadFromRegistry()
+EndFunc
+
+Func ReadFromRegistry()
+	$bClassicExplorer = False
+	Local $sExplorerReg1 = RegRead("HKCU\Software\Classes\CLSID\{2aa9162e-c906-4dd9-ad0b-3d24a8eef5a0}\InProcServer32", "ThreadingModel")
+	Local $sExplorerReg2 = RegRead("HKCU\Software\Classes\CLSID\{6480100b-5a83-4d1e-9f69-8ae5a88e9a33}\InProcServer32", "ThreadingModel")
+	If $sExplorerReg1 = "Apartment" Then $bClassicExplorer = True
+	If $sExplorerReg2 = "Apartment" Then $bClassicExplorer = True
+EndFunc
+
+Func _WinAPI_IsElevated_pid($iPID = 0) ; https://www.autoitscript.com/forum/topic/203065-check-if-any-process-run-as-administrator/?do=findComment&comment=1539373
+	Local Static $dwDesiredAccess = ((_WinAPI_GetVersion() < 6.0) ? 0x00000400 : 0x00001000) ; https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openprocess
+	Local $hProcess, $hToken2, $aAdjust, $hToken1, $iElev, $aRet, $iError = 0
+	; Enable "SeDebugPrivilege" privilege for obtain full access rights to another processes
+	$hToken1 = _WinAPI_OpenProcessToken(BitOR($TOKEN_ADJUST_PRIVILEGES, $TOKEN_QUERY))
+	_WinAPI_AdjustTokenPrivileges($hToken1, $SE_DEBUG_NAME, $SE_PRIVILEGE_ENABLED, $aAdjust)
+	_WinAPI_CloseHandle($hToken1)
+	If $iPID <> 0 Then
+		$hProcess = DllCall('kernel32.dll', 'handle', 'OpenProcess', 'dword', $dwDesiredAccess, 'bool', 0, 'dword', $iPID)
+		If @error Or Not $hProcess[0] Then Return SetError(@error + 10, @extended, 0)
+		$hToken2 = _WinAPI_OpenProcessToken(0x0008, $hProcess[0])
+	Else
+		$hToken2 = _WinAPI_OpenProcessToken(0x0008)
+	EndIf
+	If Not $hToken2 Then
+		_WinAPI_CloseHandle($hToken1)
+		Return SetError(@error + 20, @extended, False)
+	EndIf
+
+	Do
+		$aRet = DllCall('advapi32.dll', 'bool', 'GetTokenInformation', 'handle', $hToken2, 'uint', 20, 'uint*', 0, 'dword', 4, _
+				'dword*', 0) ; TOKEN_ELEVATION
+		If @error Or Not $aRet[0] Then
+			$iError = @error + 30
+			ExitLoop
+		EndIf
+		$iElev = $aRet[3]
+		$aRet = DllCall('advapi32.dll', 'bool', 'GetTokenInformation', 'handle', $hToken2, 'uint', 18, 'uint*', 0, 'dword', 4, _
+				'dword*', 0) ; TOKEN_ELEVATION_TYPE
+		If @error Or Not $aRet[0] Then
+			$iError = @error + 40
+			ExitLoop
+		EndIf
+	Until 1
+	_WinAPI_CloseHandle($hToken1)
+	_WinAPI_CloseHandle($hToken2)
+	If $iError Then Return SetError($iError, 0, False)
+	Return SetExtended($aRet[0] - 1, $iElev)
+EndFunc   ;==>_WinAPI_IsElevated_pid
 
 #cs
 Func WinListtest()
