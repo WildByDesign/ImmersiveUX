@@ -56,7 +56,7 @@ jobs:
       - name: Zip package
         run: 7z a ImmersiveUX.zip ImmersiveEngine*.exe ImmersiveUX*.exe
           7z a ImmersiveUX.zip ImmersiveUX.ini
-          7z a ImmersiveUX.zip ImmersiveUX.txt
+          7z a ImmersiveUX.zip ImmersiveUX_ReadMe.md
       - name: Rename archive with tag
         shell: pwsh
         run: |
