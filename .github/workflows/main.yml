@@ -35,13 +35,11 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
           curl -sSfL https://www.autoitscript.com/cgi-bin/getfile.pl?autoit3/autoit-v3-setup.exe -o autoit-v3-setup.exe `
-            -sSfL https://www.autoitscript.com/cgi-bin/getfile.pl?../autoit3/scite/download/SciTE4AutoIt3.exe -o SciTE4AutoIt3.exe `
-            -sSfLO https://www.autoitscript.com/autoit3/scite/download/Au3Stripper.zip
-          Expand-Archive Au3Stripper.zip "${env:ProgramFiles(x86)}\AutoIt3\SciTE\Au3Stripper"
+            -sSfL https://www.autoitscript.com/autoit3/scite/download/beta_SciTE4AutoIt3/SciTE4AutoIt3_vsc.exe -o SciTE4AutoIt3_vsc.exe `
       - name: Install tools
         run: |
           Start-Process autoit-v3-setup.exe -ArgumentList /S -NoNewWindow -Wait
-          Start-Process SciTE4AutoIt3.exe -ArgumentList /S -NoNewWindow -Wait
+          Start-Process SciTE4AutoIt3_vsc.exe -ArgumentList /S -NoNewWindow -Wait
       - name: Compile
         run: |
           Start-Process "${env:ProgramFiles(x86)}\AutoIt3\AutoIt3.exe" "`"${env:ProgramFiles(x86)}\AutoIt3\SciTE\AutoIt3Wrapper\AutoIt3Wrapper.au3`" /NoStatus /prod /in ImmersiveEngine.au3" -NoNewWindow -Wait
