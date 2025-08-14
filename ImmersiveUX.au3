@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX
-#AutoIt3Wrapper_Res_Fileversion=1.2.0
+#AutoIt3Wrapper_Res_Fileversion=1.2.1
 #AutoIt3Wrapper_Res_ProductName=Immersive UX
-#AutoIt3Wrapper_Res_ProductVersion=1.2.0
+#AutoIt3Wrapper_Res_ProductVersion=1.2.1
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -42,7 +42,7 @@
 #include "include\ExtMsgBox.au3"
 #include "include\JSON.au3"
 
-Global $iVersion = '1.2.0'
+Global $iVersion = '1.2.1'
 Global $aCustomRules[0][14]
 
 Global $sIniPath = @ScriptDir & "\ImmersiveUX.ini"

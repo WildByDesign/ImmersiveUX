@@ -2,12 +2,11 @@
 #Region ;**** Directives created by AutoIt3Wrapper_GUI ****
 #AutoIt3Wrapper_Icon=app.ico
 #AutoIt3Wrapper_Outfile_x64=ImmersiveEngine.exe
-#AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.2.0
+#AutoIt3Wrapper_Res_Fileversion=1.2.1
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.2.0
+#AutoIt3Wrapper_Res_ProductVersion=1.2.1
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=Y
@@ -694,6 +693,7 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 
 			; filter some by class name
 			$sClassNameCreate = _WinAPI_GetClassName($hWnd)
+			;ConsoleWrite("$sClassNameCreate " & $sClassNameCreate & @CRLF)
 			;If $sClassNameCreate = "Windows.UI.Core.CoreWindow" Then Return ; this covers Start, Search + much more
 			If StringInStr($sClassNameCreate, "Windows.UI.") Then Return
 			;If StringInStr($sClassNameCreate, "Windows.UI.Core") Then Return
@@ -718,6 +718,7 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 
 			; filter some by class name
 			$sClassNameShow = _WinAPI_GetClassName($hWnd)
+			;ConsoleWrite("$sClassNameShow " & $sClassNameShow & @CRLF)
 			;If $sClassNameShow = "Windows.UI.Core.CoreWindow" Then Return ; this covers Start, Search + much more
 			If StringInStr($sClassNameShow, "Windows.UI.") Then Return ; Start menu, Search, etc.
 			;If StringInStr($sClassNameShow, "Windows.UI.Core") Then Return
@@ -834,6 +835,7 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 
 			; filter some by class name
 			;$sClassNameForeground = _WinAPI_GetClassName($hWnd)
+			;ConsoleWrite("$sClassNameForeground " & $sClassNameForeground & @CRLF)
 			;If $sClassNameForeground = "Windows.UI.Core.CoreWindow" Then Return ; this covers Start, Search + much more
 			If StringInStr($sClassNameForeground, "Windows.UI.") Then Return
 			;If StringInStr($sClassNameForeground, "Windows.UI.Core") Then Return
