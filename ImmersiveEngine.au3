@@ -615,23 +615,25 @@ Func _EnableBlurBehind($hWnd, $sName, $sClassName, $iTintColorBlur = "")
 	If StringInStr($sName, 'devenv.exe', $STR_NOCASESENSEBASIC) Then
 		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(5000, 5000, 0, 0))
 	Else
-		If Not $bSpecialHelper Then _WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
+		;If Not $bSpecialHelper Then _WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
+	;Else
+		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
 	EndIf
 
 	; this fixes issue with blur behind windows losing titlebar blur when regaining focus		
 	If $sClassName = 'TaskManagerWindow' Then
-		If WinActive("[CLASS:TaskManagerWindow]") Then
+		;If WinActive("[CLASS:TaskManagerWindow]") Then
 			Sleep(20)
 			_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
-		EndIf
+		;EndIf
 	EndIf
 
 	; this fixes issue with blur behind windows losing titlebar blur when regaining focus
 	; and some special handling for Windows Terminal		
 	If $sClassName = 'CASCADIA_HOSTING_WINDOW_CLASS' Then
-		If WinActive("[CLASS:CASCADIA_HOSTING_WINDOW_CLASS]") Then
+		;If WinActive("[CLASS:CASCADIA_HOSTING_WINDOW_CLASS]") Then
 			_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(5000, 5000, 0, 0))
-		EndIf
+		;EndIf
 	EndIf
 EndFunc
 
@@ -699,7 +701,7 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 			;If StringInStr($sClassNameCreate, "Windows.UI.Core") Then Return
 			If $sClassNameCreate = "XamlExplorerHostIslandWindow" Then Return
 			;ConsoleWrite("$EVENT_OBJECT_SHOW: " & $sClassNameCreate & " " & "Title: " & $sActiveWindowCreate & @CRLF)
-
+ 
 			MainColoringFunction($hWnd)
 
 		Case $EVENT_OBJECT_SHOW
@@ -805,6 +807,17 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 				EndIf
 			EndIf
 
+			; fix modern File Explorer losing client area backdrop material when losing focus
+			; fix modern File Explorer titlebar losing blur after gaining focus
+			If $sClassNameForeground = "CabinetWClass" Then
+				If $bExplorerExtendClient Then 
+					If Not $bClassicExplorer Then
+						_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
+					EndIf
+				EndIf
+			EndIf
+
+			#cs ; temporarily disable - might be cause of Explorer context menu issue
 			; fix modern File Explorer losing client area coloring when when losing focus
 			; also fixes issue where modern File Explorer loses titlebar blur when losing focus
 			If $bExplorerExtendClient Then 
@@ -815,6 +828,7 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 					EndIf
 				EndIf
 			EndIf
+			#ce
 
 			; this catches some slower apps that fail to color
 
