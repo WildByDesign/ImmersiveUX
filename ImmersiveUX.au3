@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX
-#AutoIt3Wrapper_Res_Fileversion=1.2.1
+#AutoIt3Wrapper_Res_Fileversion=1.2.2
 #AutoIt3Wrapper_Res_ProductName=Immersive UX
-#AutoIt3Wrapper_Res_ProductVersion=1.2.1
+#AutoIt3Wrapper_Res_ProductVersion=1.2.2
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -42,8 +42,8 @@
 #include "include\ExtMsgBox.au3"
 #include "include\JSON.au3"
 
-Global $iVersion = '1.2.1'
-Global $aCustomRules[0][14]
+Global $iVersion = '1.2.2'
+Global $aCustomRules[0][15]
 
 Global $sIniPath = @ScriptDir & "\ImmersiveUX.ini"
 Global $sProdName = "ImmersiveUX"
@@ -264,7 +264,7 @@ Func _StartGUI()
     ;$aRegistry &= "|" & "Global Rules"
 
     For $i = 0 To Ubound($aCustomRules)-1
-            $aRegistry &= "|" & $aCustomRules[$i][13]
+            $aRegistry &= "|" & $aCustomRules[$i][14]
     Next
     GUICtrlSetData($RuleListCombo, $aRegistry)
 
@@ -324,7 +324,6 @@ Func _StartGUI()
 
     $aPos = ControlGetPos($hGUI, "", $SaveButton)
 
-
     $SaveButtonPosV = $aPos[1] + $aPos[3]
     $SaveButtonPosH = $aPos[0] + $aPos[2]
 
@@ -335,6 +334,18 @@ Func _StartGUI()
     GUICtrlSetState($DeleteButton, $GUI_DISABLE)
 
     _GUIToolTip_AddTool($hToolTip2, 0, " Delete Rule ", GUICtrlGetHandle($DeleteButton))
+
+    $aPos = ControlGetPos($hGUI, "", $DeleteButton)
+
+    $DeleteButtonPosV = $aPos[1] + $aPos[3]
+    $DeleteButtonPosH = $aPos[0] + $aPos[2]
+
+    $ReloadButton = GuiFlatButton_Create(ChrW(0xE149), $DeleteButtonPosH + 10, $RuleListLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    GUICtrlSetOnEvent(-1, "hBtnReloadRules")
+    GUICtrlSetFont(-1, 10, 200, -1, "Segoe Fluent Icons")
+    GUICtrlSetColor(-1, 0xffffff)
+
+    _GUIToolTip_AddTool($hToolTip2, 0, " Reload & Refresh Rules ", GUICtrlGetHandle($ReloadButton))
 
     $TargetLabel = GUICtrlCreateLabel("Target:", 20, $RuleListComboPosV + 20, -1, -1)
     GUICtrlSetColor(-1, 0xffffff)
@@ -783,8 +794,8 @@ Func _StartGUI()
 
     GUIRegisterMsg($WM_NCHITTEST, "_MY_NCHITTEST")
     DarkMode($hGUI, True)
-    If $bHideGUI Then GUISetState(@SW_HIDE)
-    If Not $bHideGUI Then GUISetState(@SW_SHOW)
+    If $bHideGUI Then GUISetState(@SW_HIDE, $hGUI)
+    If Not $bHideGUI Then GUISetState(@SW_SHOW, $hGUI)
 
     $idGUI = TrayCreateItem("Immersive UX")
     TrayItemSetOnEvent($idGUI, "idGUI")
@@ -838,7 +849,7 @@ EndFunc
 Func SpecialEvents()
     Select
         Case @GUI_CtrlId = $GUI_EVENT_CLOSE
-            GUISetState(@SW_HIDE)
+            GUISetState(@SW_HIDE, $hGUI)
     EndSelect
 EndFunc
 
@@ -1216,32 +1227,26 @@ EndFunc
 
 Func idComboRuleType()
     GUICtrlSetData($idInputRuleType, GUICtrlRead($RuleTypeCombo))
-    ;_RuleList()
 EndFunc
 
 Func idComboDarkTitle()
     GUICtrlSetData($idInputDarkTitle, GUICtrlRead($DarkTitleCombo))
-    ;_RuleList()
 EndFunc
 
 Func idComboTitleBarBackdrop()
     GUICtrlSetData($idInputTitleBarBackdrop, GUICtrlRead($TitleBarBackdropCombo))
-    ;_RuleList()
 EndFunc
 
 Func idComboCornerPreference()
     GUICtrlSetData($idInputCornerPreference, GUICtrlRead($CornerPreferenceCombo))
-    ;_RuleList()
 EndFunc
 
 Func idComboExtendFrame()
     GUICtrlSetData($idInputExtendFrame, GUICtrlRead($ExtendFrameCombo))
-    ;_RuleList()
 EndFunc
 
 Func idComboBlurBehind()
     GUICtrlSetData($idInputBlurBehind, GUICtrlRead($BlurBehindCombo))
-    ;_RuleList()
 EndFunc
 
 Func idComboRuleEnabled()
@@ -1346,6 +1351,58 @@ Func hBtnDeleteRule()
     _GUICtrlComboBox_InsertString($RuleListCombo, "Global Rules", 0)
 EndFunc
 
+Func hBtnReloadRules()
+    ; first check if engine is running, start it if not
+    Local $sEngineRunning = _IsEngineRunning()
+    If Not $sEngineRunning Then
+        ; run engine if running from au3 sources only
+        If Not @Compiled Then ShellExecute(@ScriptDir & "\" & $sEngName & ".au3")
+        If @Compiled Then ShellExecute(@ScriptDir & "\" & $sEngName & ".exe")
+    Else
+        ; restart engine
+        _RestartTask()
+    EndIf
+
+    ; clear GUI and reload rules list
+    hBtnAddRule()
+    _ReloadRulesCombo()
+    GUICtrlSetData($idInput, "Select a rule")
+    ControlFocus($hGUI, "", $RuleListCombo)
+    _GUICtrlComboBox_InsertString($RuleListCombo, "Global Rules", 0)
+EndFunc
+
+Func _IsEngineRunning()
+    Local $iPID
+    Local $bElevated = _ToBoolean(IniRead($sIniPath, "StartupInfoOnly", "Elevated", "False"))
+    Local $sEngineRunning = False
+
+    If @Compiled Then
+        $aProcessRunning = ProcessList($sEngName & ".exe")
+        If $aProcessRunning[0][0] <> 0 Then
+            ; engine is running
+            $sEngineRunning = True
+            Return $sEngineRunning
+        ElseIf $aProcessRunning[0][0] = 0 Then
+            ; engine not running
+            $sEngineRunning = False
+            Return $sEngineRunning
+        EndIf
+    EndIf
+
+    If Not @Compiled Then
+        $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
+        If $iPID <> "" Then
+            ; engine is running
+            $sEngineRunning = True
+            Return $sEngineRunning
+        ElseIf $iPID = "" Then
+            ; engine not running
+            $sEngineRunning = False
+            Return $sEngineRunning
+        EndIf
+    EndIf
+EndFunc
+
 Func _WriteIniSection()
     ; read all input controls to store variables
     ; if = global rules, handle differently
@@ -1448,8 +1505,21 @@ Func _WriteIniSection()
 
     GUICtrlSetState($DeleteButton, $GUI_ENABLE)
 
-    GUICtrlSetData($idInput, GUICtrlRead($TargetInput))
-    GUICtrlSetData($RuleListCombo, GUICtrlRead($TargetInput))
+    Local $sTargetNew = GUICtrlRead($idInput)
+    If $sTargetNew = "File Explorer" Then
+        GUICtrlSetData($RuleListCombo, $sTargetNew)
+    ElseIf $sTargetNew = "Windows Terminal" Then
+        GUICtrlSetData($RuleListCombo, $sTargetNew)
+    ElseIf $sTargetNew = "Visual Studio 2022" Then
+        GUICtrlSetData($RuleListCombo, $sTargetNew)
+    ElseIf $sTargetNew = "Visual Studio Code" Then
+        GUICtrlSetData($RuleListCombo, $sTargetNew)
+    ElseIf $sTargetNew = "Dialog Boxes" Then
+        GUICtrlSetData($RuleListCombo, $sTargetNew)
+    Else
+        GUICtrlSetData($idInput, GUICtrlRead($TargetInput))
+        GUICtrlSetData($RuleListCombo, GUICtrlRead($TargetInput))
+    EndIf
 
     _GUICtrlComboBox_InsertString($RuleListCombo, "Global Rules", 0)
 EndFunc
@@ -1463,7 +1533,7 @@ Func _ReloadRulesCombo()
     _GUICtrlComboBox_ResetContent($RuleListCombo)
 
     ; need to reload array and combo
-    Global $aCustomRules[0][14]
+    Global $aCustomRules[0][15]
     _GetIniDetails()
 
 
@@ -1471,7 +1541,7 @@ Func _ReloadRulesCombo()
     ;$aRegistry &= "|" & "Global Rules"
 
     For $i = 0 To Ubound($aCustomRules)-1
-            $aRegistry &= "|" & $aCustomRules[$i][13]
+            $aRegistry &= "|" & $aCustomRules[$i][14]
     Next
     GUICtrlSetData($RuleListCombo, $aRegistry)
 EndFunc
@@ -1560,9 +1630,27 @@ Func _GetIniDetails()
         ; $aCustomRules[$i][11] = "TintColorIntensity"
         ; $aCustomRules[$i][12] = rule enabled/disabled
         ; $aCustomRules[$i][13] = contains sectionname
+        ; $aCustomRules[$i][14] = contains FriendlyName
 
+        ; add FriendlyName to array
+        For $i = 0 To UBound($aCustomRules) - 1
+            If $aCustomRules[$i][13] = "CabinetWClass" Then
+                $aCustomRules[$i][14] = "File Explorer"
+            ElseIf $aCustomRules[$i][13] = "CASCADIA_HOSTING_WINDOW_CLASS" Then
+                $aCustomRules[$i][14] = "Windows Terminal"
+            ElseIf $aCustomRules[$i][13] = "devenv.exe" Then
+                $aCustomRules[$i][14] = "Visual Studio 2022"
+            ElseIf $aCustomRules[$i][13] = "Code.exe" Then
+                $aCustomRules[$i][14] = "Visual Studio Code"
+            ElseIf $aCustomRules[$i][13] = "#32770" Then
+                $aCustomRules[$i][14] = "Dialog Boxes"
+            Else
+               $aCustomRules[$i][14] = $aCustomRules[$i][13]
+            EndIf
+        Next
         ; sort array
-        _ArraySort($aCustomRules, 0, 0, 0 , 1)
+        ;_ArraySort($aCustomRules, 0, 0, 0, 1)
+        _ArraySort($aCustomRules, 0, 0, 0, 14)
         ;_ArrayDisplay($aCustomRules)
 
 EndFunc   ;==>_GetIniDetails
@@ -1698,7 +1786,7 @@ Func _RuleList()
 	For $i = 0 To UBound($aCustomRules) - 1
 		; run through all of the custom process/class rules for a match
 		;If StringInStr($sName, $aCustomRules[$i][1], 2) Or StringInStr($sClassName, $aCustomRules[$i][1], 2) Then
-		If $IFEOname = $aCustomRules[$i][13] Then
+		If $IFEOname = $aCustomRules[$i][14] Then
 			GUICtrlSetData($idInputRuleType, $aCustomRules[$i][0])
             If $aCustomRules[$i][0] = "Class" Then _GUICtrlComboBox_SetCurSel($RuleTypeCombo, 0)
 			If $aCustomRules[$i][0] = "Process" Then _GUICtrlComboBox_SetCurSel($RuleTypeCombo, 1)
@@ -2544,7 +2632,7 @@ EndFunc   ;==>_WinAPI_DwmSetWindowAttribute_unr
 Func idGUI()
     ; get GUI window state
     Local $iState = WinGetState($hGUI)
-    If $iState <> $WIN_STATE_VISIBLE Then GUISetState(@SW_SHOW)
+    If $iState <> $WIN_STATE_VISIBLE Then GUISetState(@SW_SHOW, $hGUI)
 EndFunc
 
 Func _About()

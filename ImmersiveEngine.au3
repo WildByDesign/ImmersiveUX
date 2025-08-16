@@ -4,9 +4,9 @@
 #AutoIt3Wrapper_Outfile_x64=ImmersiveEngine.exe
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.2.1
+#AutoIt3Wrapper_Res_Fileversion=1.2.2
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.2.1
+#AutoIt3Wrapper_Res_ProductVersion=1.2.2
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=Y
@@ -35,7 +35,6 @@ If @Compiled = 0 Then
 EndIf
 
 Global $iPID, $sINFO, $oService
-;Global $IniFile = StringTrimRight(@ScriptFullPath, 4) & ".ini"
 Global $IniFile = @ScriptDir & "\ImmersiveUX.ini"
 Global $bDarkModeEnabled, $bClearChangesOnExit, $bRequireWindows11, $iBorderColorOptions
 Global $aGlobalExclusions, $aExcludeFromAllClass
@@ -220,14 +219,6 @@ Func SetBorderColor_removeall()
 			If $sClassName = "XamlExplorerHostIslandWindow" Then ContinueLoop
 			;ConsoleWrite("$EVENT_OBJECT_SHOW: " & $sClassName & " " & "Title: " & $sActiveWindowCreate & @CRLF)
 
-			If WinExists("[CLASS:CabinetWClass]") Then
-				If $bClassicExplorer Then
-					Local $hWnd = WinGetHandle("[CLASS:CabinetWClass]")
-					Local $aPos = WinGetPos($hWnd)
-					WinMove($hWnd, "", $aPos[0], $aPos[1], $aPos[2], $aPos[3] + 1)
-				EndIf
-			EndIf
-
 			; don't bother if class/process is on global exclusion list
 			$sName = _WinAPI_GetWindowFileName($aArray[$n][1])
 			For $i = 0 To UBound($aGlobalExclusions) -1
@@ -249,6 +240,14 @@ Func SetBorderColor_removeall()
 			_WinAPI_DwmEnableBlurBehindWindow($aArray[$n][1], 0, 0)
 			#ce
 		Next
+
+		; fix for file explorer losing window control buttons occasionally
+		If WinExists("[CLASS:CabinetWClass]") Then
+			If Not $bClassicExplorer Then
+				Local $hWnd = WinGetHandle("[CLASS:CabinetWClass]")
+				_WinAPI_SetForegroundWindow($hWnd)
+			EndIf
+		EndIf
 	EndIf
 EndFunc   ;==>SetBorderColor_removeall
 
@@ -807,6 +806,7 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 				EndIf
 			EndIf
 
+			#cs
 			; fix modern File Explorer losing client area backdrop material when losing focus
 			; fix modern File Explorer titlebar losing blur after gaining focus
 			If $sClassNameForeground = "CabinetWClass" Then
@@ -816,10 +816,10 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 					EndIf
 				EndIf
 			EndIf
+			#ce
 
-			#cs ; temporarily disable - might be cause of Explorer context menu issue
-			; fix modern File Explorer losing client area coloring when when losing focus
-			; also fixes issue where modern File Explorer loses titlebar blur when losing focus
+			; fix modern File Explorer losing client area backdrop material when losing focus
+			; fix modern File Explorer titlebar losing blur after gaining focus
 			If $bExplorerExtendClient Then 
 				If Not $bClassicExplorer Then
 					If WinExists("[CLASS:CabinetWClass]") Then
@@ -828,9 +828,6 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 					EndIf
 				EndIf
 			EndIf
-			#ce
-
-			; this catches some slower apps that fail to color
 
 			$sActiveWindowForeground = _WinAPI_GetWindowTextMod($hWnd)
 			;$sClassName = _WinAPI_GetClassName($hWnd)
