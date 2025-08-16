@@ -53,3 +53,19 @@ Additionally, there is special handling available for **File Explorer** (both mo
 
 (1) Using Visual Studio color theme [Vanta Black](https://marketplace.visualstudio.com/items?itemName=BrijeshRathod.PitchBlackV1) for best results <br>
 (2) Using Rectify11 Black Mica theme for best results
+
+## How to Use:
+
+Please see [ImmersiveUX ReadMe](https://github.com/WildByDesign/ImmersiveUX/blob/main/ImmersiveUX_ReadMe.md) for more details.
+
+## False Positives:
+
+False Positives seem to be a *"cat & mouse game"* with Microsoft Defender Antivirus, specifically when downloaded from Microsoft Edge. They seem to come and go with each release.
+
+When I submit them to Microsoft, they always state that Defender is not flagging it. Their submission portal also shows proof that they are not detecting it. Indeed, you can scan the binaries (ImmersiveEngine.exe and ImmersiveUX.exe) with Defender individually in a custom scan or a full scan of the entire system and they never trigger a false positive.
+
+Yet, if you download the release archives (ImmersiveUX-x64-*.zip) with Microsoft Edge, it will trigger the false positive.
+
+From my understanding, the archive download triggers some sort of tagging by Edge which makes some sort of *"in-the-cloud-only machine-learning-baloney"* scan which is where the zip archive gets tagged.
+
+Needless to say, the binaries do not do anything malicious and the source code is always available to review.
