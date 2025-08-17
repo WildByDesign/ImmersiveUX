@@ -4,9 +4,9 @@
 #AutoIt3Wrapper_Outfile_x64=ImmersiveEngine.exe
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.2.2
+#AutoIt3Wrapper_Res_Fileversion=1.2.3
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.2.2
+#AutoIt3Wrapper_Res_ProductVersion=1.2.3
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=Y
@@ -187,6 +187,7 @@ Func RefreshChanges()
 EndFunc
 
 Func SetBorderColor_removeall()
+	Local $hWnd
 	If $bClearChangesOnExit = True Then
 		$aArray = WinList()
 		For $n = 1 To $aArray[0][0]
@@ -227,26 +228,22 @@ Func SetBorderColor_removeall()
 			Next
 
 			MainColoringRemoval($aArray[$n][1], $sClassName, $sName)
-
-			#cs ; old removal method
-			; reset any modified attributes back to default values on exit
-			_WinAPI_DwmSetWindowAttribute__($aArray[$n][1], 34, 0xFFFFFFFF)
-			_WinAPI_DwmSetWindowAttribute__($aArray[$n][1], 35, 0xFFFFFFFF)
-			_WinAPI_DwmSetWindowAttribute__($aArray[$n][1], 36, 0xFFFFFFFF)
-			_WinAPI_DwmSetWindowAttribute__($aArray[$n][1], 33, 0)
-			_WinAPI_DwmSetWindowAttribute__($aArray[$n][1], 38, 0)
-			_WinAPI_DwmExtendFrameIntoClientArea($aArray[$n][1], _WinAPI_CreateMargins(0, 0, 0, 0))
-			_WinAPI_DwmEnableBlurBehindWindow10($aArray[$n][1], False)
-			_WinAPI_DwmEnableBlurBehindWindow($aArray[$n][1], 0, 0)
-			#ce
 		Next
+	EndIf
 
-		; fix for file explorer losing window control buttons occasionally
-		If WinExists("[CLASS:CabinetWClass]") Then
-			If Not $bClassicExplorer Then
-				Local $hWnd = WinGetHandle("[CLASS:CabinetWClass]")
-				_WinAPI_SetForegroundWindow($hWnd)
-			EndIf
+	If $bClearChangesOnExit = True Then
+		; fix Windows Terminal from going fully transparent on exit
+		If WinExists("[CLASS:CASCADIA_HOSTING_WINDOW_CLASS]") Then
+			$hWnd = WinGetHandle("[CLASS:CASCADIA_HOSTING_WINDOW_CLASS]")
+			_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(5000, 5000, 0, 0))
+			_WinAPI_DwmSetWindowAttribute__($hWnd, 38, 2)
+		EndIf
+
+		; fix Task Manager from losing window control buttons on exit
+		If WinExists("[CLASS:TaskManagerWindow]") Then
+			$hWnd = WinGetHandle("[CLASS:TaskManagerWindow]")
+			_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
+			_WinAPI_DwmSetWindowAttribute__($hWnd, 38, 2)
 		EndIf
 	EndIf
 EndFunc   ;==>SetBorderColor_removeall
@@ -272,11 +269,19 @@ Func MainColoringRemoval($hWnd, $sClassName, $sName)
 				If $iGlobalEnableBlurBehind Then
 					_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False)
 					_WinAPI_DwmEnableBlurBehindWindow($hWnd, 0, 0)
-					_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+					; fix for file explorer losing window control buttons occasionally
+					If $sClassName <> "CabinetWClass" Then
+						_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+					EndIf
 				EndIf
 				If Not $iGlobalEnableBlurBehind Then
 					; only enable ExtendFrameIntoClientArea if blur behind is not enabled
-					If $iGlobalExtendFrameIntoClient Then _WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+					If $iGlobalExtendFrameIntoClient Then
+						; fix for file explorer losing window control buttons occasionally
+						If $sClassName <> "CabinetWClass" Then
+							_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+						EndIf
+					EndIf
 				EndIf
 				Return
 			EndIf
@@ -311,13 +316,19 @@ Func MainColoringRemoval($hWnd, $sClassName, $sName)
 			If $aCustomRules[$i][9] = "True" Or $iGlobalEnableBlurBehind Then
 				_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False)
 				_WinAPI_DwmEnableBlurBehindWindow($hWnd, 0, 0)
-				_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+				; fix for file explorer losing window control buttons occasionally
+				If $sClassName <> "CabinetWClass" Then
+					_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+				EndIf
 			EndIf
 			; ExtendFrameIntoClientArea removal
 			If $aCustomRules[$i][8] = "True" Or $iGlobalExtendFrameIntoClient Then
 				; only enable ExtendFrameIntoClientArea if blur behind is not enabled
 				If $aCustomRules[$i][9] <> "True" Or Not $iGlobalEnableBlurBehind Then
-					_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+					; fix for file explorer losing window control buttons occasionally
+					If $sClassName <> "CabinetWClass" Then
+						_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+					EndIf
 				EndIf
 			EndIf
 			$bMatchesFound = True
@@ -336,10 +347,18 @@ Func MainColoringRemoval($hWnd, $sClassName, $sName)
 		If $iGlobalEnableBlurBehind Then
 			_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False)
 			_WinAPI_DwmEnableBlurBehindWindow($hWnd, 0, 0)
-			_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+			; fix for file explorer losing window control buttons occasionally
+			If $sClassName <> "CabinetWClass" Then
+				_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+			EndIf
 		EndIf
 		If $iGlobalExtendFrameIntoClient Then
-			If Not $iGlobalEnableBlurBehind Then _WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+			If Not $iGlobalEnableBlurBehind Then
+				; fix for file explorer losing window control buttons occasionally
+				If $sClassName <> "CabinetWClass" Then
+					_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+				EndIf
+			EndIf
 		EndIf
 	EndIf
 EndFunc
@@ -401,7 +420,7 @@ EndFunc
 
 Func MainColoringContinue($hWnd, $sClassName, $sName)
 	Local $i
-	Local $iIntensity, $iTintColor, $iTintColorSwitch, $iTintColorBlur
+	Local $iIntensity, $iTintColor, $iTintColorSwitch, $iTintColorBlur, $sActiveExplorerTitle
 	Local $bMatchesFound = False
 
 	; determine if process rule or class rule matches for custom rules
@@ -419,10 +438,19 @@ Func MainColoringContinue($hWnd, $sClassName, $sName)
 				If $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, $iGlobalTitleBarBackdrop)
 				If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, $iGlobalCornerPreference)
 				If $iGlobalEnableBlurBehind Then _EnableBlurBehind($hWnd, $sName, $sClassName, $iGlobalBlurTintColor)
+					#cs
+					If $sClassName = "CabinetWClass" Then
+						$sActiveExplorerTitle = WinGetTitle("[ACTIVE]")
+						If StringInStr($sActiveExplorerTitle, "File Explorer", $STR_NOCASESENSEBASIC) Then Send("{SPACE}")
+						_EnableBlurBehind($hWnd, $sName, $sClassName, $iGlobalBlurTintColor)
+					EndIf
+					If $sClassName <> "CabinetWClass" Then _EnableBlurBehind($hWnd, $sName, $sClassName, $iGlobalBlurTintColor)
+				EndIf
 				If Not $iGlobalEnableBlurBehind Then
 					; only enable ExtendFrameIntoClientArea if blur behind is not enabled
 					If $iGlobalExtendFrameIntoClient Then _DwmExtendFrameIntoClientArea($hWnd, $sName, $sClassName, $i)
 				EndIf
+				#ce
 				Return
 			EndIf
 			; dark mode titlebar, fallback to global if not set
@@ -476,16 +504,19 @@ Func MainColoringContinue($hWnd, $sClassName, $sName)
 				EndIf
 			EndIf
 			; blur behind, fallback to global if not set
-			If $aCustomRules[$i][9] = "True" Then
+			If $aCustomRules[$i][9] = "True" Then _EnableBlurBehind($hWnd, $sName, $sClassName, $iTintColorBlur)
+				#cs
+				_EnableBlurBehind($hWnd, $sName, $sClassName, $iTintColorBlur)
 				;_EnableBlurBehind($hWnd, $sName, $sClassName, $iTintColorBlur)
 				; this fixes the rare time when explorer blur doesn't show right away
 				If $sClassName = "CabinetWClass" Then
-					Send("{SPACE}")
+					$sActiveExplorerTitle = WinGetTitle("[ACTIVE]")
+					If StringInStr($sActiveExplorerTitle, "File Explorer", $STR_NOCASESENSEBASIC) Then Send("{SPACE}")
 					_EnableBlurBehind($hWnd, $sName, $sClassName, $iTintColorBlur)
-					;_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
 				EndIf
 				If $sClassName <> "CabinetWClass" Then _EnableBlurBehind($hWnd, $sName, $sClassName, $iTintColorBlur)
 			EndIf
+			#ce
 			If $aCustomRules[$i][9] = "" Then
 				; only enable blur if not custom set
 				If $iGlobalEnableBlurBehind Then _EnableBlurBehind($hWnd, $sName, $sClassName, $iGlobalBlurTintColor)
@@ -514,16 +545,18 @@ Func MainColoringContinue($hWnd, $sClassName, $sName)
 		If $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, $iGlobalTitleBarBackdrop)
 		If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, $iGlobalCornerPreference)
 		; also need to determine if custom rules has this set, if so, then skip this
-		If $iGlobalEnableBlurBehind Then
+		If $iGlobalEnableBlurBehind Then _EnableBlurBehind($hWnd, $sName, $sClassName, $iGlobalBlurTintColor)
+			#cs
 			;_EnableBlurBehind($hWnd, $sName, $sClassName, $iGlobalBlurTintColor)
 			; this fixes the rare time when explorer blur doesn't show right away
 			If $sClassName = "CabinetWClass" Then
-				Send("{SPACE}")
-				_EnableBlurBehind($hWnd, $sName, $sClassName, $iTintColorBlur)
-				;_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
+				$sActiveExplorerTitle = WinGetTitle("[ACTIVE]")
+				If StringInStr($sActiveExplorerTitle, "File Explorer", $STR_NOCASESENSEBASIC) Then Send("{SPACE}")
+				_EnableBlurBehind($hWnd, $sName, $sClassName, $iGlobalBlurTintColor)
 			EndIf
-			If $sClassName <> "CabinetWClass" Then _EnableBlurBehind($hWnd, $sName, $sClassName, $iTintColorBlur)
+			If $sClassName <> "CabinetWClass" Then _EnableBlurBehind($hWnd, $sName, $sClassName, $iGlobalBlurTintColor)
 		EndIf
+		#ce
 		If $iGlobalExtendFrameIntoClient Then
 			If Not $iGlobalEnableBlurBehind Then _DwmExtendFrameIntoClientArea($hWnd, $sName, $sClassName, $i)
 		EndIf
@@ -562,25 +595,21 @@ Func _ColorBorderOnly($hWnd, $sClassName, $sName)
 EndFunc
 
 Func _DwmExtendFrameIntoClientArea($hWnd, $sName, $sClassName, $i)
+	If $sClassName = "CabinetWClass" Then
+		Sleep(20)
+		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
+	EndIf
 	; Visual Studio Handling
 	If StringInStr($sName, 'devenv.exe', $STR_NOCASESENSEBASIC) Then
 		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(5000, 5000, 0, 0))
 		;_WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor($dVSStudioBorderColor))
 	ElseIf StringInStr($sName, 'VSCodium.exe', $STR_NOCASESENSEBASIC) Then
-		Sleep(20) ; needs a slight delay to work
-		;_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False) ; only needed for old vibrancy method
-		_WinAPI_DwmSetWindowAttribute__($hWnd, 38, $dVSCodiumBackdrop)
-		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
-		Sleep(20) ; needs a slight delay to work
+		Sleep(20)
 		;_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False) ; only needed for old vibrancy method
 		_WinAPI_DwmSetWindowAttribute__($hWnd, 38, $dVSCodiumBackdrop)
 		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
 	ElseIf StringInStr($sName, 'Code.exe', $STR_NOCASESENSEBASIC) Then
-		Sleep(20) ; needs a slight delay to work
-		;_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False) ; only needed for old vibrancy method
-		_WinAPI_DwmSetWindowAttribute__($hWnd, 38, $dVSCodeBackdrop)
-		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
-		Sleep(20) ; needs a slight delay to work
+		Sleep(20)
 		;_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False) ; only needed for old vibrancy method
 		_WinAPI_DwmSetWindowAttribute__($hWnd, 38, $dVSCodeBackdrop)
 		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
@@ -590,62 +619,29 @@ Func _DwmExtendFrameIntoClientArea($hWnd, $sName, $sClassName, $i)
 	Else
 		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
 	EndIf
-	If $sClassName = "CabinetWClass" Then
-		Sleep(50)
-		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
-	EndIf
 EndFunc
 
 Func _EnableBlurBehind($hWnd, $sName, $sClassName, $iTintColorBlur = "")
-	Local $bSpecialHelper = False
-
 	Local $hRgn = _WinAPI_CreateEllipticRgn(_WinAPI_CreateRectEx(0, 0, 0, 0))
 	_WinAPI_DwmEnableBlurBehindWindow($hWnd, 1, 0, $hRgn)
 	If $hRgn Then
 		_WinAPI_DeleteObject($hRgn)
 	EndIf
-
-	If $sClassName = "CabinetWClass" Then $bSpecialHelper = True
-	If $sClassName = 'CASCADIA_HOSTING_WINDOW_CLASS' Then $bSpecialHelper = True
-
 	_WinAPI_DwmEnableBlurBehindWindow10($hWnd, True, $iTintColorBlur)
 
-	; Visual Studio Handling
-	If StringInStr($sName, 'devenv.exe', $STR_NOCASESENSEBASIC) Then
+	If $sClassName = 'CabinetWClass' Then
+		Sleep(20)
+		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
+	ElseIf StringInStr($sName, 'devenv.exe', $STR_NOCASESENSEBASIC) Then
+		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(5000, 5000, 0, 0))
+	ElseIf $sClassName = 'TaskManagerWindow' Then
+		Sleep(20)
+		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
+	ElseIf $sClassName = 'CASCADIA_HOSTING_WINDOW_CLASS' Then
 		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(5000, 5000, 0, 0))
 	Else
-		;If Not $bSpecialHelper Then _WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
-	;Else
 		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
 	EndIf
-
-	; this fixes issue with blur behind windows losing titlebar blur when regaining focus		
-	If $sClassName = 'TaskManagerWindow' Then
-		;If WinActive("[CLASS:TaskManagerWindow]") Then
-			Sleep(20)
-			_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
-		;EndIf
-	EndIf
-
-	; this fixes issue with blur behind windows losing titlebar blur when regaining focus
-	; and some special handling for Windows Terminal		
-	If $sClassName = 'CASCADIA_HOSTING_WINDOW_CLASS' Then
-		;If WinActive("[CLASS:CASCADIA_HOSTING_WINDOW_CLASS]") Then
-			_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(5000, 5000, 0, 0))
-		;EndIf
-	EndIf
-EndFunc
-
-Func EnableBlurBehind($hWnd, $bEnable, $sName, $sClassName)
-	Local $hRgn = _WinAPI_CreateEllipticRgn(_WinAPI_CreateRectEx(0, 0, 0, 0))
-	_WinAPI_DwmEnableBlurBehindWindow($hWnd, 1, 0, $hRgn)
-	If $hRgn Then
-		_WinAPI_DeleteObject($hRgn)
-	EndIf
-
-	_WinAPI_DwmEnableBlurBehindWindow10($hWnd, $bEnable)
-
-	_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
 EndFunc
 
 Func _WinAPI_DwmSetWindowAttribute__($hwnd, $attribute = 34, $value = 0x00FF00, $valLen = 4)
@@ -799,7 +795,6 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 				If WinExists("[CLASS:CASCADIA_HOSTING_WINDOW_CLASS]") Then
 					$hTerminal = WinGetHandle("[CLASS:CASCADIA_HOSTING_WINDOW_CLASS]")
 					_WinAPI_DwmSetWindowAttribute__($hTerminal, 38, $dTerminalBackdrop)
-					;_WinAPI_DwmSetWindowAttribute__($hTerminal, 34, _WinAPI_SwitchColor($dTerminalBorderColor))
 					If $iBorderColorOptions = 1 Then
 						_WinAPI_DwmSetWindowAttribute__($hTerminal, 34, _WinAPI_SwitchColor($dTerminalBorderColor))
 					EndIf

@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX
-#AutoIt3Wrapper_Res_Fileversion=1.2.2
+#AutoIt3Wrapper_Res_Fileversion=1.2.3
 #AutoIt3Wrapper_Res_ProductName=Immersive UX
-#AutoIt3Wrapper_Res_ProductVersion=1.2.2
+#AutoIt3Wrapper_Res_ProductVersion=1.2.3
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -42,7 +42,7 @@
 #include "include\ExtMsgBox.au3"
 #include "include\JSON.au3"
 
-Global $iVersion = '1.2.2'
+Global $iVersion = '1.2.3'
 Global $aCustomRules[0][15]
 
 Global $sIniPath = @ScriptDir & "\ImmersiveUX.ini"
@@ -1516,6 +1516,8 @@ Func _WriteIniSection()
         GUICtrlSetData($RuleListCombo, $sTargetNew)
     ElseIf $sTargetNew = "Dialog Boxes" Then
         GUICtrlSetData($RuleListCombo, $sTargetNew)
+    ElseIf $sTargetNew = "Task Manager" Then
+        GUICtrlSetData($RuleListCombo, $sTargetNew)
     Else
         GUICtrlSetData($idInput, GUICtrlRead($TargetInput))
         GUICtrlSetData($RuleListCombo, GUICtrlRead($TargetInput))
@@ -1644,6 +1646,8 @@ Func _GetIniDetails()
                 $aCustomRules[$i][14] = "Visual Studio Code"
             ElseIf $aCustomRules[$i][13] = "#32770" Then
                 $aCustomRules[$i][14] = "Dialog Boxes"
+            ElseIf $aCustomRules[$i][13] = "TaskManagerWindow" Or $aCustomRules[$i][13] = "Taskmgr.exe" Then
+                $aCustomRules[$i][14] = "Task Manager"
             Else
                $aCustomRules[$i][14] = $aCustomRules[$i][13]
             EndIf
