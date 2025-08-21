@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX
-#AutoIt3Wrapper_Res_Fileversion=1.2.3
+#AutoIt3Wrapper_Res_Fileversion=1.2.4
 #AutoIt3Wrapper_Res_ProductName=Immersive UX
-#AutoIt3Wrapper_Res_ProductVersion=1.2.3
+#AutoIt3Wrapper_Res_ProductVersion=1.2.4
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -42,7 +42,7 @@
 #include "include\ExtMsgBox.au3"
 #include "include\JSON.au3"
 
-Global $iVersion = '1.2.3'
+Global $iVersion = '1.2.4'
 Global $aCustomRules[0][15]
 
 Global $sIniPath = @ScriptDir & "\ImmersiveUX.ini"
@@ -79,6 +79,8 @@ Global $TaskIntegrity, $TaskInstalled, $TaskRunning
 Global $aProcessRunning, $IsRunFromTS, $bProcessRunning
 Global $bHideGUI = False
 Global $TRAY_EVENT_PRIMARYDOWN = -7
+Global $DWMWA_COLOR_NONE = 0xFFFFFFFE
+Global $DWMWA_COLOR_DEFAULT = 0xFFFFFFFF
 Global $fOver = False
 Global $fOver2 = False
 Global $iW = 658, $iH = 420
@@ -453,7 +455,7 @@ Func _StartGUI()
 
     $DarkTitleCombo = GUICtrlCreateCombo("", 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, BitOR($CBS_DROPDOWNLIST, $WS_HSCROLL, $WS_VSCROLL))
     _GUICtrlComboBoxEx_SetColor(-1, 0x202020, 0xffffff)
-    GUICtrlSetData($DarkTitleCombo, "True|False|Global")
+    ;GUICtrlSetData($DarkTitleCombo, "True|False|Global")
     GUICtrlSetOnEvent(-1, "idComboDarkTitle")
     GUICtrlSetState(-1, $GUI_HIDE)
 
@@ -487,7 +489,7 @@ Func _StartGUI()
 
     $TitleBarBackdropCombo = GUICtrlCreateCombo("", 20, $TitleBarBackdropLabelPosV, 100 * $iDPI1, $FontHeight, BitOR($CBS_DROPDOWNLIST, $WS_HSCROLL, $WS_VSCROLL))
     _GUICtrlComboBoxEx_SetColor(-1, 0x202020, 0xffffff)
-    GUICtrlSetData($TitleBarBackdropCombo, "Auto|None|Mica|Acrylic|Mica Alt|Global")
+    ;GUICtrlSetData($TitleBarBackdropCombo, "Auto|None|Mica|Acrylic|Mica Alt|Global")
     GUICtrlSetOnEvent(-1, "idComboTitleBarBackdrop")
     GUICtrlSetState(-1, $GUI_HIDE)
 
@@ -521,7 +523,7 @@ Func _StartGUI()
 
     $CornerPreferenceCombo = GUICtrlCreateCombo("", 20, $CornerPreferenceLabelPosV, 100 * $iDPI1, $FontHeight, BitOR($CBS_DROPDOWNLIST, $WS_HSCROLL, $WS_VSCROLL))
     _GUICtrlComboBoxEx_SetColor(-1, 0x202020, 0xffffff)
-    GUICtrlSetData($CornerPreferenceCombo, "Default|Square|Round|Round Small|Global")
+    ;GUICtrlSetData($CornerPreferenceCombo, "Default|Square|Round|Round Small|Global")
     GUICtrlSetOnEvent(-1, "idComboCornerPreference")
     GUICtrlSetState(-1, $GUI_HIDE)
 
@@ -574,6 +576,13 @@ Func _StartGUI()
 
     $colorlabelfillPosV = $aPos[1] + $aPos[3]
     $colorlabelfillPosH = $aPos[0] + $aPos[2]
+
+    $hBtnNoBorder = GuiFlatButton_Create(ChrW(0xED62), $BorderColorInputPosH + 14, $BorderColorLabelPosV2, $FontHeight, $FontHeight, $SS_CENTER)
+    GUICtrlSetColor(-1, 0xffffff)
+    GUICtrlSetOnEvent(-1, "hBtnNoBorder")
+    GUICtrlSetFont(-1, 10, 200, -1, "Segoe Fluent Icons")
+
+    _GUIToolTip_AddTool($hToolTip2, 0, " No Border ", GUICtrlGetHandle($hBtnNoBorder))
 
     $TitlebarColorLabel = GUICtrlCreateLabel("Titlebar Color:", $idInputDarkTitlePosH + $FontHeight + 40, $BorderColorInputPosV + 20, -1, -1)
     GUICtrlSetColor(-1, 0xffffff)
@@ -664,7 +673,7 @@ Func _StartGUI()
 
     $ExtendFrameCombo = GUICtrlCreateCombo("", $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $ExtendFrameLabelPosV, 100 * $iDPI1, $FontHeight, BitOR($CBS_DROPDOWNLIST, $WS_HSCROLL, $WS_VSCROLL))
     _GUICtrlComboBoxEx_SetColor(-1, 0x202020, 0xffffff)
-    GUICtrlSetData($ExtendFrameCombo, "True|False|Global")
+    ;GUICtrlSetData($ExtendFrameCombo, "True|False|Global")
     GUICtrlSetOnEvent(-1, "idComboExtendFrame")
     GUICtrlSetState(-1, $GUI_HIDE)
 
@@ -697,7 +706,7 @@ Func _StartGUI()
 
     $BlurBehindCombo = GUICtrlCreateCombo("", $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $BlurBehindLabelPosV, 100 * $iDPI1, $FontHeight, BitOR($CBS_DROPDOWNLIST, $WS_HSCROLL, $WS_VSCROLL))
     _GUICtrlComboBoxEx_SetColor(-1, 0x202020, 0xffffff)
-    GUICtrlSetData($BlurBehindCombo, "True|False|Global")
+    ;GUICtrlSetData($BlurBehindCombo, "True|False|Global")
     GUICtrlSetOnEvent(-1, "idComboBlurBehind")
     GUICtrlSetState(-1, $GUI_HIDE)
 
@@ -923,7 +932,8 @@ EndFunc
 
 Func _UpdateColorBoxes()
     Local $color1 = GUICtrlRead($BorderColorInput)
-	GUICtrlSetBkColor($colorlabelfill, $color1)
+    If $color1 <> $DWMWA_COLOR_NONE Then GUICtrlSetBkColor($colorlabelfill, $color1)
+    If $color1 = $DWMWA_COLOR_NONE Then GUICtrlSetBkColor($colorlabelfill, 0x000000)
 	Local $color2 = GUICtrlRead($TitlebarColorInput)
 	GUICtrlSetBkColor($TitlebarColorLabel, $color2)
 	Local $color3 = GUICtrlRead($TitlebarTextColorInput)
@@ -1200,6 +1210,11 @@ Func hBtnTitleBarBackdrop()
     ControlFocus($hGUI, "", $TitleBarBackdropCombo)
 EndFunc
 
+Func hBtnNoBorder()
+    GUICtrlSetData($BorderColorInput, "0xFFFFFFFE")
+    _UpdateColorBoxes()
+EndFunc
+
 Func hBtnCornerPreference()
     _GUICtrlComboBox_ShowDropDown($CornerPreferenceCombo, True)
     ControlFocus($hGUI, "", $CornerPreferenceCombo)
@@ -1230,23 +1245,58 @@ Func idComboRuleType()
 EndFunc
 
 Func idComboDarkTitle()
-    GUICtrlSetData($idInputDarkTitle, GUICtrlRead($DarkTitleCombo))
+    Local $DarkTitleComboRead = GUICtrlRead($DarkTitleCombo)
+    If $DarkTitleComboRead = "Not Set" Then
+        GUICtrlSetData($idInputDarkTitle, "")
+        _GUICtrlComboBox_SetCurSel($DarkTitleCombo, -1)
+    Else
+        GUICtrlSetData($idInputDarkTitle, GUICtrlRead($DarkTitleCombo))
+    EndIf
+    ;GUICtrlSetData($idInputDarkTitle, GUICtrlRead($DarkTitleCombo))
 EndFunc
 
 Func idComboTitleBarBackdrop()
-    GUICtrlSetData($idInputTitleBarBackdrop, GUICtrlRead($TitleBarBackdropCombo))
+    Local $TitleBarBackdropComboRead = GUICtrlRead($TitleBarBackdropCombo)
+    If $TitleBarBackdropComboRead = "Not Set" Then
+        GUICtrlSetData($idInputTitleBarBackdrop, "")
+        _GUICtrlComboBox_SetCurSel($TitleBarBackdropCombo, -1)
+    Else
+        GUICtrlSetData($idInputTitleBarBackdrop, GUICtrlRead($TitleBarBackdropCombo))
+    EndIf
+    ;GUICtrlSetData($idInputTitleBarBackdrop, GUICtrlRead($TitleBarBackdropCombo))
 EndFunc
 
 Func idComboCornerPreference()
-    GUICtrlSetData($idInputCornerPreference, GUICtrlRead($CornerPreferenceCombo))
+    Local $CornerPreferenceComboRead = GUICtrlRead($CornerPreferenceCombo)
+    If $CornerPreferenceComboRead = "Not Set" Then
+        GUICtrlSetData($idInputCornerPreference, "")
+        _GUICtrlComboBox_SetCurSel($CornerPreferenceCombo, -1)
+    Else
+        GUICtrlSetData($idInputCornerPreference, GUICtrlRead($CornerPreferenceCombo))
+    EndIf
+    ;GUICtrlSetData($idInputCornerPreference, GUICtrlRead($CornerPreferenceCombo))
 EndFunc
 
 Func idComboExtendFrame()
-    GUICtrlSetData($idInputExtendFrame, GUICtrlRead($ExtendFrameCombo))
+    Local $ExtendFrameComboRead = GUICtrlRead($ExtendFrameCombo)
+    If $ExtendFrameComboRead = "Not Set" Then
+        GUICtrlSetData($idInputExtendFrame, "")
+        _GUICtrlComboBox_SetCurSel($ExtendFrameCombo, -1)
+    Else
+        GUICtrlSetData($idInputExtendFrame, GUICtrlRead($ExtendFrameCombo))
+    EndIf
+    ;GUICtrlSetData($idInputExtendFrame, GUICtrlRead($ExtendFrameCombo))
 EndFunc
 
 Func idComboBlurBehind()
-    GUICtrlSetData($idInputBlurBehind, GUICtrlRead($BlurBehindCombo))
+    Local $BlurBehindComboRead = GUICtrlRead($BlurBehindCombo)
+    If $BlurBehindComboRead = "Not Set" Then
+        GUICtrlSetData($idInputBlurBehind, "")
+        _GUICtrlComboBox_SetCurSel($BlurBehindCombo, -1)
+    Else
+        GUICtrlSetData($idInputBlurBehind, GUICtrlRead($BlurBehindCombo))
+    EndIf
+    ;GUICtrlSetData($idInputBlurBehind, GUICtrlRead($BlurBehindCombo))
 EndFunc
 
 Func idComboRuleEnabled()
@@ -1667,11 +1717,11 @@ Func _ResetCombos()
     GUICtrlSetData($ExtendFrameCombo, "")
     GUICtrlSetData($BlurBehindCombo, "")
     ; fill combos
-    GUICtrlSetData($DarkTitleCombo, "True|False|Global")
-    GUICtrlSetData($TitleBarBackdropCombo, "Auto|None|Mica|Acrylic|Mica Alt|Global")
-    GUICtrlSetData($CornerPreferenceCombo, "Default|Square|Round|Round Small|Global")
-    GUICtrlSetData($ExtendFrameCombo, "True|False|Global")
-    GUICtrlSetData($BlurBehindCombo, "True|False|Global")
+    GUICtrlSetData($DarkTitleCombo, "True|False|Not Set")
+    GUICtrlSetData($TitleBarBackdropCombo, "Auto|None|Mica|Acrylic|Mica Alt|Not Set")
+    GUICtrlSetData($CornerPreferenceCombo, "Default|Square|Round|Round Small|Not Set")
+    GUICtrlSetData($ExtendFrameCombo, "True|False|Not Set")
+    GUICtrlSetData($BlurBehindCombo, "True|False|Not Set")
 EndFunc
 
 Func _ResetCombosGlobal()
@@ -1682,11 +1732,11 @@ Func _ResetCombosGlobal()
     GUICtrlSetData($ExtendFrameCombo, "")
     GUICtrlSetData($BlurBehindCombo, "")
     ; fill combos
-    GUICtrlSetData($DarkTitleCombo, "True|False")
-    GUICtrlSetData($TitleBarBackdropCombo, "Auto|None|Mica|Acrylic|Mica Alt")
-    GUICtrlSetData($CornerPreferenceCombo, "Default|Square|Round|Round Small")
-    GUICtrlSetData($ExtendFrameCombo, "True|False")
-    GUICtrlSetData($BlurBehindCombo, "True|False")
+    GUICtrlSetData($DarkTitleCombo, "True|False|Not Set")
+    GUICtrlSetData($TitleBarBackdropCombo, "Auto|None|Mica|Acrylic|Mica Alt|Not Set")
+    GUICtrlSetData($CornerPreferenceCombo, "Default|Square|Round|Round Small|Not Set")
+    GUICtrlSetData($ExtendFrameCombo, "True|False|Not Set")
+    GUICtrlSetData($BlurBehindCombo, "True|False|Not Set")
 EndFunc
 
 Func _RuleList()
@@ -1726,7 +1776,10 @@ Func _RuleList()
         GUICtrlSetData($idInputDarkTitle, $bGlobalDarkTitleBar)
 		If $bGlobalDarkTitleBar = "True" Then _GUICtrlComboBox_SetCurSel($DarkTitleCombo, 0)
 		If $bGlobalDarkTitleBar = "False" Then _GUICtrlComboBox_SetCurSel($DarkTitleCombo, 1)
-		If $bGlobalDarkTitleBar = "" Then _GUICtrlComboBox_SetCurSel($DarkTitleCombo, 2)
+		If $bGlobalDarkTitleBar = "" Then
+            GUICtrlSetData($idInputDarkTitle, "False")
+            _GUICtrlComboBox_SetCurSel($DarkTitleCombo, 1)
+        EndIf
         GUICtrlSetData($BorderColorInput, $dGlobalBorderColor)
         GUICtrlSetBkColor($colorlabelfill, $dGlobalBorderColor)
         GUICtrlSetData($TitlebarColorInput, $dGlobalTitleBarColor)
@@ -1772,12 +1825,18 @@ Func _RuleList()
         GUICtrlSetData($idInputExtendFrame, $iGlobalExtendFrameIntoClient)
 		If $iGlobalExtendFrameIntoClient = "True" Then _GUICtrlComboBox_SetCurSel($ExtendFrameCombo, 0)
 		If $iGlobalExtendFrameIntoClient = "False" Then _GUICtrlComboBox_SetCurSel($ExtendFrameCombo, 1)
-		If $iGlobalExtendFrameIntoClient = "" Then _GUICtrlComboBox_SetCurSel($ExtendFrameCombo, 2)
+		If $iGlobalExtendFrameIntoClient = "" Then
+            GUICtrlSetData($idInputExtendFrame, "False")
+            _GUICtrlComboBox_SetCurSel($ExtendFrameCombo, 1)
+        EndIf
 
         GUICtrlSetData($idInputBlurBehind, $iGlobalEnableBlurBehind)
 		If $iGlobalEnableBlurBehind = "True" Then _GUICtrlComboBox_SetCurSel($BlurBehindCombo, 0)
 		If $iGlobalEnableBlurBehind = "False" Then _GUICtrlComboBox_SetCurSel($BlurBehindCombo, 1)
-		If $iGlobalEnableBlurBehind = "" Then _GUICtrlComboBox_SetCurSel($BlurBehindCombo, 2)
+		If $iGlobalEnableBlurBehind = "" Then
+            GUICtrlSetData($idInputBlurBehind, "False")
+            _GUICtrlComboBox_SetCurSel($BlurBehindCombo, 1)
+        EndIf
 
         GUICtrlSetData($BlurTintColorInput, $dGlobalBlurTintColor)
         GUICtrlSetBkColor($BlurTintColorPickLabel, $dGlobalBlurTintColor)
@@ -1799,10 +1858,6 @@ Func _RuleList()
 			GUICtrlSetData($idInputDarkTitle, $aCustomRules[$i][2])
 			If $aCustomRules[$i][2] = "True" Then _GUICtrlComboBox_SetCurSel($DarkTitleCombo, 0)
 			If $aCustomRules[$i][2] = "False" Then _GUICtrlComboBox_SetCurSel($DarkTitleCombo, 1)
-			If $aCustomRules[$i][2] = "" Then
-                _GUICtrlComboBox_SetCurSel($DarkTitleCombo, 2)
-                GUICtrlSetData($idInputDarkTitle, "Global")
-            EndIf
 			GUICtrlSetData($BorderColorInput, $aCustomRules[$i][3])
             GUICtrlSetBkColor($colorlabelfill, $aCustomRules[$i][3])
             GUICtrlSetData($TitlebarColorInput, $aCustomRules[$i][4])
@@ -1830,10 +1885,6 @@ Func _RuleList()
                 GUICtrlSetData($idInputTitleBarBackdrop, "Auto")
                 _GUICtrlComboBox_SetCurSel($TitleBarBackdropCombo, 0)
             EndIf
-            If $aCustomRules[$i][6] = "" Then
-                GUICtrlSetData($idInputTitleBarBackdrop, "Global")
-                _GUICtrlComboBox_SetCurSel($idInputTitleBarBackdrop, 5)
-            EndIf
             If $aCustomRules[$i][7] = "3" Then
                 GUICtrlSetData($idInputCornerPreference, "Round Small")
                 _GUICtrlComboBox_SetCurSel($CornerPreferenceCombo, 3)
@@ -1850,26 +1901,14 @@ Func _RuleList()
                 GUICtrlSetData($idInputCornerPreference, "Default")
                 _GUICtrlComboBox_SetCurSel($CornerPreferenceCombo, 0)
             EndIf
-            If $aCustomRules[$i][7] = "" Then
-                GUICtrlSetData($idInputCornerPreference, "Global")
-                _GUICtrlComboBox_SetCurSel($CornerPreferenceCombo, 4)
-            EndIf
 
             GUICtrlSetData($idInputExtendFrame, $aCustomRules[$i][8])
 			If $aCustomRules[$i][8] = "True" Then _GUICtrlComboBox_SetCurSel($ExtendFrameCombo, 0)
 			If $aCustomRules[$i][8] = "False" Then _GUICtrlComboBox_SetCurSel($ExtendFrameCombo, 1)
-            If $aCustomRules[$i][8] = "" Then
-                _GUICtrlComboBox_SetCurSel($ExtendFrameCombo, 2)
-                GUICtrlSetData($idInputExtendFrame, "Global")
-            EndIf
 
             GUICtrlSetData($idInputBlurBehind, $aCustomRules[$i][9])
 			If $aCustomRules[$i][9] = "True" Then _GUICtrlComboBox_SetCurSel($BlurBehindCombo, 0)
 			If $aCustomRules[$i][9] = "False" Then _GUICtrlComboBox_SetCurSel($BlurBehindCombo, 1)
-            If $aCustomRules[$i][9] = "" Then
-                _GUICtrlComboBox_SetCurSel($BlurBehindCombo, 2)
-                GUICtrlSetData($idInputBlurBehind, "Global")
-            EndIf
 
             GUICtrlSetData($BlurTintColorInput, $aCustomRules[$i][10])
             GUICtrlSetBkColor($BlurTintColorPickLabel, $aCustomRules[$i][10])
@@ -1877,8 +1916,12 @@ Func _RuleList()
             GUICtrlSetData($BlurColorIntensitySlider, $aCustomRules[$i][11])
 
             GUICtrlSetData($idInputRuleEnabled, $aCustomRules[$i][12])
-
-            ;ConsoleWrite("name of section: " & $aCustomRules[$i][13] & @CRLF)
+            If $aCustomRules[$i][12] = "True" Then _GUICtrlComboBox_SetCurSel($RuleEnabledCombo, 0)
+			If $aCustomRules[$i][12] = "False" Then _GUICtrlComboBox_SetCurSel($RuleEnabledCombo, 1)
+            If $aCustomRules[$i][12] = "" Then
+            _GUICtrlComboBox_SetCurSel($RuleEnabledCombo, 1)
+            GUICtrlSetData($idInputRuleEnabled, "False")
+            EndIf
 		EndIf
     Next
 EndFunc
@@ -2328,16 +2371,20 @@ Func _VSCode_mod()
 EndFunc
 
 Func _VSCode_mod_json($sJsonPath)
-    ; backup original settings.json file
-    If Not FileExists($sJsonPath & ".backup") Then FileCopy($sJsonPath, $sJsonPath & ".backup")
-    Local $sJSONRAW = _JSON_Minify($sJsonPath)
-
     ; parse JSON string
-    Local $vJSON = _JSON_Parse($sJSONRAW)
+    Local $vJSON = _JSON_Parse(FileRead($sJsonPath))
     If @error Then
-        MsgBox(0,"Error", "Error " & @error &  " during parsing the JSON string")
+        $sMsg = "There was an error while parsing the JSON file in the following location:" & @CRLF & @CRLF
+        $sMsg &= $sJsonPath & @CRLF & @CRLF
+        $sMsg &= "Patching this installation will be skipped to prevent any possibility" & @CRLF
+        $sMsg &= "of losing your original settings." & @CRLF & @CRLF
+        $sMsg &= "Please validate your JSON file and try again." & @CRLF
+        _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
         Return
     EndIf
+
+    ; backup original settings.json file
+    If Not FileExists($sJsonPath & ".backup") Then FileCopy($sJsonPath, $sJsonPath & ".backup")
 
     ; for inner nested elements you can use _JSON_addChangeDelete() instead (points must be escaped)
     _JSON_addChangeDelete($vJSON, "workbench\.colorCustomizations.editor\.background", "#00000060")
@@ -2496,32 +2543,30 @@ Func _Terminal_patch()
     Local $sTermOther = @LocalAppDataDir & "\Microsoft\Windows Terminal\settings.json"
 
     Local $iTerminalExists = FileExists($sTerminal)
-    If $iTerminalExists Then
-        ; backup original
-        If Not FileExists($sTerminal & ".backup") Then FileCopy($sTerminal, $sTerminal & ".backup")
-        _Terminal_patch_Json($sTerminal)
-    EndIf
+    If $iTerminalExists Then _Terminal_patch_Json($sTerminal)
     Local $iTermPrevExists = FileExists($sTermPrev)
-    If $iTermPrevExists Then
-        ; backup original
-        If Not FileExists($sTermPrev & ".backup") Then FileCopy($sTermPrev, $sTermPrev & ".backup")
-        _Terminal_patch_Json($sTermPrev)
-    EndIf
+    If $iTermPrevExists Then _Terminal_patch_Json($sTermPrev)
     Local $iTermOtherExists = FileExists($sTermOther)
-    If $iTermOtherExists Then
-        ; backup original
-        If Not FileExists($sTermOther & ".backup") Then FileCopy($sTermOther, $sTermOther & ".backup")
-        _Terminal_patch_Json($sTermOther)
-    EndIf
+    If $iTermOtherExists Then _Terminal_patch_Json($sTermOther)
 EndFunc
 
 Func _Terminal_patch_Json($sTerminalJson)
     Local $bThemeExists = False
-    Local $sJSONRAW = _JSON_Minify($sTerminalJson)
 
     ; parse JSON string
-    Local $vJSON = _JSON_Parse($sJSONRAW)
-    If @error Then Exit MsgBox(0,"Error", "Error " & @error &  " during parsing the JSON string")
+    Local $vJSON = _JSON_Parse(FileRead($sTerminalJson))
+    If @error Then
+        $sMsg = "There was an error while parsing the JSON file in the following location:" & @CRLF & @CRLF
+        $sMsg &= $sTerminalJson & @CRLF & @CRLF
+        $sMsg &= "Patching this installation will be skipped to prevent any possibility" & @CRLF
+        $sMsg &= "of losing your original settings." & @CRLF & @CRLF
+        $sMsg &= "Please validate your JSON file and try again." & @CRLF
+        _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+        Return
+    EndIf
+
+    ; backup original
+    If Not FileExists($sTerminalJson & ".backup") Then FileCopy($sTerminalJson, $sTerminalJson & ".backup")
 
     ; determine the number of elements already in the array "themes"
     Local $iNewIdx = UBound($vJSON["themes"])
