@@ -38,10 +38,26 @@ If you intend to continue using Immersive UX and want it to start every time Win
 * If Immersive UX is already running unelevated and you want to install the task unelevated, you can just go to the Startup Task menu in the status bar and select Install Task.
 
 
+
 * If Immersive UX is already running unelevated but you want to install the task with highest privileges to allow coloring of elevated apps, just close Immersive UX by right-clicking on its system tray icon and selecting Exit. Now run ImmersiveUX.exe as Admin and the Startup Tasks menu will now have the option to Install Task (Admin).
 
 
+
 * Immersive UX will now start every time Windows boots. The GUI will be hidden on startup but the processing engine will be running in the background. The GUI can always be accessed via the Immersive UX system tray icon.
+
+
+
+
+
+## **Rule Priorities:**
+
+
+
+Custom Rules take priority over Global Rules. However, any custom rule options that are "Not Set" and therefore blank are specifically designed to "fallback" to Global values. This allows greater flexibility by allowing Global values to flow into the custom rules if necessary.
+
+
+
+Blur Behind and Extend Frame To Client don't exactly do anything "extra" when used together. Therefore, if Blur Behind and Extend Frame To Client are both enabled at the same time, it will simply make Blur Behind the priority and ignore Extend Frame To Client.
 
 
 
@@ -156,5 +172,3 @@ ExcludeFromAllClass=Progman, Xaml\_WindowedPopupClass
 
   * EnableBlurBehind works best with a dark theme like *Rectify11 Black Mica*
   * or generally a GUI with dark background
-
-
