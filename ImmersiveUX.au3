@@ -5,15 +5,17 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX
-#AutoIt3Wrapper_Res_Fileversion=1.2.4
+#AutoIt3Wrapper_Res_Fileversion=1.2.5
 #AutoIt3Wrapper_Res_ProductName=Immersive UX
-#AutoIt3Wrapper_Res_ProductVersion=1.2.4
+#AutoIt3Wrapper_Res_ProductVersion=1.2.5
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
 #AutoIt3Wrapper_Res_Icon_Add=app.ico
 #AutoIt3Wrapper_Run_Au3Stripper=y
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
+
+Global $iVersion = '1.2.5'
 
 #include <MsgBoxConstants.au3>
 #include <WinAPIFiles.au3>
@@ -42,7 +44,6 @@
 #include "include\ExtMsgBox.au3"
 #include "include\JSON.au3"
 
-Global $iVersion = '1.2.4'
 Global $aCustomRules[0][15]
 
 Global $sIniPath = @ScriptDir & "\ImmersiveUX.ini"
@@ -287,10 +288,10 @@ Func _StartGUI()
         0x000000, 0xFFFFFF, 0x000000, _	; focus 	: Background, Text, Border
         0x000000, 0xFFFFFF, 0x606060, _	; hover 	: Background, Text, Border
         0x202020, 0xFFFFFF, 0x202020]		; selected 	: Background, Text, Border
-    GuiFlatButton_SetDefaultColorsEx($aColorsEx)
+    ;GuiFlatButton_SetDefaultColorsEx($aColorsEx)
 
     $hBtn = GuiFlatButton_Create(ChrW(0xE70D), $RuleListComboPosH + 4, $RuleListLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
-    ;$hBtn = GUICtrlCreateLabel(ChrW(0xE70D), $RuleListComboPosH + 4, 42 + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
     GUICtrlSetOnEvent(-1, "hBtn")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
     GUICtrlSetColor(-1, 0xffffff)
@@ -301,8 +302,8 @@ Func _StartGUI()
     $hBtnPosV = $aPos[1] + $aPos[3]
     $hBtnPosH = $aPos[0] + $aPos[2]
 
-    ;$AddRuleButton = GUICtrlCreateLabel(ChrW(0xE710), $hBtnPosH + 10, 42 + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
     $AddRuleButton = GuiFlatButton_Create(ChrW(0xE710), $hBtnPosH + 10, $RuleListLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
     GUICtrlSetOnEvent(-1, "hBtnAddRule")
     GUICtrlSetFont(-1, 9, 200, -1, "Segoe MDL2 Assets")
     GUICtrlSetColor(-1, 0xffffff)
@@ -317,6 +318,7 @@ Func _StartGUI()
 
     ;$AddRuleButton = GUICtrlCreateLabel(ChrW(0xE710), $hBtnPosH + 10, 42 + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
     $SaveButton = GuiFlatButton_Create(ChrW(0xE105), $AddRuleButtonPosH + 10, $RuleListLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
     GUICtrlSetOnEvent(-1, "_WriteIniSection")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe Fluent Icons")
     GUICtrlSetColor(-1, 0xffffff)
@@ -330,6 +332,7 @@ Func _StartGUI()
     $SaveButtonPosH = $aPos[0] + $aPos[2]
 
     $DeleteButton = GuiFlatButton_Create(ChrW(0xE107), $SaveButtonPosH + 10, $RuleListLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
     GUICtrlSetOnEvent(-1, "hBtnDeleteRule")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe Fluent Icons")
     GUICtrlSetColor(-1, 0xffffff)
@@ -343,6 +346,7 @@ Func _StartGUI()
     $DeleteButtonPosH = $aPos[0] + $aPos[2]
 
     $ReloadButton = GuiFlatButton_Create(ChrW(0xE149), $DeleteButtonPosH + 10, $RuleListLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
     GUICtrlSetOnEvent(-1, "hBtnReloadRules")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe Fluent Icons")
     GUICtrlSetColor(-1, 0xffffff)
@@ -399,6 +403,7 @@ Func _StartGUI()
 
     ;$hBtnRuleType = GUICtrlCreateLabel(ChrW(0xE70D), $RuleTypeComboPosH + 4, $RuleTypeLabelPosV + 4, $iDropDownSize, $iDropDownSize, $SS_CENTER)
     $hBtnRuleType = GuiFlatButton_Create(ChrW(0xE70D), $RuleTypeComboPosH + 4, $RuleTypeLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
     GUICtrlSetColor(-1, 0xffffff)
     GUICtrlSetOnEvent(-1, "hBtnRuleType")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
@@ -440,6 +445,7 @@ Func _StartGUI()
 
     ;$hBtnRuleType = GUICtrlCreateLabel(ChrW(0xE70D), $RuleTypeComboPosH + 4, $RuleTypeLabelPosV + 4, $iDropDownSize, $iDropDownSize, $SS_CENTER)
     $hBtnRuleEnabled = GuiFlatButton_Create(ChrW(0xE70D), $RuleEnabledComboPosH + 4, $RuleTypeLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
     GUICtrlSetColor(-1, 0xffffff)
     GUICtrlSetOnEvent(-1, "hBtnRuleEnabled")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
@@ -467,6 +473,7 @@ Func _StartGUI()
 
     ;$hBtnDarkTitle = GUICtrlCreateLabel(ChrW(0xE70D), $DarkTitleComboPosH + 4, $DarkTitleLabelPosV + 4, $iDropDownSize, $iDropDownSize, $SS_CENTER)
     $hBtnDarkTitle = GuiFlatButton_Create(ChrW(0xE70D), $DarkTitleComboPosH + 4, $DarkTitleLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
     GUICtrlSetOnEvent(-1, "hBtnDarkTitle")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
     GUICtrlSetColor(-1, 0xffffff)
@@ -509,8 +516,8 @@ Func _StartGUI()
     $idInputTitleBarBackdropPosH = $aPos[0] + $aPos[2]
     $idInputTitleBarBackdropPosV2 = $aPos[1]
 
-    ;$hBtnTitleBarBackdrop = GUICtrlCreateLabel(ChrW(0xE70D), $TitleBarBackdropComboPosH + 4, $idInputTitleBarBackdropPosV2 + 4, $iDropDownSize, $iDropDownSize, $SS_CENTER)
     $hBtnTitleBarBackdrop = GuiFlatButton_Create(ChrW(0xE70D), $TitleBarBackdropComboPosH + 4, $idInputTitleBarBackdropPosV2 + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
     GUICtrlSetColor(-1, 0xffffff)
     GUICtrlSetOnEvent(-1, "hBtnTitleBarBackdrop")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
@@ -532,8 +539,8 @@ Func _StartGUI()
     $CornerPreferenceComboPosV = $aPos[1] + $aPos[3]
     $CornerPreferenceComboPosH = $aPos[0] + $aPos[2]
 
-    ;$hBtnCornerPreference = GUICtrlCreateLabel(ChrW(0xE70D), $CornerPreferenceComboPosH + 4, $CornerPreferenceLabelPosV + 4, $iDropDownSize, $iDropDownSize, $SS_CENTER)
     $hBtnCornerPreference = GuiFlatButton_Create(ChrW(0xE70D), $CornerPreferenceComboPosH + 4, $CornerPreferenceLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
     GUICtrlSetColor(-1, 0xffffff)
     GUICtrlSetOnEvent(-1, "hBtnCornerPreference")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
@@ -566,7 +573,16 @@ Func _StartGUI()
     $BorderColorInputPosH = $aPos[0] + $aPos[2]
     $BorderColorInputPosV2 = $aPos[1]
 
-    $colorlabelfill = GUICtrlCreateLabel(" ", $BorderColorInputPosH + 14, $BorderColorInputPosV2, $FontHeight, $FontHeight, $WS_BORDER)
+    Local $aColorsEx2 = _
+        [0x000000, 0xFFFFFF, 0x202020, _	; normal 	: Background, Text, Border
+        0x000000, 0xFFFFFF, 0x202020, _	; focus 	: Background, Text, Border
+        0x000000, 0xFFFFFF, 0x606060, _	; hover 	: Background, Text, Border
+        0x202020, 0xFFFFFF, 0x202020]		; selected 	: Background, Text, Border
+
+    ;$colorlabelfill = GUICtrlCreateLabel(" ", $BorderColorInputPosH + 14, $BorderColorInputPosV2, $FontHeight, $FontHeight, $WS_BORDER)
+    $colorlabelfill = GuiFlatButton_Create(" ", $BorderColorInputPosH + 14, $BorderColorInputPosV2, $FontHeight, $FontHeight)
+    GuiFlatButton_SetBkColor(-1, 0x000000)
+    ;GuiFlatButton_SetColorsEx(-1, $aColorsEx2)
     GUICtrlSetOnEvent(-1, "ColorPicker")
     ;GUICtrlSetBkColor($colorlabelfill, 0xFF0000)
 
@@ -578,6 +594,7 @@ Func _StartGUI()
     $colorlabelfillPosH = $aPos[0] + $aPos[2]
 
     $hBtnNoBorder = GuiFlatButton_Create(ChrW(0xED62), $BorderColorInputPosH + 14, $BorderColorLabelPosV2, $FontHeight, $FontHeight, $SS_CENTER)
+    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
     GUICtrlSetColor(-1, 0xffffff)
     GUICtrlSetOnEvent(-1, "hBtnNoBorder")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe Fluent Icons")
@@ -603,7 +620,10 @@ Func _StartGUI()
     $TitlebarColorInputPosH2 = $aPos[2]
     $TitlebarColorInputPosV2 = $aPos[1]
 
-    $TitlebarColorLabel = GUICtrlCreateLabel("   ", $TitlebarColorInputPosH + 14, $TitlebarColorInputPosV2, $FontHeight, $FontHeight, $WS_BORDER)
+    ;$TitlebarColorLabel = GUICtrlCreateLabel(" ", $TitlebarColorInputPosH + 14, $TitlebarColorInputPosV2, $FontHeight, $FontHeight, $WS_BORDER)
+    $TitlebarColorLabel = GuiFlatButton_Create(" ", $TitlebarColorInputPosH + 14, $TitlebarColorInputPosV2, $FontHeight, $FontHeight)
+    GuiFlatButton_SetBkColor(-1, 0x000000)
+    ;GuiFlatButton_SetColorsEx(-1, $aColorsEx2)
     _GUIToolTip_AddTool($hToolTip2, 0, " Change Color ", GUICtrlGetHandle($TitlebarColorLabel))
     GUICtrlSetOnEvent(-1, "ColorPickerTitlebar")
 
@@ -624,7 +644,10 @@ Func _StartGUI()
     $TitlebarTextColorInputPosH = $aPos[0] + $aPos[2]
     $TitlebarTextColorInputPosV2 = $aPos[1]
 
-    $TitlebarTextColorLabel = GUICtrlCreateLabel(" ", $TitlebarColorInputPosH + 14, $TitlebarTextColorInputPosV2, $FontHeight, $FontHeight, $WS_BORDER)
+    ;$TitlebarTextColorLabel = GUICtrlCreateLabel(" ", $TitlebarColorInputPosH + 14, $TitlebarTextColorInputPosV2, $FontHeight, $FontHeight, $WS_BORDER)
+    $TitlebarTextColorLabel = GuiFlatButton_Create(" ", $TitlebarColorInputPosH + 14, $TitlebarTextColorInputPosV2, $FontHeight, $FontHeight)
+    GuiFlatButton_SetBkColor(-1, 0x000000)
+    ;GuiFlatButton_SetColorsEx(-1, $aColorsEx2)
     _GUIToolTip_AddTool($hToolTip2, 0, " Change Color ", GUICtrlGetHandle($TitlebarTextColorLabel))
     GUICtrlSetOnEvent(-1, "ColorPickerTitlebarText")
 
@@ -692,8 +715,8 @@ Func _StartGUI()
     $idInputExtendFramePosV = $aPos[1] + $aPos[3]
     $idInputExtendFramePosH = $aPos[0] + $aPos[2]
 
-    ;$hBtnExtendFrame = GUICtrlCreateLabel(ChrW(0xE70D), $ExtendFrameComboPosH + 4, $ExtendFrameLabelPosV + 4, $iDropDownSize, $iDropDownSize, $SS_CENTER)
     $hBtnExtendFrame = GuiFlatButton_Create(ChrW(0xE70D), $ExtendFrameComboPosH + 4, $ExtendFrameLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
     GUICtrlSetColor(-1, 0xffffff)
     GUICtrlSetOnEvent(-1, "hBtnExtendFrame")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
@@ -715,8 +738,8 @@ Func _StartGUI()
     $BlurBehindComboPosV = $aPos[1] + $aPos[3]
     $BlurBehindComboPosH = $aPos[0] + $aPos[2]
 
-    ;$hBtnBlurBehind = GUICtrlCreateLabel(ChrW(0xE70D), $BlurBehindComboPosH + 4, $BlurBehindLabelPosV + 4, $iDropDownSize, $iDropDownSize, $SS_CENTER)
     $hBtnBlurBehind = GuiFlatButton_Create(ChrW(0xE70D), $BlurBehindComboPosH + 4, $BlurBehindLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
     GUICtrlSetColor(-1, 0xffffff)
     GUICtrlSetOnEvent(-1, "hBtnBlurBehind")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
@@ -748,7 +771,10 @@ Func _StartGUI()
     $BlurTintColorInputPosH = $aPos[0] + $aPos[2]
     $BlurTintColorInputPosV2 = $aPos[1]
 
-    $BlurTintColorPickLabel = GUICtrlCreateLabel(" ", $BlurTintColorInputPosH + 14, $BlurTintColorInputPosV2, $FontHeight, $FontHeight, $WS_BORDER)
+    ;$BlurTintColorPickLabel = GUICtrlCreateLabel(" ", $BlurTintColorInputPosH + 14, $BlurTintColorInputPosV2, $FontHeight, $FontHeight, $WS_BORDER)
+    $BlurTintColorPickLabel = GuiFlatButton_Create(" ", $BlurTintColorInputPosH + 14, $BlurTintColorInputPosV2, $FontHeight, $FontHeight)
+    GuiFlatButton_SetBkColor(-1, 0x000000)
+    ;GuiFlatButton_SetColorsEx(-1, $aColorsEx2)
     _GUIToolTip_AddTool($hToolTip2, 0, " Change Color ", GUICtrlGetHandle($BlurTintColorPickLabel))
     GUICtrlSetOnEvent(-1, "ColorPickerBlurTintColor")
 
@@ -875,7 +901,8 @@ Func ColorPicker()
         GUICtrlSetData($BorderColorInput, $colorprev)
     Else
         GUICtrlSetData($BorderColorInput, $color)
-        GUICtrlSetBkColor($colorlabelfill, $color)
+        ;GUICtrlSetBkColor($colorlabelfill, $color)
+        GuiFlatButton_SetBkColor($colorlabelfill, $color)
     EndIf
 EndFunc
 
@@ -892,7 +919,8 @@ Func ColorPickerTitlebar()
         GUICtrlSetData($TitlebarColorInput, $colorprev)
     Else
         GUICtrlSetData($TitlebarColorInput, $color)
-        GUICtrlSetBkColor($TitlebarColorLabel, $color)
+        ;GUICtrlSetBkColor($TitlebarColorLabel, $color)
+        GuiFlatButton_SetBkColor($TitlebarColorLabel, $color)
     EndIf
 EndFunc
 
@@ -909,7 +937,8 @@ Func ColorPickerTitlebarText()
         GUICtrlSetData($TitlebarTextColorInput, $colorprev)
     Else
         GUICtrlSetData($TitlebarTextColorInput, $color)
-        GUICtrlSetBkColor($TitlebarTextColorLabel, $color)
+        ;GUICtrlSetBkColor($TitlebarTextColorLabel, $color)
+        GuiFlatButton_SetBkColor($TitlebarTextColorLabel, $color)
     EndIf
 EndFunc
 
@@ -926,20 +955,26 @@ Func ColorPickerBlurTintColor()
         GUICtrlSetData($BlurTintColorInput, $colorprev)
     Else
         GUICtrlSetData($BlurTintColorInput, $color)
-        GUICtrlSetBkColor($BlurTintColorPickLabel, $color)
+        ;GUICtrlSetBkColor($BlurTintColorPickLabel, $color)
+        GuiFlatButton_SetBkColor($BlurTintColorPickLabel, $color)
     EndIf
 EndFunc
 
 Func _UpdateColorBoxes()
     Local $color1 = GUICtrlRead($BorderColorInput)
-    If $color1 <> $DWMWA_COLOR_NONE Then GUICtrlSetBkColor($colorlabelfill, $color1)
-    If $color1 = $DWMWA_COLOR_NONE Then GUICtrlSetBkColor($colorlabelfill, 0x000000)
+    ;If $color1 <> $DWMWA_COLOR_NONE Then GUICtrlSetBkColor($colorlabelfill, $color1)
+    If $color1 <> "0xFFFFFFFE" Then GuiFlatButton_SetBkColor($colorlabelfill, $color1)
+    ;If $color1 = $DWMWA_COLOR_NONE Then GUICtrlSetBkColor($colorlabelfill, 0x000000)
+    If $color1 = "0xFFFFFFFE" Then GuiFlatButton_SetBkColor($colorlabelfill, 0x000000)
 	Local $color2 = GUICtrlRead($TitlebarColorInput)
-	GUICtrlSetBkColor($TitlebarColorLabel, $color2)
+	;GUICtrlSetBkColor($TitlebarColorLabel, $color2)
+    GuiFlatButton_SetBkColor($TitlebarColorLabel, $color2)
 	Local $color3 = GUICtrlRead($TitlebarTextColorInput)
-	GUICtrlSetBkColor($TitlebarTextColorLabel, $color3)
+	;GUICtrlSetBkColor($TitlebarTextColorLabel, $color3)
+    GuiFlatButton_SetBkColor($TitlebarTextColorLabel, $color3)
     Local $color4 = GUICtrlRead($BlurTintColorInput)
-	GUICtrlSetBkColor($BlurTintColorPickLabel, $color4)
+	;GUICtrlSetBkColor($BlurTintColorPickLabel, $color4)
+    GuiFlatButton_SetBkColor($BlurTintColorPickLabel, $color4)
 EndFunc
 
 Func idSpecialHandlingTest()
@@ -1321,17 +1356,21 @@ Func hBtnAddRule()
     GUICtrlSetData($idInputExtendFrame, "")
 	_GUICtrlComboBox_SetCurSel($ExtendFrameCombo, -1)
     GUICtrlSetData($BlurTintColorInput, "")
-    GUICtrlSetBkColor($BlurTintColorPickLabel, 0x000000)
+    ;GUICtrlSetBkColor($BlurTintColorPickLabel, 0x000000)
+    GuiFlatButton_SetBkColor($BlurTintColorPickLabel, 0x000000)
     GUICtrlSetData($idInputCornerPreference, "")
     _GUICtrlComboBox_SetCurSel($CornerPreferenceCombo, -1)
     GUICtrlSetData($idInputTitleBarBackdrop, "")
     _GUICtrlComboBox_SetCurSel($TitleBarBackdropCombo, -1)
     GUICtrlSetData($BorderColorInput, "")
-    GUICtrlSetBkColor($colorlabelfill, 0x000000)
+    ;GUICtrlSetBkColor($colorlabelfill, 0x000000)
+    GuiFlatButton_SetBkColor($colorlabelfill, 0x000000)
     GUICtrlSetData($TitlebarColorInput, "")
-    GUICtrlSetBkColor($TitlebarColorLabel, 0x000000)
+    ;GUICtrlSetBkColor($TitlebarColorLabel, 0x000000)
+    GuiFlatButton_SetBkColor($TitlebarColorLabel, 0x000000)
     GUICtrlSetData($TitlebarTextColorInput, "")
-    GUICtrlSetBkColor($TitlebarTextColorLabel, 0x000000)
+    ;GUICtrlSetBkColor($TitlebarTextColorLabel, 0x000000)
+    GuiFlatButton_SetBkColor($TitlebarTextColorLabel, 0x000000)
     GUICtrlSetData($idInputDarkTitle, "")
 	_GUICtrlComboBox_SetCurSel($DarkTitleCombo, -1)
     GUICtrlSetData($TargetInput, "")
@@ -1353,17 +1392,21 @@ Func hBtnAddRule_nofocusGlobal()
     GUICtrlSetData($idInputExtendFrame, "")
 	_GUICtrlComboBox_SetCurSel($ExtendFrameCombo, -1)
     GUICtrlSetData($BlurTintColorInput, "")
-    GUICtrlSetBkColor($BlurTintColorPickLabel, 0x000000)
+    ;GUICtrlSetBkColor($BlurTintColorPickLabel, 0x000000)
+    GuiFlatButton_SetBkColor($BlurTintColorPickLabel, 0x000000)
     GUICtrlSetData($idInputCornerPreference, "")
     _GUICtrlComboBox_SetCurSel($CornerPreferenceCombo, -1)
     GUICtrlSetData($idInputTitleBarBackdrop, "")
     _GUICtrlComboBox_SetCurSel($TitleBarBackdropCombo, -1)
     GUICtrlSetData($BorderColorInput, "")
-    GUICtrlSetBkColor($colorlabelfill, 0x000000)
+    ;GUICtrlSetBkColor($colorlabelfill, 0x000000)
+    GuiFlatButton_SetBkColor($colorlabelfill, 0x000000)
     GUICtrlSetData($TitlebarColorInput, "")
-    GUICtrlSetBkColor($TitlebarColorLabel, 0x000000)
+    ;GUICtrlSetBkColor($TitlebarColorLabel, 0x000000)
+    GuiFlatButton_SetBkColor($TitlebarColorLabel, 0x000000)
     GUICtrlSetData($TitlebarTextColorInput, "")
-    GUICtrlSetBkColor($TitlebarTextColorLabel, 0x000000)
+    ;GUICtrlSetBkColor($TitlebarTextColorLabel, 0x000000)
+    GuiFlatButton_SetBkColor($TitlebarTextColorLabel, 0x000000)
     GUICtrlSetData($idInputDarkTitle, "")
 	_GUICtrlComboBox_SetCurSel($DarkTitleCombo, -1)
     GUICtrlSetData($TargetInput, "")
@@ -1781,11 +1824,16 @@ Func _RuleList()
             _GUICtrlComboBox_SetCurSel($DarkTitleCombo, 1)
         EndIf
         GUICtrlSetData($BorderColorInput, $dGlobalBorderColor)
-        GUICtrlSetBkColor($colorlabelfill, $dGlobalBorderColor)
+        ;GUICtrlSetBkColor($colorlabelfill, $dGlobalBorderColor)
+        ;GuiFlatButton_SetBkColor($colorlabelfill, $dGlobalBorderColor)
+        If $dGlobalBorderColor <> "0xFFFFFFFE" Then GuiFlatButton_SetBkColor($colorlabelfill, $dGlobalBorderColor)
+        If $dGlobalBorderColor = "0xFFFFFFFE" Then GuiFlatButton_SetBkColor($colorlabelfill, 0x000000)
         GUICtrlSetData($TitlebarColorInput, $dGlobalTitleBarColor)
-        GUICtrlSetBkColor($TitlebarColorLabel, $dGlobalTitleBarColor)
+        ;GUICtrlSetBkColor($TitlebarColorLabel, $dGlobalTitleBarColor)
+        GuiFlatButton_SetBkColor($TitlebarColorLabel, $dGlobalTitleBarColor)
         GUICtrlSetData($TitlebarTextColorInput, $dGlobalTitleBarTextColor)
-        GUICtrlSetBkColor($TitlebarTextColorLabel, $dGlobalTitleBarTextColor)
+        ;GUICtrlSetBkColor($TitlebarTextColorLabel, $dGlobalTitleBarTextColor)
+        GuiFlatButton_SetBkColor($TitlebarTextColorLabel, $dGlobalTitleBarTextColor)
         If $iGlobalTitleBarBackdrop = "4" Then
             GUICtrlSetData($idInputTitleBarBackdrop, "Mica Alt")
             _GUICtrlComboBox_SetCurSel($TitleBarBackdropCombo, 4)
@@ -1839,7 +1887,8 @@ Func _RuleList()
         EndIf
 
         GUICtrlSetData($BlurTintColorInput, $dGlobalBlurTintColor)
-        GUICtrlSetBkColor($BlurTintColorPickLabel, $dGlobalBlurTintColor)
+        ;GUICtrlSetBkColor($BlurTintColorPickLabel, $dGlobalBlurTintColor)
+        GuiFlatButton_SetBkColor($BlurTintColorPickLabel, $dGlobalBlurTintColor)
 
         GUICtrlSetData($BlurColorIntensitySlider, $iGlobalTintColorIntensity)
         Return
@@ -1859,11 +1908,16 @@ Func _RuleList()
 			If $aCustomRules[$i][2] = "True" Then _GUICtrlComboBox_SetCurSel($DarkTitleCombo, 0)
 			If $aCustomRules[$i][2] = "False" Then _GUICtrlComboBox_SetCurSel($DarkTitleCombo, 1)
 			GUICtrlSetData($BorderColorInput, $aCustomRules[$i][3])
-            GUICtrlSetBkColor($colorlabelfill, $aCustomRules[$i][3])
+            ;GUICtrlSetBkColor($colorlabelfill, $aCustomRules[$i][3])
+            If $aCustomRules[$i][3] <> "0xFFFFFFFE" Then GuiFlatButton_SetBkColor($colorlabelfill, $aCustomRules[$i][3])
+            If $aCustomRules[$i][3] = "0xFFFFFFFE" Then GuiFlatButton_SetBkColor($colorlabelfill, 0x000000)
+            ;GuiFlatButton_SetBkColor($colorlabelfill, $aCustomRules[$i][3])
             GUICtrlSetData($TitlebarColorInput, $aCustomRules[$i][4])
-            GUICtrlSetBkColor($TitlebarColorLabel, $aCustomRules[$i][4])
+            ;GUICtrlSetBkColor($TitlebarColorLabel, $aCustomRules[$i][4])
+            GuiFlatButton_SetBkColor($TitlebarColorLabel, $aCustomRules[$i][4])
             GUICtrlSetData($TitlebarTextColorInput, $aCustomRules[$i][5])
-            GUICtrlSetBkColor($TitlebarTextColorLabel, $aCustomRules[$i][5])
+            ;GUICtrlSetBkColor($TitlebarTextColorLabel, $aCustomRules[$i][5])
+            GuiFlatButton_SetBkColor($TitlebarTextColorLabel, $aCustomRules[$i][5])
             ;GUICtrlSetData($idInputTitleBarBackdrop, $aCustomRules[$i][6])
             If $aCustomRules[$i][6] = "4" Then
                 GUICtrlSetData($idInputTitleBarBackdrop, "Mica Alt")
@@ -1911,7 +1965,8 @@ Func _RuleList()
 			If $aCustomRules[$i][9] = "False" Then _GUICtrlComboBox_SetCurSel($BlurBehindCombo, 1)
 
             GUICtrlSetData($BlurTintColorInput, $aCustomRules[$i][10])
-            GUICtrlSetBkColor($BlurTintColorPickLabel, $aCustomRules[$i][10])
+            ;GUICtrlSetBkColor($BlurTintColorPickLabel, $aCustomRules[$i][10])
+            GuiFlatButton_SetBkColor($BlurTintColorPickLabel, $aCustomRules[$i][10])
 
             GUICtrlSetData($BlurColorIntensitySlider, $aCustomRules[$i][11])
 

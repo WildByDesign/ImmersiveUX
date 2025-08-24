@@ -4,9 +4,9 @@
 #AutoIt3Wrapper_Outfile_x64=ImmersiveEngine.exe
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.2.4
+#AutoIt3Wrapper_Res_Fileversion=1.2.5
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.2.4
+#AutoIt3Wrapper_Res_ProductVersion=1.2.5
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=Y
@@ -981,7 +981,8 @@ Func _WinAPI_DwmEnableBlurBehindWindow10($hWnd, $bEnable = True, $iBlurColor = "
 	Local $tAccentPolicy = DllStructCreate("int AccentState; int AccentFlags; int GradientColor; int AnimationId")
 	Local $tAttrData = DllStructCreate("dword Attribute; ptr DataBuffer; ulong Size")
 	$tAccentPolicy.AccentState = $bEnable ? 4 : 0
-	If $iBlurColor <> "" Then $tAccentPolicy.AccentFlags = 2
+	$tAccentPolicy.AccentFlags = 0
+	;If $iBlurColor <> "" Then $tAccentPolicy.AccentFlags = 2
     If $iBlurColor <> "" Then $tAccentPolicy.GradientColor = $iBlurColor
 	$tAccentPolicy.AnimationId = 0
 	$tAttrData.Attribute = 19 ; WCA_ACCENT_POLICY
