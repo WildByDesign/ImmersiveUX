@@ -71,3 +71,5 @@ From my understanding, the archive download triggers some sort of tagging by Edg
 Needless to say, the binaries do not do anything malicious and the source code is always available to review.
 
 ## Acknowledgements:
+
+[Vibrancy Continued](https://github.com/illixion/vscode-vibrancy-continued) : Methods and code used to apply backdrop materials for Visual Studio Code.
