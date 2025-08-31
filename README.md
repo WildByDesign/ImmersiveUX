@@ -69,3 +69,5 @@ Yet, if you download the release archives (ImmersiveUX-x64-*.zip) with Microsoft
 From my understanding, the archive download triggers some sort of tagging by Edge which makes some sort of *"in-the-cloud-only machine-learning-baloney"* scan which is where the zip archive gets tagged.
 
 Needless to say, the binaries do not do anything malicious and the source code is always available to review.
+
+## Acknowledgements:
