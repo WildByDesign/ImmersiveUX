@@ -4,9 +4,9 @@
 #AutoIt3Wrapper_Outfile_x64=ImmersiveEngine.exe
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.2.6
+#AutoIt3Wrapper_Res_Fileversion=1.3.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.2.6
+#AutoIt3Wrapper_Res_ProductVersion=1.3.0
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=Y
@@ -19,6 +19,7 @@
 #include <WinAPIGdi.au3>
 #include <Array.au3>
 #include <Misc.au3>
+#include <File.au3>
 
 ; HotKey only used temporarily when needing to look for window classes to include/exclude
 ;#include <Process.au3>
@@ -37,7 +38,7 @@ EndIf
 Global $iPID, $sINFO, $oService
 Global $IniFile = @ScriptDir & "\ImmersiveUX.ini"
 Global $bDarkModeEnabled, $bClearChangesOnExit, $bRequireWindows11, $iBorderColorOptions
-Global $aGlobalExclusions, $aExcludeFromAllClass
+Global $aExcludeProcessNames, $aExcludeFromAllClass
 Global $bClassicExplorer, $bExplorerExtendClient
 Global $bGlobalDarkTitleBar, $dGlobalBorderColor, $dGlobalTitleBarColor, $dGlobalTitleBarTextColor, $iGlobalTitleBarBackdrop, $iGlobalCornerPreference, $iGlobalExtendFrameIntoClient, $iGlobalEnableBlurBehind
 Global $iGlobalBlurTintColor
@@ -45,7 +46,7 @@ Global $dTerminalBorderColor, $dTerminalBackdrop, $bWindowsTerminalHandling, $dV
 Global $dVSCodiumBackdrop, $dVSCodeBackdrop
 Global $bEnable = False
 Global $bBoot = True
-Global $aCustomRules[0][13]
+Global $aCustomRules[0][14]
 Global Static $hActiveWndLast
 Global $bElevated = False
 Global $sProdName = "ImmersiveUX"
@@ -53,9 +54,14 @@ Global $sEngName = "ImmersiveEngine"
 Global $DWMWA_COLOR_NONE = 0xFFFFFFFE
 Global $DWMWA_COLOR_DEFAULT = 0xFFFFFFFF
 
-Global $aExcludeWinTitles[17] = ["", "Program Manager", "PopupHost", "CoreInput", "Search", "Start", "DesktopWindowXamlSource", _ 
-	"Chrome Legacy Window", "Quick settings", "System tray overflow window.", "Drag", "Default IME", "OLEChannelWnd", _
-	"OleMainThreadWndName", "MSCTFIME UI", "CicMarshalWnd", "XCP"]
+;Global $aExcludeWinTitles[17] = ["", "Program Manager", "PopupHost", "CoreInput", "Search", "Start", "DesktopWindowXamlSource", _
+;	"Chrome Legacy Window", "Quick settings", "System tray overflow window.", "Drag", "Default IME", "OLEChannelWnd", _
+;	"OleMainThreadWndName", "MSCTFIME UI", "CicMarshalWnd", "XCP"]
+
+Global $aExcludeClassNames[15] = ["Progman", "Xaml_WindowedPopupClass", "Windows.UI.Core.CoreComponentInputSource", _
+	"Windows.UI.Core.CoreWindow", "Windows.UI.Composition.DesktopWindowContentBridge", "Chrome_RenderWidgetHostHWND", _
+	"ControlCenterWindow", "TopLevelWindowForOverflowXamlIsland", "SysDragImage", "IME", "OleMainThreadWndClass", "MSCTFIME UI", _
+	"CicMarshalWndClass", "XCPTimerClass", "msctls_statusbar32"]
 
 ReadIniFile()
 
@@ -111,8 +117,6 @@ If StringInStr($CmdLineRaw, 'runtask') Then $g_iIsTaskSchedRun = True
 If $g_iIsTaskSchedInstalled And Not $g_iIsTaskSchedRun Then
 	_TaskSched_Run()
 	Exit
-Else
-	ConsoleWrite('No TaskSched conditions.' & @CRLF)
 EndIf
 
 ; ensure that only one instance is running
@@ -185,22 +189,29 @@ Func RefreshChanges()
 EndFunc
 
 Func SetBorderColor_removeall()
-	Local $hWnd, $sClassName
+	Local $hWnd, $sClassName, $sName
+	Local $sDrive, $sDir, $sFileName, $sExtension
 	If $bClearChangesOnExit = True Then
 		$aArray = WinList()
 		For $n = 1 To $aArray[0][0]
 
-			; internal filter for excluding windows
-			For $i = 0 To UBound($aExcludeWinTitles) - 1
-				If $aArray[$n][0] = $aExcludeWinTitles[$i] Then ContinueLoop 2
+			; exclude windows with blank title
+			If $aArray[$n][0] = "" Then ContinueLoop
+
+			$sClassName = _WinAPI_GetClassName($aArray[$n][1])
+			; exclude classnames from global exclusions
+			For $i = 0 To UBound($aExcludeClassNames) - 1
+				If $sClassName = $aExcludeClassNames[$i] Then ContinueLoop 2
 			Next
 
-			; don't bother if class/process is on global exclusion list
-			$sClassName = _WinAPI_GetClassName($aArray[$n][1])
+			; exclude process names from global exclusions
 			$sName = _WinAPI_GetWindowFileName($aArray[$n][1])
-			For $i = 0 To UBound($aGlobalExclusions) -1
-				;If StringInStr($sName, $aGlobalExclusions[$i], $STR_NOCASESENSEBASIC) Then ContinueLoop
-				If StringInStr($sName, $aGlobalExclusions[$i], 2) Or StringInStr($sClassName, $aGlobalExclusions[$i], 2) Then ContinueLoop 2
+			If $sName = "" Then ContinueLoop
+			Local $aPathSplit = _PathSplit($sName, $sDrive, $sDir, $sFileName, $sExtension)
+			$sName = $aPathSplit[3] & $aPathSplit[4]
+
+			For $i = 0 To UBound($aExcludeProcessNames) -1
+				If $sName = $aExcludeProcessNames[$i] Then ContinueLoop 2
 			Next
 
 			MainColoringRemoval($aArray[$n][1], $sClassName, $sName)
@@ -231,7 +242,7 @@ Func MainColoringRemoval($hWnd, $sClassName, $sName)
 	; determine if process rule or class rule matches for custom rules
 	For $i = 0 To UBound($aCustomRules) - 1
 		; run through all of the custom process/class rules for a match
-		If StringInStr($sName, $aCustomRules[$i][1], 2) Or StringInStr($sClassName, $aCustomRules[$i][1], 2) Then
+		If $sName = $aCustomRules[$i][1] Or $sClassName = $aCustomRules[$i][1] Then
 			; skip custom rules that are not Enabled
 			If $aCustomRules[$i][12] = "False" Then
 				;If $bGlobalDarkTitleBar Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
@@ -342,13 +353,16 @@ EndFunc
 Func SetBorderColor_apply2all()
 	Local $sClassName
 	$aArray = WinList()
-	For $n = 1 To $aArray[0][0]        
-		; internal filter for excluding windows
-		For $i = 0 To UBound($aExcludeWinTitles) - 1
-			If $aArray[$n][0] = $aExcludeWinTitles[$i] Then ContinueLoop 2
-		Next
+	For $n = 1 To $aArray[0][0]
+		; exclude windows with blank title
+		If $aArray[$n][0] = "" Then ContinueLoop
 
 		$sClassName = _WinAPI_GetClassName($aArray[$n][1])
+		; exclude classnames from global exclusions
+		For $i = 0 To UBound($aExcludeClassNames) - 1
+			If $sClassName = $aExcludeClassNames[$i] Then ContinueLoop 2
+		Next
+
 		MainColoringFunction($aArray[$n][1], $sClassName)
 	Next
 
@@ -362,18 +376,21 @@ Func SetBorderColor_apply2all()
 EndFunc   ;==>SetBorderColor_apply2all
 
 Func MainColoringFunction($hWnd, $sClassName)
-	; don't bother if class/process is on global exclusion list
-	;Local $sClassName = _WinAPI_GetClassName($hWnd)
+	Local $sDrive = "", $sDir = "", $sFileName = "", $sExtension = ""
 	Local $sName = _WinAPI_GetWindowFileName($hWnd)
-
 	If Not @Compiled Then
 		Local $sWindow = _WinAPI_GetWindowTextMod($hWnd)
-		If $sWindow = "Immersive UX" Then $sName = "ImmersiveUX"
+		If $sWindow = "Immersive UX" Then $sName = "ImmersiveUX.exe"
 	EndIf
-	For $i = 0 To UBound($aGlobalExclusions) -1
-		;If StringInStr($sName, $aGlobalExclusions[$i], $STR_NOCASESENSEBASIC) Then ContinueLoop
-		If StringInStr($sName, $aGlobalExclusions[$i], 2) Or StringInStr($sClassName, $aGlobalExclusions[$i], 2) Then Return
+	; exclude process names from global exclusions
+	If $sName = "" Then Return
+	Local $aPathSplit = _PathSplit($sName, $sDrive, $sDir, $sFileName, $sExtension)
+	$sName = $aPathSplit[3] & $aPathSplit[4]
+	;ConsoleWrite("ProcessName: " & $sName & @TAB & "ClassName: " & $sClassName & @CRLF)
+	For $i = 0 To UBound($aExcludeProcessNames) -1
+		If $sName = $aExcludeProcessNames[$i] Then Return
 	Next
+
 	MainColoringContinue($hWnd, $sClassName, $sName)
 EndFunc
 
@@ -385,7 +402,7 @@ Func MainColoringContinue($hWnd, $sClassName, $sName)
 	; determine if process rule or class rule matches for custom rules
 	For $i = 0 To UBound($aCustomRules) - 1
 		; run through all of the custom process/class rules for a match
-		If StringInStr($sName, $aCustomRules[$i][1], 2) Or StringInStr($sClassName, $aCustomRules[$i][1], 2) Then
+		If $sName = $aCustomRules[$i][1] Or $sClassName = $aCustomRules[$i][1] Then
 			; skip custom rules that are not Enabled
 			If $aCustomRules[$i][12] = "False" Then
 				If $bGlobalDarkTitleBar Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
@@ -492,16 +509,20 @@ Func MainColoringContinue($hWnd, $sClassName, $sName)
 EndFunc
 
 Func _ColorBorderOnly($hWnd, $sClassName, $sName)
-	; don't bother if class/process is on global exclusion list
-	For $i = 0 To UBound($aGlobalExclusions) -1
-		;If StringInStr($sName, $aGlobalExclusions[$i], $STR_NOCASESENSEBASIC) Then ContinueLoop
-		If StringInStr($sName, $aGlobalExclusions[$i], 2) Or StringInStr($sClassName, $aGlobalExclusions[$i], 2) Then ContinueLoop
+	Local $sDrive, $sDir, $sFileName, $sExtension
+	; exclude process names from global exclusions
+	If $sName = "" Then Return
+	Local $aPathSplit = _PathSplit($sName, $sDrive, $sDir, $sFileName, $sExtension)
+	$sName = $aPathSplit[3] & $aPathSplit[4]
+
+	For $i = 0 To UBound($aExcludeProcessNames) -1
+		If $sName = $aExcludeProcessNames[$i] Then Return
 	Next
 
 	Local $bMatchesFound = False
 	For $i = 0 To UBound($aCustomRules) - 1
 		; run through all of the custom process/class rules for a match
-		If StringInStr($sName, $aCustomRules[$i][1], 2) Or StringInStr($sClassName, $aCustomRules[$i][1], 2) Then
+		If $sName = $aCustomRules[$i][1] Or $sClassName = $aCustomRules[$i][1] Then
 			$bMatchesFound = True
 			; skip custom rules that are not Enabled
 			If $aCustomRules[$i][12] = "False" Then
@@ -534,15 +555,15 @@ Func _DwmExtendFrameIntoClientArea($hWnd, $sName, $sClassName, $i)
 		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
 	EndIf
 	; Visual Studio Handling
-	If StringInStr($sName, 'devenv.exe', $STR_NOCASESENSEBASIC) Then
+	If $sName = 'devenv.exe' Then
 		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(5000, 5000, 0, 0))
 		;_WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dVSStudioBorderColor))
-	ElseIf StringInStr($sName, 'VSCodium.exe', $STR_NOCASESENSEBASIC) Then
+	ElseIf $sName = 'VSCodium.exe' Then
 		Sleep(20)
 		;_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False) ; only needed for old vibrancy method
 		_WinAPI_DwmSetWindowAttribute__($hWnd, 38, $dVSCodiumBackdrop)
 		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
-	ElseIf StringInStr($sName, 'Code.exe', $STR_NOCASESENSEBASIC) Then
+	ElseIf $sName = 'Code.exe' Then
 		Sleep(20)
 		;_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False) ; only needed for old vibrancy method
 		_WinAPI_DwmSetWindowAttribute__($hWnd, 38, $dVSCodeBackdrop)
@@ -566,7 +587,7 @@ Func _EnableBlurBehind($hWnd, $sName, $sClassName, $iTintColorBlur = "")
 	If $sClassName = 'CabinetWClass' Then
 		Sleep(20)
 		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
-	ElseIf StringInStr($sName, 'devenv.exe', $STR_NOCASESENSEBASIC) Then
+	ElseIf $sName = 'devenv.exe' Then
 		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(5000, 5000, 0, 0))
 	ElseIf $sClassName = 'TaskManagerWindow' Then
 		Sleep(20)
@@ -599,26 +620,17 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 				Return
 			EndIf
 
+			; exclude windows with blank title
+			$sActiveWindow = _WinAPI_GetWindowTextMod($hWnd)
+			If $sActiveWindow = "" Then Return
+
 			$sClassName = _WinAPI_GetClassName($hWnd)
 
-			; fix for Windows Terminal losing backdrop material when opening new tab tab
-			If $sClassName = "PseudoConsoleWindow" Then
-				$hTerminal = WinGetHandle("[CLASS:CASCADIA_HOSTING_WINDOW_CLASS]")
-				If Not $bWindowsTerminalBlur Then _WinAPI_DwmSetWindowAttribute__($hTerminal, 38, $dTerminalBackdrop)
-				_WinAPI_DwmSetWindowAttribute__($hTerminal, 34, _WinAPI_SwitchColor_mod($dTerminalBorderColor))
-				Sleep(20)
-				If Not $bWindowsTerminalBlur Then _WinAPI_DwmSetWindowAttribute__($hTerminal, 38, $dTerminalBackdrop)
-				_WinAPI_DwmSetWindowAttribute__($hTerminal, 34, _WinAPI_SwitchColor_mod($dTerminalBorderColor))
-				Return
-			EndIf
-
-			$sActiveWindow = _WinAPI_GetWindowTextMod($hWnd)
-
-			; internal filter for excluding windows
-			For $i = 0 To UBound($aExcludeWinTitles) - 1
-				If $sActiveWindow = $aExcludeWinTitles[$i] Then Return
+			; exclude classnames from global exclusions
+			For $i = 0 To UBound($aExcludeClassNames) - 1
+				If $sClassName = $aExcludeClassNames[$i] Then Return
 			Next
- 
+
 			MainColoringFunction($hWnd, $sClassName)
 
 		Case $EVENT_OBJECT_SHOW
@@ -629,14 +641,30 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 				Return
 			EndIf
 
-			$sActiveWindow = _WinAPI_GetWindowTextMod($hWnd)
+			$sClassName = _WinAPI_GetClassName($hWnd)
 
-			; internal filter for excluding windows
-			For $i = 0 To UBound($aExcludeWinTitles) - 1
-				If $sActiveWindow = $aExcludeWinTitles[$i] Then Return
+			; exclude classnames from global exclusions
+			For $i = 0 To UBound($aExcludeClassNames) - 1
+				If $sClassName = $aExcludeClassNames[$i] Then Return
 			Next
 
-			$sClassName = _WinAPI_GetClassName($hWnd)
+			; fix for Windows Terminal losing backdrop material when opening new tab tab
+			If $bWindowsTerminalHandling Then
+				If $sClassName = "PseudoConsoleWindow" Then
+					$hTerminal = WinGetHandle("[CLASS:CASCADIA_HOSTING_WINDOW_CLASS]")
+					If Not $bWindowsTerminalBlur Then _WinAPI_DwmSetWindowAttribute__($hTerminal, 38, $dTerminalBackdrop)
+					_WinAPI_DwmSetWindowAttribute__($hTerminal, 34, _WinAPI_SwitchColor_mod($dTerminalBorderColor))
+					Sleep(20)
+					If Not $bWindowsTerminalBlur Then _WinAPI_DwmSetWindowAttribute__($hTerminal, 38, $dTerminalBackdrop)
+					_WinAPI_DwmSetWindowAttribute__($hTerminal, 34, _WinAPI_SwitchColor_mod($dTerminalBorderColor))
+					Return
+				EndIf
+			EndIf
+
+			; exclude windows with blank title
+			$sActiveWindow = _WinAPI_GetWindowTextMod($hWnd)
+			If $sActiveWindow = "" Then Return
+
 			MainColoringFunction($hWnd, $sClassName)
 
 		Case $EVENT_SYSTEM_FOREGROUND
@@ -654,7 +682,7 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 				$hActiveWnd = WinGetHandle("[ACTIVE]", "")
 				If $hActiveWnd<>$hActiveWndLast Then
 					$sClassName = _WinAPI_GetClassName($hWnd)
-					$sName = _WinAPI_GetWindowFileName($hWnd)
+					;$sName = _WinAPI_GetWindowFileName($hWnd)
 					; active window changed
 					; remove border color from last window
 					;_WinAPI_DwmSetWindowAttribute__($hActiveWndLast, 34, $DWMWA_COLOR_NONE)
@@ -665,13 +693,13 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 				ElseIf $hActiveWnd=$hActiveWndLast Then
 					; active window did not change (do nothing)
 					$sClassName = _WinAPI_GetClassName($hWnd)
-					$sName = _WinAPI_GetWindowFileName($hWnd)
+					;$sName = _WinAPI_GetWindowFileName($hWnd)
 				EndIf
 			EndIf
 
 			If $iBorderColorOptions <> 0 Then
 				$sClassName = _WinAPI_GetClassName($hWnd)
-				$sName = _WinAPI_GetWindowFileName($hWnd)
+				;$sName = _WinAPI_GetWindowFileName($hWnd)
 			EndIf
 
 			; Visual Studio Handling
@@ -700,14 +728,17 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 				EndIf
 			EndIf
 
+			; exclude windows with blank title
 			$sActiveWindow = _WinAPI_GetWindowTextMod($hWnd)
+			If $sActiveWindow = "" Then Return
 
-			; internal filter for excluding windows
-			For $i = 0 To UBound($aExcludeWinTitles) - 1
-				If $sActiveWindow = $aExcludeWinTitles[$i] Then Return
+			; exclude classnames from global exclusions
+			For $i = 0 To UBound($aExcludeClassNames) - 1
+				If $sClassName = $aExcludeClassNames[$i] Then Return
 			Next
 
 			; only deal with border coloring here
+			$sName = _WinAPI_GetWindowFileName($hWnd)
 			_ColorBorderOnly($hWnd, $sClassName, $sName)
 
 		Case $EVENT_OBJECT_REORDER
@@ -1008,7 +1039,7 @@ Func _GetHwndFromPID($PID)
 EndFunc;==>_GetHwndFromPID
 
 Func ReadIniFile()
-	Global $aCustomRules[0][13]
+	Global $aCustomRules[0][14]
 
 	; Global rules
 	$bGlobalDarkTitleBar = _ToBoolean(IniRead($IniFile, "GlobalRules", "GlobalDarkTitleBar", "True"))
@@ -1037,7 +1068,7 @@ Func ReadIniFile()
         If $a <> "Configuration" And $a <> "ProcessExclusion" And $a <> "ClassExclusion" And $a <> "Settings" And $a <> "GlobalRules" And $a <> "StartupInfoOnly" And $a <> "VSCodeInstallPath" Then
 			Local $aArray = IniReadSection($IniFile, $aSectionNames[$i])
 			;ConsoleWrite("number of lines: " & $aArray[0][0] & @CRLF)
-			If $aArray[0][0] <> '13' Then
+			If $aArray[0][0] <> '14' Then
 				; problem detected in CustomRules section
 				$msg = 'A problem has been detected in CustomRules section: ' & $aSectionNames[$i] & @CRLF & @CRLF
 				$msg &= $sProdName & ' will exit now to prevent issue.'
@@ -1144,26 +1175,30 @@ Func ReadIniFile()
 		$bDarkModeEnabled = False
 	EndIf
 
-	$aGlobalExclusions = StringSplit($sExcludeFromAllProc, ",")
+	$aExcludeProcessNames = StringSplit($sExcludeFromAllProc, ",")
 	$aExcludeFromAllClass = StringSplit($sExcludeFromAllClass, ",")
 
 	; create process exclusion array for all functions
-	For $i = 1 To $aGlobalExclusions[0]
-		$aGlobalExclusions[$i] = StringStripWS($aGlobalExclusions[$i], $STR_STRIPLEADING + $STR_STRIPTRAILING)
-		$aGlobalExclusions[$i] = StringReplace($aGlobalExclusions[$i], "*", "")
+	For $i = 1 To $aExcludeProcessNames[0]
+		$aExcludeProcessNames[$i] = StringStripWS($aExcludeProcessNames[$i], $STR_STRIPLEADING + $STR_STRIPTRAILING)
+		;$aExcludeProcessNames[$i] = StringReplace($aExcludeProcessNames[$i], "*", "")
 	Next
 
 	; create class exclusion array for all functions
 	For $i = 1 To $aExcludeFromAllClass[0]
 		$aExcludeFromAllClass[$i] = StringStripWS($aExcludeFromAllClass[$i], $STR_STRIPLEADING + $STR_STRIPTRAILING)
-		$aExcludeFromAllClass[$i] = StringReplace($aExcludeFromAllClass[$i], "*", "")
+		;$aExcludeFromAllClass[$i] = StringReplace($aExcludeFromAllClass[$i], "*", "")
 	Next
 
 	; combine process and class exlusions into one global exclusion list
-	_ArrayDelete($aGlobalExclusions, 0)
+	_ArrayDelete($aExcludeProcessNames, 0)
+	;_ArrayDelete($aExcludeFromAllClass, 0)
+	;_ArrayConcatenate($aExcludeProcessNames, $aExcludeFromAllClass)
+	;_ArrayDisplay($aExcludeProcessNames, "1D Target and Source concatenated")
+
+	; combine internal and external class exclusions into one array
 	_ArrayDelete($aExcludeFromAllClass, 0)
-	_ArrayConcatenate($aGlobalExclusions, $aExcludeFromAllClass)
-	;_ArrayDisplay($aGlobalExclusions, "1D Target and Source concatenated")
+	_ArrayConcatenate($aExcludeClassNames, $aExcludeFromAllClass)
 
 	; obtain system accent color for borders and/or title bars
 	Local $sReadColor = RegRead("HKEY_CURRENT_USER\Software\Microsoft\Windows\DWM", "AccentColor")

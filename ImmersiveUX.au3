@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX
-#AutoIt3Wrapper_Res_Fileversion=1.2.6
+#AutoIt3Wrapper_Res_Fileversion=1.3.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX
-#AutoIt3Wrapper_Res_ProductVersion=1.2.6
+#AutoIt3Wrapper_Res_ProductVersion=1.3.0
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -15,7 +15,7 @@
 #AutoIt3Wrapper_Run_Au3Stripper=y
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
-Global $iVersion = '1.2.6'
+Global $iVersion = '1.3.0'
 
 #include <MsgBoxConstants.au3>
 #include <WinAPIFiles.au3>
@@ -78,6 +78,7 @@ Global $TargetInput, $hBtnRuleType, $hBtnRuleEnabled, $DeleteButton, $SaveButton
 Global $BlurColorIntensitySlider, $idPart0, $idPart1, $idPart2
 Global $TaskIntegrity, $TaskInstalled, $TaskRunning
 Global $aProcessRunning, $IsRunFromTS, $bProcessRunning
+Global $sTargetLast = ""
 Global $bHideGUI = False
 Global $TRAY_EVENT_PRIMARYDOWN = -7
 Global $DWMWA_COLOR_NONE = 0xFFFFFFFE
@@ -1383,6 +1384,7 @@ Func hBtnAddRule()
     GUICtrlSetData($idInputRuleEnabled, "")
     ; set focus to Target input
     GUICtrlSetState($TargetInput, $GUI_FOCUS)
+    $sTargetLast = ""
 EndFunc
 
 Func hBtnAddRule_nofocusGlobal()
@@ -1417,6 +1419,7 @@ Func hBtnAddRule_nofocusGlobal()
     GUICtrlSetData($BlurColorIntensitySlider, 50)
     _GUICtrlComboBox_SetCurSel($RuleEnabledCombo, -1)
     GUICtrlSetData($idInputRuleEnabled, "")
+    $sTargetLast = ""
 EndFunc
 
 Func hBtnDeleteRule()
@@ -1442,6 +1445,7 @@ Func hBtnDeleteRule()
     hBtnAddRule()
 
     _GUICtrlComboBox_InsertString($RuleListCombo, "Global Rules", 0)
+    $sTargetLast = ""
 EndFunc
 
 Func hBtnReloadRules()
@@ -1462,6 +1466,7 @@ Func hBtnReloadRules()
     GUICtrlSetData($idInput, "Select a rule")
     ControlFocus($hGUI, "", $RuleListCombo)
     _GUICtrlComboBox_InsertString($RuleListCombo, "Global Rules", 0)
+    $sTargetLast = ""
 EndFunc
 
 Func _IsEngineRunning()
@@ -1542,7 +1547,7 @@ Func _WriteIniSection()
     Local $RuleType = GUICtrlRead($idInputRuleType)
 
     Local $Target = GUICtrlRead($TargetInput)
-    
+
     If $Target = "" Then
         _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, " Target cannot be blank. " & @CRLF)
         Return
@@ -1573,20 +1578,21 @@ Func _WriteIniSection()
     Local $TintColorIntensity = GUICtrlRead($BlurColorIntensitySlider)
     Local $RuleEnabled = GUICtrlRead($idInputRuleEnabled)
 
-    ; need to determine if target changed from section to initiate ini section rename if needed
-    Local $SectionName = GUICtrlRead($idInput)
+    Local $SectionName = GUICtrlRead($TargetInput)
+    Local $DisplayName = GUICtrlRead($idInput)
     If $SectionName = "Select a rule" Then Return
-    If $SectionName = "" Then $SectionName = $Target
-    If $SectionName <> $Target Then
-        ; Rename the section labelled $SectionName to $Target
-        IniRenameSection($sIniPath, $SectionName, $Target)
-        $SectionName = $Target
+    If $DisplayName = "" Then $DisplayName = $SectionName
+    ; need to determine if ini section needs to be renamed
+    If $SectionName <> $sTargetLast Then
+        If $sTargetLast <> "" Then
+            ; Rename the section labelled $sTargetLast to $SectionName
+            IniRenameSection($sIniPath, $sTargetLast, $SectionName)
+        EndIf
     EndIf
 
-    ;#cs
-    Local $aSection[14][2] = [[13, ""], ["RuleType", $RuleType], ["Target", $Target], ["DarkTitleBar", $DarkTitleBar], ["BorderColor", $BorderColor], ["TitleBarColor", $TitleBarColor], ["TitleBarTextColor", $TitleBarTextColor], ["TitleBarBackdrop", $TitleBarBackdrop], ["CornerPreference", $CornerPreference], ["ExtendFrameIntoClient", $ExtendFrameIntoClient], ["EnableBlurBehind", $EnableBlurBehind], ["BlurTintColor", $BlurTintColor], ["TintColorIntensity", $TintColorIntensity], ["Enabled", $RuleEnabled]]
-    ;_ArrayDisplay($aSection, "testing creation of same section")
-    ;#ce
+    $sTargetLast = $SectionName
+
+    Local $aSection[15][2] = [[14, ""], ["RuleType", $RuleType], ["Target", $Target], ["DarkTitleBar", $DarkTitleBar], ["BorderColor", $BorderColor], ["TitleBarColor", $TitleBarColor], ["TitleBarTextColor", $TitleBarTextColor], ["TitleBarBackdrop", $TitleBarBackdrop], ["CornerPreference", $CornerPreference], ["ExtendFrameIntoClient", $ExtendFrameIntoClient], ["EnableBlurBehind", $EnableBlurBehind], ["BlurTintColor", $BlurTintColor], ["TintColorIntensity", $TintColorIntensity], ["Enabled", $RuleEnabled], ["DisplayName", $DisplayName]]
 
     $IniWriteStatus = IniWriteSection($sIniPath, $SectionName, $aSection)
     If $IniWriteStatus = 0 Then _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, " Failed to write changes to file. " & @CRLF)
@@ -1598,6 +1604,7 @@ Func _WriteIniSection()
 
     GUICtrlSetState($DeleteButton, $GUI_ENABLE)
 
+    #cs
     Local $sTargetNew = GUICtrlRead($idInput)
     If $sTargetNew = "File Explorer" Then
         GUICtrlSetData($RuleListCombo, $sTargetNew)
@@ -1615,6 +1622,10 @@ Func _WriteIniSection()
         GUICtrlSetData($idInput, GUICtrlRead($TargetInput))
         GUICtrlSetData($RuleListCombo, GUICtrlRead($TargetInput))
     EndIf
+    #ce
+
+    GUICtrlSetData($idInput, $DisplayName)
+    GUICtrlSetData($RuleListCombo, $DisplayName)
 
     _GUICtrlComboBox_InsertString($RuleListCombo, "Global Rules", 0)
 EndFunc
@@ -1727,6 +1738,7 @@ Func _GetIniDetails()
         ; $aCustomRules[$i][13] = contains sectionname
         ; $aCustomRules[$i][14] = contains FriendlyName
 
+        #cs
         ; add FriendlyName to array
         For $i = 0 To UBound($aCustomRules) - 1
             If $aCustomRules[$i][13] = "CabinetWClass" Then
@@ -1745,10 +1757,12 @@ Func _GetIniDetails()
                $aCustomRules[$i][14] = $aCustomRules[$i][13]
             EndIf
         Next
+        #ce
+
         ; sort array
         ;_ArraySort($aCustomRules, 0, 0, 0, 1)
+        _ArraySwap($aCustomRules, 13, 14, True)
         _ArraySort($aCustomRules, 0, 0, 0, 14)
-        ;_ArrayDisplay($aCustomRules)
 
 EndFunc   ;==>_GetIniDetails
 
@@ -1819,10 +1833,7 @@ Func _RuleList()
         GUICtrlSetData($idInputDarkTitle, $bGlobalDarkTitleBar)
 		If $bGlobalDarkTitleBar = "True" Then _GUICtrlComboBox_SetCurSel($DarkTitleCombo, 0)
 		If $bGlobalDarkTitleBar = "False" Then _GUICtrlComboBox_SetCurSel($DarkTitleCombo, 1)
-		If $bGlobalDarkTitleBar = "" Then
-            GUICtrlSetData($idInputDarkTitle, "False")
-            _GUICtrlComboBox_SetCurSel($DarkTitleCombo, 1)
-        EndIf
+		If $bGlobalDarkTitleBar = "" Then _GUICtrlComboBox_SetCurSel($DarkTitleCombo, -1)
         GUICtrlSetData($BorderColorInput, $dGlobalBorderColor)
         ;GUICtrlSetBkColor($colorlabelfill, $dGlobalBorderColor)
         ;GuiFlatButton_SetBkColor($colorlabelfill, $dGlobalBorderColor)
@@ -1834,6 +1845,10 @@ Func _RuleList()
         GUICtrlSetData($TitlebarTextColorInput, $dGlobalTitleBarTextColor)
         ;GUICtrlSetBkColor($TitlebarTextColorLabel, $dGlobalTitleBarTextColor)
         GuiFlatButton_SetBkColor($TitlebarTextColorLabel, $dGlobalTitleBarTextColor)
+        If $iGlobalTitleBarBackdrop = "" Then
+            GUICtrlSetData($idInputTitleBarBackdrop, "")
+            _GUICtrlComboBox_SetCurSel($TitleBarBackdropCombo, -1)
+        EndIf
         If $iGlobalTitleBarBackdrop = "4" Then
             GUICtrlSetData($idInputTitleBarBackdrop, "Mica Alt")
             _GUICtrlComboBox_SetCurSel($TitleBarBackdropCombo, 4)
@@ -1854,6 +1869,10 @@ Func _RuleList()
             GUICtrlSetData($idInputTitleBarBackdrop, "Auto")
             _GUICtrlComboBox_SetCurSel($TitleBarBackdropCombo, 0)
         EndIf
+        If $iGlobalCornerPreference = "" Then
+            GUICtrlSetData($idInputCornerPreference, "")
+            _GUICtrlComboBox_SetCurSel($CornerPreferenceCombo, -1)
+        EndIf
         If $iGlobalCornerPreference = "3" Then
             GUICtrlSetData($idInputCornerPreference, "Round Small")
             _GUICtrlComboBox_SetCurSel($CornerPreferenceCombo, 3)
@@ -1873,18 +1892,12 @@ Func _RuleList()
         GUICtrlSetData($idInputExtendFrame, $iGlobalExtendFrameIntoClient)
 		If $iGlobalExtendFrameIntoClient = "True" Then _GUICtrlComboBox_SetCurSel($ExtendFrameCombo, 0)
 		If $iGlobalExtendFrameIntoClient = "False" Then _GUICtrlComboBox_SetCurSel($ExtendFrameCombo, 1)
-		If $iGlobalExtendFrameIntoClient = "" Then
-            GUICtrlSetData($idInputExtendFrame, "False")
-            _GUICtrlComboBox_SetCurSel($ExtendFrameCombo, 1)
-        EndIf
+		If $iGlobalExtendFrameIntoClient = "" Then _GUICtrlComboBox_SetCurSel($ExtendFrameCombo, -1)
 
         GUICtrlSetData($idInputBlurBehind, $iGlobalEnableBlurBehind)
 		If $iGlobalEnableBlurBehind = "True" Then _GUICtrlComboBox_SetCurSel($BlurBehindCombo, 0)
 		If $iGlobalEnableBlurBehind = "False" Then _GUICtrlComboBox_SetCurSel($BlurBehindCombo, 1)
-		If $iGlobalEnableBlurBehind = "" Then
-            GUICtrlSetData($idInputBlurBehind, "False")
-            _GUICtrlComboBox_SetCurSel($BlurBehindCombo, 1)
-        EndIf
+		If $iGlobalEnableBlurBehind = "" Then _GUICtrlComboBox_SetCurSel($BlurBehindCombo, -1)
 
         GUICtrlSetData($BlurTintColorInput, $dGlobalBlurTintColor)
         ;GUICtrlSetBkColor($BlurTintColorPickLabel, $dGlobalBlurTintColor)
@@ -1902,11 +1915,14 @@ Func _RuleList()
 			GUICtrlSetData($idInputRuleType, $aCustomRules[$i][0])
             If $aCustomRules[$i][0] = "Class" Then _GUICtrlComboBox_SetCurSel($RuleTypeCombo, 0)
 			If $aCustomRules[$i][0] = "Process" Then _GUICtrlComboBox_SetCurSel($RuleTypeCombo, 1)
+            If $aCustomRules[$i][0] = "" Then _GUICtrlComboBox_SetCurSel($RuleTypeCombo, -1)
 			GUICtrlSetData($TargetInput, $aCustomRules[$i][1])
+            $sTargetLast = $aCustomRules[$i][1]
             ;If $IFEOname = "Global Rules" Then GUICtrlSetData($TargetInput, "")
 			GUICtrlSetData($idInputDarkTitle, $aCustomRules[$i][2])
 			If $aCustomRules[$i][2] = "True" Then _GUICtrlComboBox_SetCurSel($DarkTitleCombo, 0)
 			If $aCustomRules[$i][2] = "False" Then _GUICtrlComboBox_SetCurSel($DarkTitleCombo, 1)
+            If $aCustomRules[$i][2] = "" Then _GUICtrlComboBox_SetCurSel($DarkTitleCombo, -1)
 			GUICtrlSetData($BorderColorInput, $aCustomRules[$i][3])
             ;GUICtrlSetBkColor($colorlabelfill, $aCustomRules[$i][3])
             If $aCustomRules[$i][3] <> "0xFFFFFFFE" Then GuiFlatButton_SetBkColor($colorlabelfill, $aCustomRules[$i][3])
@@ -1919,6 +1935,10 @@ Func _RuleList()
             ;GUICtrlSetBkColor($TitlebarTextColorLabel, $aCustomRules[$i][5])
             GuiFlatButton_SetBkColor($TitlebarTextColorLabel, $aCustomRules[$i][5])
             ;GUICtrlSetData($idInputTitleBarBackdrop, $aCustomRules[$i][6])
+            If $aCustomRules[$i][6] = "" Then
+                GUICtrlSetData($idInputTitleBarBackdrop, "")
+                _GUICtrlComboBox_SetCurSel($TitleBarBackdropCombo, -1)
+            EndIf
             If $aCustomRules[$i][6] = "4" Then
                 GUICtrlSetData($idInputTitleBarBackdrop, "Mica Alt")
                 _GUICtrlComboBox_SetCurSel($TitleBarBackdropCombo, 4)
@@ -1938,6 +1958,10 @@ Func _RuleList()
             If $aCustomRules[$i][6] = "0" Then
                 GUICtrlSetData($idInputTitleBarBackdrop, "Auto")
                 _GUICtrlComboBox_SetCurSel($TitleBarBackdropCombo, 0)
+            EndIf
+            If $aCustomRules[$i][7] = "" Then
+                GUICtrlSetData($idInputCornerPreference, "")
+                _GUICtrlComboBox_SetCurSel($CornerPreferenceCombo, -1)
             EndIf
             If $aCustomRules[$i][7] = "3" Then
                 GUICtrlSetData($idInputCornerPreference, "Round Small")
@@ -1959,10 +1983,12 @@ Func _RuleList()
             GUICtrlSetData($idInputExtendFrame, $aCustomRules[$i][8])
 			If $aCustomRules[$i][8] = "True" Then _GUICtrlComboBox_SetCurSel($ExtendFrameCombo, 0)
 			If $aCustomRules[$i][8] = "False" Then _GUICtrlComboBox_SetCurSel($ExtendFrameCombo, 1)
+            If $aCustomRules[$i][8] = "" Then _GUICtrlComboBox_SetCurSel($ExtendFrameCombo, -1)
 
             GUICtrlSetData($idInputBlurBehind, $aCustomRules[$i][9])
 			If $aCustomRules[$i][9] = "True" Then _GUICtrlComboBox_SetCurSel($BlurBehindCombo, 0)
 			If $aCustomRules[$i][9] = "False" Then _GUICtrlComboBox_SetCurSel($BlurBehindCombo, 1)
+            If $aCustomRules[$i][9] = "" Then _GUICtrlComboBox_SetCurSel($BlurBehindCombo, -1)
 
             GUICtrlSetData($BlurTintColorInput, $aCustomRules[$i][10])
             ;GUICtrlSetBkColor($BlurTintColorPickLabel, $aCustomRules[$i][10])
@@ -2457,13 +2483,31 @@ Func _VSCode_mod_json($sJsonPath)
 EndFunc
 
 Func _VSCode_mod_files($sVSCodePath)
+    Local $sMinimumForV2 = '1.104.0.0'
+    Local $sVSbin
 	Local $sVSCodeModDir = $sVSCodePath & "\resources\app\out\vscode-immersiveux-mod"
 	Local $iFileExists = FileExists($sVSCodeModDir)
 	If Not $iFileExists Then DirCreate($sVSCodeModDir)
 	Local $sVSCodeModDir2 = $sVSCodePath & "\resources\app\out\vscode-immersiveux-mod\methods"
 	Local $iFileExists = FileExists($sVSCodeModDir2)
 	If Not $iFileExists Then DirCreate($sVSCodeModDir2)
-	FileInstall(".\vscode-immersiveux-mod\index.cjs", $sVSCodeModDir & "\index.cjs", $FC_OVERWRITE)
+    Local $iFileExists1 = FileExists($sVSCodePath & "\Code.exe")
+    Local $iFileExists2 = FileExists($sVSCodePath & "\Code - Insiders.exe")
+    Local $iFileExists3 = FileExists($sVSCodePath & "\VSCodium.exe")
+
+    If $iFileExists1 Then $sVSbin = $sVSCodePath & "\Code.exe"
+    If $iFileExists2 Then $sVSbin = $sVSCodePath & "\Code - Insiders.exe"
+    If $iFileExists3 Then $sVSbin = $sVSCodePath & "\VSCodium.exe"
+
+    $sVSCodeVer = FileGetVersion($sVSbin)
+    $compareVSCode = _StringCompareVersions($sVSCodeVer, $sMinimumForV2)
+
+    If $compareVSCode = 1 Or $compareVSCode = 0 Then
+        ; install v2 if Electron is version 37.2.6 or higher (Electron fixed a bug related to titlebar randomly showing)
+        FileInstall(".\vscode-immersiveux-mod\index-v2.cjs", $sVSCodeModDir & "\index.cjs", $FC_OVERWRITE)
+    Else
+        FileInstall(".\vscode-immersiveux-mod\index.cjs", $sVSCodeModDir & "\index.cjs", $FC_OVERWRITE)
+    EndIf
 	FileInstall(".\vscode-immersiveux-mod\methods\index.cjs", $sVSCodeModDir2 & "\index.cjs", $FC_OVERWRITE)
 	FileInstall(".\vscode-immersiveux-mod\methods\interval.cjs", $sVSCodeModDir2 & "\interval.cjs", $FC_OVERWRITE)
 	FileInstall(".\vscode-immersiveux-mod\methods\overwrite.cjs", $sVSCodeModDir2 & "\overwrite.cjs", $FC_OVERWRITE)
@@ -2732,6 +2776,66 @@ Func _WinAPI_DwmSetWindowAttribute_unr($hWnd, $iAttribute, $iData)    ; #include
     Return 1
 EndFunc   ;==>_WinAPI_DwmSetWindowAttribute_unr
 ;--------------------------------------------------------------------------------------------------------------------------------
+
+;===============================================================================
+;
+; FunctionName:  _StringCompareVersions()
+; Description:    Compare 2 strings of the FileGetVersion format [a.b.c.d].
+; Syntax:          _StringCompareVersions( $s_Version1, [$s_Version2] )
+; Parameter(s):  $s_Version1          - The string being compared
+;                  $s_Version2        - The string to compare against
+;                                         [Optional] : Default = 0.0.0.0
+; Requirement(s):   None
+; Return Value(s):  0 - Strings are the same (if @error=0)
+;                 -1 - First string is (<) older than second string
+;                  1 - First string is (>) newer than second string
+;                  0 and @error<>0 - String(s) are of incorrect format:
+;                        @error 1 = 1st string; 2 = 2nd string; 3 = both strings.
+; Author(s):        PeteW
+; Note(s):        Comparison checks that both strings contain numeric (decimal) data.
+;                  Supplied strings are contracted or expanded (with 0s)
+;                    MostSignificant_Major.MostSignificant_minor.LeastSignificant_major.LeastSignificant_Minor
+;
+;===============================================================================
+
+Func _StringCompareVersions($s_Version1, $s_Version2 = "0.0.0.0")
+    
+; Confirm strings are of correct basic format. Set @error to 1,2 or 3 if not.
+    SetError((StringIsDigit(StringReplace($s_Version1, ".", ""))=0) + 2 * (StringIsDigit(StringReplace($s_Version2, ".", ""))=0))
+    If @error>0 Then Return 0; Ought to Return something!
+
+    Local $i_Index, $i_Result, $ai_Version1, $ai_Version2
+
+; Split into arrays by the "." separator
+    $ai_Version1 = StringSplit($s_Version1, ".")
+    $ai_Version2 = StringSplit($s_Version2, ".")
+    $i_Result = 0; Assume strings are equal
+    
+; Ensure strings are of the same (correct) format:
+;  Short strings are padded with 0s. Extraneous components of long strings are ignored. Values are Int.
+    If $ai_Version1[0] <> 4 Then ReDim $ai_Version1[5]
+    For $i_Index = 1 To 4
+        $ai_Version1[$i_Index] = Int($ai_Version1[$i_Index])
+    Next
+
+    If $ai_Version2[0] <> 4 Then ReDim $ai_Version2[5]
+    For $i_Index = 1 To 4
+        $ai_Version2[$i_Index] = Int($ai_Version2[$i_Index])
+    Next
+
+    For $i_Index = 1 To 4
+        If $ai_Version1[$i_Index] < $ai_Version2[$i_Index] Then; Version1 older than Version2
+            $i_Result = -1
+        ElseIf $ai_Version1[$i_Index] > $ai_Version2[$i_Index] Then; Version1 newer than Version2
+            $i_Result = 1
+        EndIf
+   ; Bail-out if they're not equal
+        If $i_Result <> 0 Then ExitLoop
+    Next
+
+    Return $i_Result
+
+EndFunc ;==>_StringCompareVersions
 
 Func idGUI()
     ; get GUI window state
