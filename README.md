@@ -58,6 +58,33 @@ Additionally, there is special handling available for **File Explorer** (both mo
 
 Please see [ImmersiveUX ReadMe](https://github.com/WildByDesign/ImmersiveUX/blob/main/ImmersiveUX_ReadMe.md) for more details.
 
+## Rule Processing Flowchart:
+
+```
+                               ┌────────────────┐                           
+                               │                │                           
+                               │  Global Rules  │                           
+                               │                │                           
+                               └─────┬────┬─────┘                           
+                         ┌─────┐     │    │     ┌─────────┐                 
+                         │ Set │◄────┘    └────►│ Not Set │                 
+                         └──┬──┘                └────┬────┘                 
+                            │                        │                      
+        ┌────────────────┐  │                        │    ┌────────────────┐
+        │                │  │                        │    │                │
+        │  Custom Rules  │◄─┘                        └───►│  Custom Rules  │
+        │                │                                │                │
+        └─────┬────┬─────┘                                └─────┬────┬─────┘
+  ┌─────┐     │    │     ┌─────────┐                ┌─────┐     │    │     ┌─────────┐
+  │ Set │◄────┘    └────►│ Not Set │                │ Set │◄────┘    └────►│ Not Set │
+  └──┬──┘                └────┬────┘                └──┬──┘                └────┬────┘
+     │                        │                        │                        │
+     ▼                        ▼                        ▼                        ▼
+┌────────┐                ┌────────┐              ┌────────┐               ┌─────────┐
+│ Custom │                │ Global │              │ Custom │               │ Not Set │
+└────────┘                └────────┘              └────────┘               └─────────┘
+```
+
 ## False Positives:
 
 False Positives seem to be a *"cat & mouse game"* with Microsoft Defender Antivirus, specifically when downloaded from Microsoft Edge. They seem to come and go with each release.
