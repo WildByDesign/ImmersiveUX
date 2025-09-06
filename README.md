@@ -69,7 +69,6 @@ Please see [ImmersiveUX ReadMe](https://github.com/WildByDesign/ImmersiveUX/blob
                          ┌─────┐     │    │     ┌─────────┐                 
                          │ Set │◄────┘    └────►│ Not Set │                 
                          └──┬──┘                └────┬────┘                 
-                            │                        │                      
         ┌────────────────┐  │                        │    ┌────────────────┐
         │                │  │                        │    │                │
         │  Custom Rules  │◄─┘                        └───►│  Custom Rules  │
