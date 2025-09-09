@@ -4,9 +4,9 @@
 #AutoIt3Wrapper_Outfile_x64=ImmersiveEngine.exe
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.3.0
+#AutoIt3Wrapper_Res_Fileversion=1.3.1
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.3.0
+#AutoIt3Wrapper_Res_ProductVersion=1.3.1
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=Y
@@ -15,8 +15,9 @@
 
 #include <AutoItExitCodes.au3>
 #include <WinAPIProc.au3>
+#include <WinAPIMisc.au3>
 #include <WinAPISys.au3>
-#include <WinAPIGdi.au3>
+;#include <WinAPIGdi.au3>
 #include <Array.au3>
 #include <Misc.au3>
 #include <File.au3>
@@ -38,7 +39,7 @@ EndIf
 Global $iPID, $sINFO, $oService
 Global $IniFile = @ScriptDir & "\ImmersiveUX.ini"
 Global $bDarkModeEnabled, $bClearChangesOnExit, $bRequireWindows11, $iBorderColorOptions
-Global $aExcludeProcessNames, $aExcludeFromAllClass
+Global $aExcludeProcessNames, $aExcludeFromAllClass, $aExclusionsCombined
 Global $bClassicExplorer, $bExplorerExtendClient
 Global $bGlobalDarkTitleBar, $dGlobalBorderColor, $dGlobalTitleBarColor, $dGlobalTitleBarTextColor, $iGlobalTitleBarBackdrop, $iGlobalCornerPreference, $iGlobalExtendFrameIntoClient, $iGlobalEnableBlurBehind
 Global $iGlobalBlurTintColor
@@ -51,8 +52,13 @@ Global Static $hActiveWndLast
 Global $bElevated = False
 Global $sProdName = "ImmersiveUX"
 Global $sEngName = "ImmersiveEngine"
-Global $DWMWA_COLOR_NONE = 0xFFFFFFFE
-Global $DWMWA_COLOR_DEFAULT = 0xFFFFFFFF
+Global $DWMWA_COLOR_NONE = "0xFFFFFFFE"
+Global $DWMWA_COLOR_DEFAULT = "0xFFFFFFFF"
+
+Global $hDwmapi = DllOpen('dwmapi.dll')
+Global $hUser32 = DllOpen('user32.dll')
+Global $hKernel32 = DllOpen('kernel32.dll')
+Global $hPsapi = DllOpen('psapi.dll')
 
 ;Global $aExcludeWinTitles[17] = ["", "Program Manager", "PopupHost", "CoreInput", "Search", "Start", "DesktopWindowXamlSource", _
 ;	"Chrome Legacy Window", "Quick settings", "System tray overflow window.", "Drag", "Default IME", "OLEChannelWnd", _
@@ -76,7 +82,7 @@ Else
 EndIf
 
 ; ensure that desktop composition is enabled
-If Not _WinAPI_DwmIsCompositionEnabled() Then
+If Not _WinAPI_DwmIsCompositionEnabled_mod() Then
         MsgBox($MB_ICONERROR + $MB_SYSTEMMODAL, 'Error', 'This program requires Desktop Composition to be enabled.')
         Exit
 EndIf
@@ -137,7 +143,7 @@ Opt("SetExitCode", 1)
 OnAutoItExitRegister(DoCleanUp)
 
 Global $hHookFunc = DllCallbackRegister('_WinEventProc', 'none', 'ptr;uint;hwnd;int;int;uint;uint')
-Global $hWinHook = _WinAPI_SetWinEventHook($EVENT_SYSTEM_FOREGROUND, $EVENT_OBJECT_NAMECHANGE, DllCallbackGetPtr($hHookFunc))
+Global $hWinHook = _WinAPI_SetWinEventHook_mod($EVENT_SYSTEM_FOREGROUND, $EVENT_OBJECT_NAMECHANGE, DllCallbackGetPtr($hHookFunc))
 
 Func _ToBoolean($sString)
     Return (StringStripWS(StringUpper($sString), 8) = "TRUE" ? True : False)
@@ -152,7 +158,7 @@ If StringInStr($Uptime, "min") Then
 EndIf
 
 ; set process priority
-ProcessSetPriority($sEngName & ".exe", 4)
+If @Compiled Then ProcessSetPriority($sEngName & ".exe", 4)
 
 ; start GUI/tray process
 idGUI()
@@ -172,10 +178,14 @@ Func DoCleanUp()
         $sMsg &= '"' & _FormatAutoItExitCode() & '"'
         MsgBox(0, "Immersive UX", $sMsg)
     EndIf
+	DllClose($hDwmapi)
+	DllClose($hUser32)
+	DllClose($hKernel32)
+	DllClose($hPsapi)
 EndFunc
 
 Func _Free()
-    If $hWinHook Then _WinAPI_UnhookWinEvent($hWinHook)
+    If $hWinHook Then _WinAPI_UnhookWinEvent_mod($hWinHook)
     If $hHookFunc Then DllCallbackFree($hHookFunc)
 EndFunc   ;==>_Free
 
@@ -190,7 +200,6 @@ EndFunc
 
 Func SetBorderColor_removeall()
 	Local $hWnd, $sClassName, $sName
-	Local $sDrive, $sDir, $sFileName, $sExtension
 	If $bClearChangesOnExit = True Then
 		$aArray = WinList()
 		For $n = 1 To $aArray[0][0]
@@ -198,17 +207,15 @@ Func SetBorderColor_removeall()
 			; exclude windows with blank title
 			If $aArray[$n][0] = "" Then ContinueLoop
 
-			$sClassName = _WinAPI_GetClassName($aArray[$n][1])
+			$sClassName = _WinAPI_GetClassName_mod($aArray[$n][1])
 			; exclude classnames from global exclusions
 			For $i = 0 To UBound($aExcludeClassNames) - 1
 				If $sClassName = $aExcludeClassNames[$i] Then ContinueLoop 2
 			Next
 
 			; exclude process names from global exclusions
-			$sName = _WinAPI_GetWindowFileName($aArray[$n][1])
+			$sName = _WinAPI_GetWindowFileName_mod($aArray[$n][1])
 			If $sName = "" Then ContinueLoop
-			Local $aPathSplit = _PathSplit($sName, $sDrive, $sDir, $sFileName, $sExtension)
-			$sName = $aPathSplit[3] & $aPathSplit[4]
 
 			For $i = 0 To UBound($aExcludeProcessNames) -1
 				If $sName = $aExcludeProcessNames[$i] Then ContinueLoop 2
@@ -222,14 +229,14 @@ Func SetBorderColor_removeall()
 		; fix Windows Terminal from going fully transparent on exit
 		If WinExists("[CLASS:CASCADIA_HOSTING_WINDOW_CLASS]") Then
 			$hWnd = WinGetHandle("[CLASS:CASCADIA_HOSTING_WINDOW_CLASS]")
-			_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(5000, 5000, 0, 0))
+			_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(5000, 5000, 0, 0))
 			_WinAPI_DwmSetWindowAttribute__($hWnd, 38, 2)
 		EndIf
 
 		; fix Task Manager from losing window control buttons on exit
 		If WinExists("[CLASS:TaskManagerWindow]") Then
 			$hWnd = WinGetHandle("[CLASS:TaskManagerWindow]")
-			_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
+			_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
 			_WinAPI_DwmSetWindowAttribute__($hWnd, 38, 2)
 		EndIf
 	EndIf
@@ -244,21 +251,21 @@ Func MainColoringRemoval($hWnd, $sClassName, $sName)
 		; run through all of the custom process/class rules for a match
 		If $sName = $aCustomRules[$i][1] Or $sClassName = $aCustomRules[$i][1] Then
 			; skip custom rules that are not Enabled
-			If $aCustomRules[$i][12] = "False" Then
+			If Not $aCustomRules[$i][12] Then
 				;If $bGlobalDarkTitleBar Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
 				If $iBorderColorOptions <> 0 Then
-					If $dGlobalBorderColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, 0xFFFFFFFF)
+					If $dGlobalBorderColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, 0xFFFFFFFF)
 				EndIf
-				If $dGlobalTitleBarColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 35, 0xFFFFFFFF)
-				If $dGlobalTitleBarTextColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, 0xFFFFFFFF)
+				If $dGlobalTitleBarColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 35, 0xFFFFFFFF)
+				If $dGlobalTitleBarTextColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, 0xFFFFFFFF)
 				If $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, 0)
 				If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, 0)
 				If $iGlobalEnableBlurBehind Then
 					_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False)
-					_WinAPI_DwmEnableBlurBehindWindow($hWnd, 0, 0)
+					_WinAPI_DwmEnableBlurBehindWindow_mod($hWnd, 0, 0)
 					; fix for file explorer losing window control buttons occasionally
 					If $sClassName <> "CabinetWClass" Then
-						_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+						_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
 					EndIf
 				EndIf
 				If Not $iGlobalEnableBlurBehind Then
@@ -266,7 +273,7 @@ Func MainColoringRemoval($hWnd, $sClassName, $sName)
 					If $iGlobalExtendFrameIntoClient Then
 						; fix for file explorer losing window control buttons occasionally
 						If $sClassName <> "CabinetWClass" Then
-							_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+							_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
 						EndIf
 					EndIf
 				EndIf
@@ -280,15 +287,15 @@ Func MainColoringRemoval($hWnd, $sClassName, $sName)
 				;If $bGlobalDarkTitleBar Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
 			EndIf
 			; border color reset to default
-			If $aCustomRules[$i][3] <> "" Or $dGlobalBorderColor <> "" Then
+			If $aCustomRules[$i][3] Or $dGlobalBorderColor Then
 				_WinAPI_DwmSetWindowAttribute__($hWnd, 34, 0xFFFFFFFF)
 			EndIf
 			; titlebar color reset to default
-			If $aCustomRules[$i][4] <> "" Or $dGlobalTitleBarColor <> "" Then
+			If $aCustomRules[$i][4] Or $dGlobalTitleBarColor Then
 				_WinAPI_DwmSetWindowAttribute__($hWnd, 35, 0xFFFFFFFF)
 			EndIf
 			; titlebar text color reset to default
-			If $aCustomRules[$i][5] <> "" Or $dGlobalTitleBarTextColor <> "" Then
+			If $aCustomRules[$i][5] Or $dGlobalTitleBarTextColor Then
 				_WinAPI_DwmSetWindowAttribute__($hWnd, 36, 0xFFFFFFFF)
 			EndIf
 			; titlebar backdrop reset to default
@@ -302,10 +309,10 @@ Func MainColoringRemoval($hWnd, $sClassName, $sName)
 			; blur behind removal
 			If $aCustomRules[$i][9] = "True" Or $iGlobalEnableBlurBehind Then
 				_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False)
-				_WinAPI_DwmEnableBlurBehindWindow($hWnd, 0, 0)
+				_WinAPI_DwmEnableBlurBehindWindow_mod($hWnd, 0, 0)
 				; fix for file explorer losing window control buttons occasionally
 				If $sClassName <> "CabinetWClass" Then
-					_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+					_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
 				EndIf
 			EndIf
 			; ExtendFrameIntoClientArea removal
@@ -314,7 +321,7 @@ Func MainColoringRemoval($hWnd, $sClassName, $sName)
 				If $aCustomRules[$i][9] <> "True" Or Not $iGlobalEnableBlurBehind Then
 					; fix for file explorer losing window control buttons occasionally
 					If $sClassName <> "CabinetWClass" Then
-						_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+						_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
 					EndIf
 				EndIf
 			EndIf
@@ -325,25 +332,24 @@ Func MainColoringRemoval($hWnd, $sClassName, $sName)
 	; fallback to global when no custom rules match
 	If Not $bMatchesFound Then
 		;If $bGlobalDarkTitleBar Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
-		If $dGlobalBorderColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, 0xFFFFFFFF)
-		If $dGlobalTitleBarColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 35, 0xFFFFFFFF)
-		If $dGlobalTitleBarTextColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, 0xFFFFFFFF)
+		If $dGlobalBorderColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, 0xFFFFFFFF)
+		If $dGlobalTitleBarColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 35, 0xFFFFFFFF)
+		If $dGlobalTitleBarTextColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, 0xFFFFFFFF)
 		If $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, 0)
 		If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, 0)
-		; also need to determine if custom rules has this set, if so, then skip this
 		If $iGlobalEnableBlurBehind Then
 			_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False)
-			_WinAPI_DwmEnableBlurBehindWindow($hWnd, 0, 0)
+			_WinAPI_DwmEnableBlurBehindWindow_mod($hWnd, 0, 0)
 			; fix for file explorer losing window control buttons occasionally
 			If $sClassName <> "CabinetWClass" Then
-				_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+				_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
 			EndIf
 		EndIf
 		If $iGlobalExtendFrameIntoClient Then
 			If Not $iGlobalEnableBlurBehind Then
 				; fix for file explorer losing window control buttons occasionally
 				If $sClassName <> "CabinetWClass" Then
-					_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+					_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
 				EndIf
 			EndIf
 		EndIf
@@ -357,7 +363,7 @@ Func SetBorderColor_apply2all()
 		; exclude windows with blank title
 		If $aArray[$n][0] = "" Then ContinueLoop
 
-		$sClassName = _WinAPI_GetClassName($aArray[$n][1])
+		$sClassName = _WinAPI_GetClassName_mod($aArray[$n][1])
 		; exclude classnames from global exclusions
 		For $i = 0 To UBound($aExcludeClassNames) - 1
 			If $sClassName = $aExcludeClassNames[$i] Then ContinueLoop 2
@@ -369,24 +375,21 @@ Func SetBorderColor_apply2all()
 	; get active window and apply border only to active window
 	If $iBorderColorOptions = 0 Then
 		$hActiveWndLast = WinGetHandle("[ACTIVE]", "")
-		$sClassNameActive = _WinAPI_GetClassName($hActiveWndLast)
-		$sNameActive = _WinAPI_GetWindowFileName($hActiveWndLast)
+		$sClassNameActive = _WinAPI_GetClassName_mod($hActiveWndLast)
+		$sNameActive = _WinAPI_GetWindowFileName_mod($hActiveWndLast)
 		_ColorBorderOnly($hActiveWndLast, $sClassNameActive, $sNameActive)
 	EndIf
 EndFunc   ;==>SetBorderColor_apply2all
 
 Func MainColoringFunction($hWnd, $sClassName)
-	Local $sDrive = "", $sDir = "", $sFileName = "", $sExtension = ""
-	Local $sName = _WinAPI_GetWindowFileName($hWnd)
+	Local $sName = _WinAPI_GetWindowFileName_mod($hWnd)
 	If Not @Compiled Then
 		Local $sWindow = _WinAPI_GetWindowTextMod($hWnd)
 		If $sWindow = "Immersive UX" Then $sName = "ImmersiveUX.exe"
 	EndIf
 	; exclude process names from global exclusions
 	If $sName = "" Then Return
-	Local $aPathSplit = _PathSplit($sName, $sDrive, $sDir, $sFileName, $sExtension)
-	$sName = $aPathSplit[3] & $aPathSplit[4]
-	;ConsoleWrite("ProcessName: " & $sName & @TAB & "ClassName: " & $sClassName & @CRLF)
+
 	For $i = 0 To UBound($aExcludeProcessNames) -1
 		If $sName = $aExcludeProcessNames[$i] Then Return
 	Next
@@ -396,7 +399,7 @@ EndFunc
 
 Func MainColoringContinue($hWnd, $sClassName, $sName)
 	Local $i
-	Local $iIntensity, $iTintColor, $iTintColorSwitch, $iTintColorBlur, $sActiveExplorerTitle
+	Local $iIntensity, $iTintColor, $iTintColorSwitch, $iTintColorBlur
 	Local $bMatchesFound = False
 
 	; determine if process rule or class rule matches for custom rules
@@ -404,15 +407,15 @@ Func MainColoringContinue($hWnd, $sClassName, $sName)
 		; run through all of the custom process/class rules for a match
 		If $sName = $aCustomRules[$i][1] Or $sClassName = $aCustomRules[$i][1] Then
 			; skip custom rules that are not Enabled
-			If $aCustomRules[$i][12] = "False" Then
+			If Not $aCustomRules[$i][12] Then
 				If $bGlobalDarkTitleBar Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
 				;If $iBorderColorOptions <> 0 Then
-				;	If $dGlobalBorderColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dGlobalBorderColor))
+				;	If $dGlobalBorderColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dGlobalBorderColor))
 				;EndIf
-				If $dGlobalTitleBarColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 35, _WinAPI_SwitchColor_mod($dGlobalTitleBarColor))
-				If $dGlobalTitleBarTextColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, _WinAPI_SwitchColor_mod($dGlobalTitleBarTextColor))
-				If $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, $iGlobalTitleBarBackdrop)
-				If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, $iGlobalCornerPreference)
+				If $dGlobalTitleBarColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 35, _WinAPI_SwitchColor_mod($dGlobalTitleBarColor))
+				If $dGlobalTitleBarTextColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, _WinAPI_SwitchColor_mod($dGlobalTitleBarTextColor))
+				If $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, Int($iGlobalTitleBarBackdrop))
+				If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, Int($iGlobalCornerPreference))
 				If $iGlobalEnableBlurBehind Then _EnableBlurBehind($hWnd, $sName, $sClassName, $iGlobalBlurTintColor)
 				If Not $iGlobalEnableBlurBehind Then
 					; only enable ExtendFrameIntoClientArea if blur behind is not enabled
@@ -431,44 +434,44 @@ Func MainColoringContinue($hWnd, $sClassName, $sName)
 			#cs ; don't need border coloring here anymore since dealt with in foreground event
 			; border color, fallback to global if not set
 			If $iBorderColorOptions <> 0 Then
-				If $aCustomRules[$i][3] <> "" Then
+				If $aCustomRules[$i][3] Then
 					_WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($aCustomRules[$i][3]))
 				Else
-					If $dGlobalBorderColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dGlobalBorderColor))
+					If $dGlobalBorderColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dGlobalBorderColor))
 				EndIf
 			EndIf
 			#ce
 			; titlebar color, fallback to global if not set
-			If $aCustomRules[$i][4] <> "" Then
+			If $aCustomRules[$i][4] Then
 				_WinAPI_DwmSetWindowAttribute__($hWnd, 35, _WinAPI_SwitchColor_mod($aCustomRules[$i][4]))
 			Else
-				If $dGlobalTitleBarColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 35, _WinAPI_SwitchColor_mod($dGlobalTitleBarColor))
+				If $dGlobalTitleBarColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 35, _WinAPI_SwitchColor_mod($dGlobalTitleBarColor))
 			EndIf
 			; titlebar text color, fallback to global if not set
-			If $aCustomRules[$i][5] <> "" Then
+			If $aCustomRules[$i][5] Then
 				_WinAPI_DwmSetWindowAttribute__($hWnd, 36, _WinAPI_SwitchColor_mod($aCustomRules[$i][5]))
 			Else
-				If $dGlobalTitleBarTextColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, _WinAPI_SwitchColor_mod($dGlobalTitleBarTextColor))
+				If $dGlobalTitleBarTextColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, _WinAPI_SwitchColor_mod($dGlobalTitleBarTextColor))
 			EndIf
 			; titlebar backdrop, fallback to global if not set
 			If $aCustomRules[$i][6] <> "" Then
-				_WinAPI_DwmSetWindowAttribute__($hWnd, 38, $aCustomRules[$i][6])
+				_WinAPI_DwmSetWindowAttribute__($hWnd, 38, Int($aCustomRules[$i][6]))
 			Else
-				If $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, $iGlobalTitleBarBackdrop)
+				If $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, Int($iGlobalTitleBarBackdrop))
 			EndIf
 			; corner preference, fallback to global if not set
 			If $aCustomRules[$i][7] <> "" Then
-				_WinAPI_DwmSetWindowAttribute__($hWnd, 33, $aCustomRules[$i][7])
+				_WinAPI_DwmSetWindowAttribute__($hWnd, 33, Int($aCustomRules[$i][7]))
 			Else
-				If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, $iGlobalCornerPreference)
+				If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, Int($iGlobalCornerPreference))
 			EndIf
 			; obtain blur tint color and intensity details
 			If $aCustomRules[$i][11] <> "" Then
-				If $aCustomRules[$i][10] <> "" Then
-					Local $iTintColor = $aCustomRules[$i][10]
-					Local $iIntensity = _percentageOfHex($aCustomRules[$i][11])
-					Local $iTintColorSwitch = Hex(_WinAPI_SwitchColor_mod($iTintColor), 6)
-					Local $iTintColorBlur = '0x' & $iIntensity & $iTintColorSwitch
+				If $aCustomRules[$i][10] Then
+					$iTintColor = $aCustomRules[$i][10]
+					$iIntensity = _percentageOfHex($aCustomRules[$i][11])
+					$iTintColorSwitch = Hex(_WinAPI_SwitchColor_mod($iTintColor), 6)
+					$iTintColorBlur = '0x' & $iIntensity & $iTintColorSwitch
 				EndIf
 			EndIf
 			; blur behind, fallback to global if not set
@@ -483,9 +486,9 @@ Func MainColoringContinue($hWnd, $sClassName, $sName)
 				If $aCustomRules[$i][9] <> "True" Then _DwmExtendFrameIntoClientArea($hWnd, $sName, $sClassName, $i)
 			EndIf
 			If $aCustomRules[$i][8] = "" Then
-				If Not $iGlobalEnableBlurBehind Then
-					; only enable ExtendFrameIntoClientArea if blur behind is not enabled
-					If $iGlobalExtendFrameIntoClient Then _DwmExtendFrameIntoClientArea($hWnd, $sName, $sClassName, $i)
+				; only enable ExtendFrameIntoClientArea if blur behind is not enabled
+				If $iGlobalExtendFrameIntoClient And Not $iGlobalEnableBlurBehind Then
+					_DwmExtendFrameIntoClientArea($hWnd, $sName, $sClassName, $i)
 				EndIf
 			EndIf
 			$bMatchesFound = True
@@ -495,144 +498,98 @@ Func MainColoringContinue($hWnd, $sClassName, $sName)
 	; fallback to global when no custom rules match
 	If Not $bMatchesFound Then
 		If $bGlobalDarkTitleBar Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
-		;If $dGlobalBorderColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dGlobalBorderColor))
-		If $dGlobalTitleBarColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 35, _WinAPI_SwitchColor_mod($dGlobalTitleBarColor))
-		If $dGlobalTitleBarTextColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, _WinAPI_SwitchColor_mod($dGlobalTitleBarTextColor))
-		If $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, $iGlobalTitleBarBackdrop)
-		If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, $iGlobalCornerPreference)
-		; also need to determine if custom rules has this set, if so, then skip this
+		If $dGlobalTitleBarColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 35, _WinAPI_SwitchColor_mod($dGlobalTitleBarColor))
+		If $dGlobalTitleBarTextColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, _WinAPI_SwitchColor_mod($dGlobalTitleBarTextColor))
+		If $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, Int($iGlobalTitleBarBackdrop))
+		If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, Int($iGlobalCornerPreference))
 		If $iGlobalEnableBlurBehind Then _EnableBlurBehind($hWnd, $sName, $sClassName, $iGlobalBlurTintColor)
-		If $iGlobalExtendFrameIntoClient Then
-			If Not $iGlobalEnableBlurBehind Then _DwmExtendFrameIntoClientArea($hWnd, $sName, $sClassName, $i)
-		EndIf
+		If $iGlobalExtendFrameIntoClient And Not $iGlobalEnableBlurBehind Then _DwmExtendFrameIntoClientArea($hWnd, $sName, $sClassName, $i)
 	EndIf
 EndFunc
 
 Func _ColorBorderOnly($hWnd, $sClassName, $sName)
-	Local $sDrive, $sDir, $sFileName, $sExtension
-	; exclude process names from global exclusions
-	If $sName = "" Then Return
-	Local $aPathSplit = _PathSplit($sName, $sDrive, $sDir, $sFileName, $sExtension)
-	$sName = $aPathSplit[3] & $aPathSplit[4]
-
-	For $i = 0 To UBound($aExcludeProcessNames) -1
-		If $sName = $aExcludeProcessNames[$i] Then Return
-	Next
-
 	Local $bMatchesFound = False
 	For $i = 0 To UBound($aCustomRules) - 1
 		; run through all of the custom process/class rules for a match
 		If $sName = $aCustomRules[$i][1] Or $sClassName = $aCustomRules[$i][1] Then
 			$bMatchesFound = True
 			; skip custom rules that are not Enabled
-			If $aCustomRules[$i][12] = "False" Then
+			If Not $aCustomRules[$i][12] Then
 				If $iBorderColorOptions <> 0 Then
-					If $dGlobalBorderColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dGlobalBorderColor))
+					If $dGlobalBorderColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dGlobalBorderColor))
 				EndIf
 			EndIf
-			If $aCustomRules[$i][3] <> "" Then
+			If $aCustomRules[$i][3] Then
 				_WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($aCustomRules[$i][3]))
-			ElseIf $aCustomRules[$i][3] = "" Then
-				If $dGlobalBorderColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dGlobalBorderColor))
+			ElseIf Not $aCustomRules[$i][3] Then
+				If $dGlobalBorderColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dGlobalBorderColor))
 			EndIf
 		EndIf
     Next
 
 	If Not $bMatchesFound Then
-		If $dGlobalBorderColor <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dGlobalBorderColor))
+		If $dGlobalBorderColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dGlobalBorderColor))
 	EndIf
 EndFunc
 
 Func _DwmExtendFrameIntoClientArea($hWnd, $sName, $sClassName, $i)
 
-	_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
+	_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
 
 	; some slower programs need a 20ms delay to work consistently
 	; programs that have issues with double-overlapping window control buttons need margins of: 5000, 5000, 0, 0
 
 	If $sClassName = "CabinetWClass" Then
 		Sleep(20)
-		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
+		_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
 	EndIf
 	; Visual Studio Handling
 	If $sName = 'devenv.exe' Then
-		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(5000, 5000, 0, 0))
+		_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(5000, 5000, 0, 0))
 		;_WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dVSStudioBorderColor))
 	ElseIf $sName = 'VSCodium.exe' Then
 		Sleep(20)
 		;_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False) ; only needed for old vibrancy method
-		_WinAPI_DwmSetWindowAttribute__($hWnd, 38, $dVSCodiumBackdrop)
-		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
+		_WinAPI_DwmSetWindowAttribute__($hWnd, 38, Int($dVSCodiumBackdrop))
+		_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
 	ElseIf $sName = 'Code.exe' Then
 		Sleep(20)
 		;_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False) ; only needed for old vibrancy method
-		_WinAPI_DwmSetWindowAttribute__($hWnd, 38, $dVSCodeBackdrop)
-		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
+		_WinAPI_DwmSetWindowAttribute__($hWnd, 38, Int($dVSCodeBackdrop))
+		_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
 	ElseIf $sClassName = "CASCADIA_HOSTING_WINDOW_CLASS" Then
-		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(5000, 5000, 0, 0))
-		If $aCustomRules[$i][3] <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($aCustomRules[$i][3]))
+		_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(5000, 5000, 0, 0))
+		If $aCustomRules[$i][3] Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($aCustomRules[$i][3]))
 	Else
-		;_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
+		;_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
 	EndIf
 EndFunc
 
 Func _EnableBlurBehind($hWnd, $sName, $sClassName, $iTintColorBlur = "")
-	Local $hRgn = _WinAPI_CreateEllipticRgn(_WinAPI_CreateRectEx(0, 0, 0, 0))
-	_WinAPI_DwmEnableBlurBehindWindow($hWnd, 1, 0, $hRgn)
-	If $hRgn Then
-		_WinAPI_DeleteObject($hRgn)
-	EndIf
+	_WinAPI_DwmEnableBlurBehindWindow_mod($hWnd, 1, 0)
 	_WinAPI_DwmEnableBlurBehindWindow10($hWnd, True, $iTintColorBlur)
 
 	If $sClassName = 'CabinetWClass' Then
 		Sleep(20)
-		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
+		_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
 	ElseIf $sName = 'devenv.exe' Then
-		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(5000, 5000, 0, 0))
+		_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(5000, 5000, 0, 0))
 	ElseIf $sClassName = 'TaskManagerWindow' Then
 		Sleep(20)
-		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
+		_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
 	ElseIf $sClassName = 'CASCADIA_HOSTING_WINDOW_CLASS' Then
-		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(5000, 5000, 0, 0))
+		_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(5000, 5000, 0, 0))
 	Else
-		_WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
+		_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
 	EndIf
 EndFunc
 
-Func _WinAPI_DwmSetWindowAttribute__($hwnd, $attribute = 34, $value = 0x00FF00, $valLen = 4)
-	Local $aCall = DllCall('dwmapi.dll', 'long', 'DwmSetWindowAttribute', 'hwnd', $hWnd, 'dword', $attribute, 'dword*', $value, 'dword', $valLen)
-	If @error Then Return SetError(@error, @extended, 0)
-	If $aCall[0] Then Return SetError(10, $aCall[0], 0)
-	Return 1
-EndFunc   ;==>_WinAPI_DwmSetWindowAttribute__
-
 Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread, $imsEventTime)
-	Local Static $hWndLastShow, $hWndLastCreate, $hWndLastReorder, $hWndLastForeground, $hWndLastNameChange
-	Local $sActiveWindow, $sActiveWindowVS, $sName, $sClassName
+	Local Static $hWndLastShow, $hWndLastReorder, $hWndLastForeground, $hWndLastNameChange
+	Local $sActiveWindow, $sName, $sClassName
 	Local $hTerminal
+	Local $bMatchesFound = False
     Switch $iEvent
-		Case $EVENT_OBJECT_CREATE
-			; EVENT_OBJECT_CREATE catches process init sooner and works with most apps
-			; avoid applying coloring to duplicate hWnd in rapid succession
-			If $hWnd<>$hWndLastCreate Then
-				$hWndLastCreate = $hWnd
-			ElseIf $hWnd=$hWndLastCreate Then
-				Return
-			EndIf
-
-			; exclude windows with blank title
-			$sActiveWindow = _WinAPI_GetWindowTextMod($hWnd)
-			If $sActiveWindow = "" Then Return
-
-			$sClassName = _WinAPI_GetClassName($hWnd)
-
-			; exclude classnames from global exclusions
-			For $i = 0 To UBound($aExcludeClassNames) - 1
-				If $sClassName = $aExcludeClassNames[$i] Then Return
-			Next
-
-			MainColoringFunction($hWnd, $sClassName)
-
 		Case $EVENT_OBJECT_SHOW
 			; avoid applying coloring to duplicate hWnd in rapid succession
 			If $hWnd<>$hWndLastShow Then
@@ -641,7 +598,7 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 				Return
 			EndIf
 
-			$sClassName = _WinAPI_GetClassName($hWnd)
+			$sClassName = _WinAPI_GetClassName_mod($hWnd)
 
 			; exclude classnames from global exclusions
 			For $i = 0 To UBound($aExcludeClassNames) - 1
@@ -652,10 +609,10 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 			If $bWindowsTerminalHandling Then
 				If $sClassName = "PseudoConsoleWindow" Then
 					$hTerminal = WinGetHandle("[CLASS:CASCADIA_HOSTING_WINDOW_CLASS]")
-					If Not $bWindowsTerminalBlur Then _WinAPI_DwmSetWindowAttribute__($hTerminal, 38, $dTerminalBackdrop)
+					If Not $bWindowsTerminalBlur Then _WinAPI_DwmSetWindowAttribute__($hTerminal, 38, Int($dTerminalBackdrop))
 					_WinAPI_DwmSetWindowAttribute__($hTerminal, 34, _WinAPI_SwitchColor_mod($dTerminalBorderColor))
 					Sleep(20)
-					If Not $bWindowsTerminalBlur Then _WinAPI_DwmSetWindowAttribute__($hTerminal, 38, $dTerminalBackdrop)
+					If Not $bWindowsTerminalBlur Then _WinAPI_DwmSetWindowAttribute__($hTerminal, 38, Int($dTerminalBackdrop))
 					_WinAPI_DwmSetWindowAttribute__($hTerminal, 34, _WinAPI_SwitchColor_mod($dTerminalBorderColor))
 					Return
 				EndIf
@@ -677,34 +634,10 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 				Return
 			EndIf
 
-			If $iBorderColorOptions = 0 Then
-				; border color, only color active window
-				$hActiveWnd = WinGetHandle("[ACTIVE]", "")
-				If $hActiveWnd<>$hActiveWndLast Then
-					$sClassName = _WinAPI_GetClassName($hWnd)
-					;$sName = _WinAPI_GetWindowFileName($hWnd)
-					; active window changed
-					; remove border color from last window
-					;_WinAPI_DwmSetWindowAttribute__($hActiveWndLast, 34, $DWMWA_COLOR_NONE)
-					_WinAPI_DwmSetWindowAttribute__($hActiveWndLast, 34, $DWMWA_COLOR_DEFAULT)
-					; add border color for new window
-					;_ColorBorderOnly($hWnd, $sClassName, $sName)
-					$hActiveWndLast = $hActiveWnd
-				ElseIf $hActiveWnd=$hActiveWndLast Then
-					; active window did not change (do nothing)
-					$sClassName = _WinAPI_GetClassName($hWnd)
-					;$sName = _WinAPI_GetWindowFileName($hWnd)
-				EndIf
-			EndIf
-
-			If $iBorderColorOptions <> 0 Then
-				$sClassName = _WinAPI_GetClassName($hWnd)
-				;$sName = _WinAPI_GetWindowFileName($hWnd)
-			EndIf
+			$sActiveWindow = _WinAPI_GetWindowTextMod($hWnd)
 
 			; Visual Studio Handling
-			$sActiveWindowVS = _WinAPI_GetWindowTextMod($hWnd)
-			If $sActiveWindowVS = 'Microsoft Visual Studio' Then
+			If $sActiveWindow = 'Microsoft Visual Studio' Then
 				Sleep(20)
 				_WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dVSStudioBorderColor))
 			EndIf
@@ -713,9 +646,9 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 			If $bWindowsTerminalHandling Then
 				If WinExists("[CLASS:CASCADIA_HOSTING_WINDOW_CLASS]") Then
 					$hTerminal = WinGetHandle("[CLASS:CASCADIA_HOSTING_WINDOW_CLASS]")
-					If Not $bWindowsTerminalBlur Then _WinAPI_DwmSetWindowAttribute__($hTerminal, 38, $dTerminalBackdrop)
+					If Not $bWindowsTerminalBlur Then _WinAPI_DwmSetWindowAttribute__($hTerminal, 38, Int($dTerminalBackdrop))
 					Sleep(20)
-					If Not $bWindowsTerminalBlur Then _WinAPI_DwmSetWindowAttribute__($hTerminal, 38, $dTerminalBackdrop)
+					If Not $bWindowsTerminalBlur Then _WinAPI_DwmSetWindowAttribute__($hTerminal, 38, Int($dTerminalBackdrop))
 				EndIf
 			EndIf
 
@@ -724,21 +657,39 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 			If $bExplorerExtendClient And Not $bClassicExplorer Then 
 				If WinExists("[CLASS:CabinetWClass]") Then
 					$hExplorerHandle = WinGetHandle("[CLASS:CabinetWClass]")
-					_WinAPI_DwmExtendFrameIntoClientArea($hExplorerHandle, _WinAPI_CreateMargins(-1, -1, -1, -1))
+					_WinAPI_DwmExtendFrameIntoClientArea_mod($hExplorerHandle, _WinAPI_CreateMargins(-1, -1, -1, -1))
 				EndIf
 			EndIf
 
-			; exclude windows with blank title
-			$sActiveWindow = _WinAPI_GetWindowTextMod($hWnd)
-			If $sActiveWindow = "" Then Return
+			If $iBorderColorOptions = 0 Then
+				; border color, only color active window
+				$hActiveWnd = WinGetHandle("[ACTIVE]", "")
+				If $hActiveWnd<>$hActiveWndLast Then
+					; exclude class names and process names from global exclusions
+					$sClassName = _WinAPI_GetClassName_mod($hActiveWndLast)
+					$sName = _WinAPI_GetWindowFileName_mod($hActiveWndLast)
+					For $i = 0 To UBound($aExclusionsCombined) -1
+						If $sName = $aExclusionsCombined[$i] Or $sClassName = $aExclusionsCombined[$i] Then $bMatchesFound = True
+					Next
+					If Not $bMatchesFound Then _WinAPI_DwmSetWindowAttribute__($hActiveWndLast, 34, $DWMWA_COLOR_NONE)
+					$hActiveWndLast = $hActiveWnd
+				EndIf
+			EndIf
 
-			; exclude classnames from global exclusions
-			For $i = 0 To UBound($aExcludeClassNames) - 1
-				If $sClassName = $aExcludeClassNames[$i] Then Return
+			; exclude class names and process names from global exclusions
+			$sClassName = _WinAPI_GetClassName_mod($hWnd)
+			$sName = _WinAPI_GetWindowFileName_mod($hWnd)
+			If $sName = "" Then Return
+
+			For $i = 0 To UBound($aExclusionsCombined) -1
+				If $sName = $aExclusionsCombined[$i] Or $sClassName = $aExclusionsCombined[$i] Then Return
 			Next
 
-			; only deal with border coloring here
-			$sName = _WinAPI_GetWindowFileName($hWnd)
+			; exclude windows with blank title
+			If $sActiveWindow = "" Then Return
+
+			If Not @Compiled And $sActiveWindow = "Immersive UX" Then $sName = "ImmersiveUX.exe"
+
 			_ColorBorderOnly($hWnd, $sClassName, $sName)
 
 		Case $EVENT_OBJECT_REORDER
@@ -747,13 +698,13 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 
 			; avoid applying coloring to duplicate hWnd in rapid succession
 			If $hWnd<>$hWndLastReorder Then
-				$sClassName = _WinAPI_GetClassName($hWnd)
+				$sClassName = _WinAPI_GetClassName_mod($hWnd)
 				If $sClassName <> "CabinetWClass" Then $hWndLastReorder = $hWnd
 			ElseIf $hWnd=$hWndLastReorder Then
 				Return
 			EndIf
 
-			If $sClassName = "CabinetWClass" Then _WinAPI_DwmExtendFrameIntoClientArea($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
+			If $sClassName = "CabinetWClass" Then _WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
 
 		Case $EVENT_OBJECT_NAMECHANGE
 			; special handling for Windows Terminal backdrop (fixes Terminal losing backdrop when changing tabs)
@@ -761,30 +712,30 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 
 			; avoid applying coloring to duplicate hWnd in rapid succession
 			If $hWnd<>$hWndLastNameChange Then
-				$sClassName = _WinAPI_GetClassName($hWnd)
+				$sClassName = _WinAPI_GetClassName_mod($hWnd)
 				If $sClassName <> "CASCADIA_HOSTING_WINDOW_CLASS" Then $hWndLastNameChange = $hWnd
 			ElseIf $hWnd=$hWndLastNameChange Then
 				Return
 			EndIf
 
 			If $sClassName <> 'CASCADIA_HOSTING_WINDOW_CLASS' Then Return
-			If Not $bWindowsTerminalBlur Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, $dTerminalBackdrop)
+			If Not $bWindowsTerminalBlur Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, Int($dTerminalBackdrop))
 			_WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dTerminalBorderColor))
 			Sleep(20)
-			If Not $bWindowsTerminalBlur Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, $dTerminalBackdrop)
+			If Not $bWindowsTerminalBlur Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, Int($dTerminalBackdrop))
 			_WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dTerminalBorderColor))
 
-		Case $EVENT_SYSTEM_MINIMIZESTART To $EVENT_SYSTEM_MINIMIZEEND
+		Case $EVENT_SYSTEM_MINIMIZEEND
 			; special handling for Windows Terminal backdrop (fixes Terminal losing backdrop after minimize)
 			If Not $bWindowsTerminalHandling Then Return
 
-			$sClassName = _WinAPI_GetClassName($hWnd)
+			$sClassName = _WinAPI_GetClassName_mod($hWnd)
 
 			If $sClassName <> 'CASCADIA_HOSTING_WINDOW_CLASS' Then Return
-			If Not $bWindowsTerminalBlur Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, $dTerminalBackdrop)
+			If Not $bWindowsTerminalBlur Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, Int($dTerminalBackdrop))
 			_WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dTerminalBorderColor))
 			Sleep(20)
-			If Not $bWindowsTerminalBlur Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, $dTerminalBackdrop)
+			If Not $bWindowsTerminalBlur Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, Int($dTerminalBackdrop))
 			_WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dTerminalBorderColor))
 
     EndSwitch
@@ -947,7 +898,7 @@ Func _WinAPI_DwmEnableBlurBehindWindow10($hWnd, $bEnable = True, $iBlurColor = "
 EndFunc
 
 Func _WinAPI_GetWindowTextMod($hWnd)
-	Local $aCall = DllCall("user32.dll", "int", "GetWindowTextW", "hwnd", $hWnd, "wstr", "", "int", 4096)
+	Local $aCall = DllCall($hUser32, "int", "GetWindowTextW", "hwnd", $hWnd, "wstr", "", "int", 4096)
 	If @error Or Not $aCall[0] Then Return ""
 	Return $aCall[2]
 EndFunc
@@ -1043,11 +994,11 @@ Func ReadIniFile()
 
 	; Global rules
 	$bGlobalDarkTitleBar = _ToBoolean(IniRead($IniFile, "GlobalRules", "GlobalDarkTitleBar", "True"))
-	$dGlobalBorderColor = Int(IniRead($IniFile, "GlobalRules", "GlobalBorderColor", ""))
+	$dGlobalBorderColor = IniRead($IniFile, "GlobalRules", "GlobalBorderColor", "")
 	$dGlobalTitleBarColor = IniRead($IniFile, "GlobalRules", "GlobalTitleBarColor", "")
 	$dGlobalTitleBarTextColor = IniRead($IniFile, "GlobalRules", "GlobalTitleBarTextColor", "")
-	$iGlobalTitleBarBackdrop = Int(IniRead($IniFile, "GlobalRules", "GlobalTitleBarBackdrop", "0"))
-	$iGlobalCornerPreference = Int(IniRead($IniFile, "GlobalRules", "GlobalCornerPreference", "0"))
+	$iGlobalTitleBarBackdrop = IniRead($IniFile, "GlobalRules", "GlobalTitleBarBackdrop", "0")
+	$iGlobalCornerPreference = IniRead($IniFile, "GlobalRules", "GlobalCornerPreference", "0")
 	$iGlobalExtendFrameIntoClient = _ToBoolean(IniRead($IniFile, "GlobalRules", "GlobalExtendFrameIntoClient", "False"))
 	$iGlobalEnableBlurBehind = _ToBoolean(IniRead($IniFile, "GlobalRules", "GlobalEnableBlurBehind", "False"))
 	$dGlobalBlurTintColor = IniRead($IniFile, "GlobalRules", "GlobalBlurTintColor", "")
@@ -1084,9 +1035,9 @@ Func ReadIniFile()
 
 	; need to loop through custom rules to sanitize
 	For $i = 0 To UBound($aCustomRules) - 1
-		$aCustomRules[$i][3] = Int($aCustomRules[$i][3])
-        $aCustomRules[$i][6] = Int($aCustomRules[$i][6])
-        $aCustomRules[$i][7] = Int($aCustomRules[$i][7])
+        ;$aCustomRules[$i][6] = Int($aCustomRules[$i][6])
+        ;$aCustomRules[$i][7] = Int($aCustomRules[$i][7])
+		$aCustomRules[$i][12] = _ToBoolean($aCustomRules[$i][12])
     Next
 
 	; need to loop through custom rules to store details for Terminal, Explorer, VSCode, VS Studio
@@ -1099,54 +1050,48 @@ Func ReadIniFile()
 			; fix for Explorer blur behind titlebar
 			If $aCustomRules[$i][9] = "True" Then $aCustomRules[$i][8] = "True"
 			If $aCustomRules[$i][8] = "True" Then $bExplorerExtendClient = True
-			If $aCustomRules[$i][12] = "False" Then $bExplorerExtendClient = False
+			If Not $aCustomRules[$i][12] Then $bExplorerExtendClient = False
 		EndIf
 		If StringInStr($aCustomRules[$i][1], "CabinetWClass", $STR_NOCASESENSEBASIC) Then
 			; fix for Explorer blur behind titlebar
 			If $aCustomRules[$i][9] = "True" Then $aCustomRules[$i][8] = "True"
 			If $aCustomRules[$i][8] = "True" Then $bExplorerExtendClient = True
-			If $aCustomRules[$i][12] = "False" Then $bExplorerExtendClient = False
+			If Not $aCustomRules[$i][12] Then $bExplorerExtendClient = False
 		EndIf
-		If StringInStr($aCustomRules[$i][1], "Terminal.exe", $STR_NOCASESENSEBASIC) Then
+		If StringInStr($aCustomRules[$i][1], "Terminal.exe", 2) Or StringInStr($aCustomRules[$i][1], "CASCADIA_HOSTING_WINDOW_CLASS", 2) Then
 			If $aCustomRules[$i][8] = "True" Then $bWindowsTerminalHandling = True
 			If $aCustomRules[$i][9] = "True" Then $bWindowsTerminalHandling = True
 			If $aCustomRules[$i][9] = "True" Then $bWindowsTerminalBlur = True
-			If $aCustomRules[$i][12] = "False" Then $bWindowsTerminalHandling = False
-			If $aCustomRules[$i][12] <> "False" Then $dTerminalBorderColor = $aCustomRules[$i][3]
-			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][12] <> "False" Then
-				$dTerminalBackdrop = $aCustomRules[$i][6]
-			Else
-				$dTerminalBackdrop = $iGlobalTitleBarBackdrop
+			If Not $aCustomRules[$i][12] Then $bWindowsTerminalHandling = False
+			If $aCustomRules[$i][12] Then
+				If $aCustomRules[$i][3] Then
+					$dTerminalBorderColor = $aCustomRules[$i][3]
+				Else
+					$dTerminalBorderColor = $dGlobalBorderColor
+				EndIf
 			EndIf
-		EndIf
-		If StringInStr($aCustomRules[$i][1], "CASCADIA_HOSTING_WINDOW_CLASS", $STR_NOCASESENSEBASIC) Then
-			If $aCustomRules[$i][8] = "True" Then $bWindowsTerminalHandling = True
-			If $aCustomRules[$i][9] = "True" Then $bWindowsTerminalHandling = True
-			If $aCustomRules[$i][9] = "True" Then $bWindowsTerminalBlur = True
-			If $aCustomRules[$i][12] = "False" Then $bWindowsTerminalHandling = False
-			If $aCustomRules[$i][12] <> "False" Then $dTerminalBorderColor = $aCustomRules[$i][3]
-			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][12] <> "False" Then
+			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][12] Then
 				$dTerminalBackdrop = $aCustomRules[$i][6]
 			Else
 				$dTerminalBackdrop = $iGlobalTitleBarBackdrop
 			EndIf
 		EndIf
 		If StringInStr($aCustomRules[$i][1], "VSCodium.exe", $STR_NOCASESENSEBASIC) Then
-			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][12] <> "False" Then
+			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][12] Then
 				$dVSCodiumBackdrop = $aCustomRules[$i][6]
 			Else
 				$dVSCodiumBackdrop = $iGlobalTitleBarBackdrop
 			EndIf
 		EndIf
 		If StringInStr($aCustomRules[$i][1], "Code.exe", $STR_NOCASESENSEBASIC) Then
-			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][12] <> "False" Then
+			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][12] Then
 				$dVSCodeBackdrop = $aCustomRules[$i][6]
 			Else
 				$dVSCodeBackdrop = $iGlobalTitleBarBackdrop
 			EndIf
 		EndIf
 		If StringInStr($aCustomRules[$i][1], "devenv.exe", $STR_NOCASESENSEBASIC) Then
-			If $aCustomRules[$i][3] <> "" Then
+			If $aCustomRules[$i][3] Then
 				$dVSStudioBorderColor = $aCustomRules[$i][3]
 			Else
 				$dVSStudioBorderColor = $dGlobalTitleBarColor
@@ -1177,6 +1122,7 @@ Func ReadIniFile()
 
 	$aExcludeProcessNames = StringSplit($sExcludeFromAllProc, ",")
 	$aExcludeFromAllClass = StringSplit($sExcludeFromAllClass, ",")
+	$aExclusionsCombined = StringSplit($sExcludeFromAllProc, ",")
 
 	; create process exclusion array for all functions
 	For $i = 1 To $aExcludeProcessNames[0]
@@ -1190,6 +1136,12 @@ Func ReadIniFile()
 		;$aExcludeFromAllClass[$i] = StringReplace($aExcludeFromAllClass[$i], "*", "")
 	Next
 
+	; create combined exclusion array for all functions
+	For $i = 1 To $aExclusionsCombined[0]
+		$aExclusionsCombined[$i] = StringStripWS($aExclusionsCombined[$i], $STR_STRIPLEADING + $STR_STRIPTRAILING)
+		;$aExcludeFromAllClass[$i] = StringReplace($aExcludeFromAllClass[$i], "*", "")
+	Next
+
 	; combine process and class exlusions into one global exclusion list
 	_ArrayDelete($aExcludeProcessNames, 0)
 	;_ArrayDelete($aExcludeFromAllClass, 0)
@@ -1199,6 +1151,8 @@ Func ReadIniFile()
 	; combine internal and external class exclusions into one array
 	_ArrayDelete($aExcludeFromAllClass, 0)
 	_ArrayConcatenate($aExcludeClassNames, $aExcludeFromAllClass)
+	_ArrayConcatenate($aExclusionsCombined, $aExcludeClassNames)
+	_ArrayDelete($aExclusionsCombined, 0)
 
 	; obtain system accent color for borders and/or title bars
 	Local $sReadColor = RegRead("HKEY_CURRENT_USER\Software\Microsoft\Windows\DWM", "AccentColor")
@@ -1270,10 +1224,97 @@ Func _WinAPI_IsElevated_pid($iPID = 0) ; https://www.autoitscript.com/forum/topi
 EndFunc   ;==>_WinAPI_IsElevated_pid
 
 Func _WinAPI_SwitchColor_mod($iColor)
-	If $iColor = $DWMWA_COLOR_NONE Then Return $iColor
-	If $iColor = -1 Then Return $iColor
+	If $iColor = $DWMWA_COLOR_NONE Then Return 0xFFFFFFFE
+	If $iColor = $DWMWA_COLOR_DEFAULT Then Return 0xFFFFFFFF
 	Return BitOR(BitAND($iColor, 0x00FF00), BitShift(BitAND($iColor, 0x0000FF), -16), BitShift(BitAND($iColor, 0xFF0000), 16))
 EndFunc
+
+Func _WinAPI_DwmSetWindowAttribute__($hwnd, $attribute = 34, $value = 0x00FF00, $valLen = 4)
+	Local $aCall = DllCall($hDwmapi, 'long', 'DwmSetWindowAttribute', 'hwnd', $hWnd, 'dword', $attribute, 'dword*', $value, 'dword', $valLen)
+	If @error Then Return SetError(@error, @extended, 0)
+	If $aCall[0] Then Return SetError(10, $aCall[0], 0)
+	Return 1
+EndFunc   ;==>_WinAPI_DwmSetWindowAttribute__
+
+Func _WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, $tMARGINS = 0)
+	If Not IsDllStruct($tMARGINS) Then
+		$tMARGINS = _WinAPI_CreateMargins(-1, -1, -1, -1)
+	EndIf
+
+	Local $aCall = DllCall($hDwmapi, 'long', 'DwmExtendFrameIntoClientArea', 'hwnd', $hWnd, 'struct*', $tMARGINS)
+	If @error Then Return SetError(@error, @extended, 0)
+	If $aCall[0] Then Return SetError(10, $aCall[0], 0)
+
+	Return 1
+EndFunc   ;==>_WinAPI_DwmExtendFrameIntoClientArea_mod
+
+Func _WinAPI_GetClassName_mod($hWnd)
+	If Not IsHWnd($hWnd) Then $hWnd = GUICtrlGetHandle($hWnd)
+	Local $aCall = DllCall($hUser32, "int", "GetClassNameW", "hwnd", $hWnd, "wstr", "", "int", 4096)
+	If @error Or Not $aCall[0] Then Return SetError(@error, @extended, '')
+
+	Return SetExtended($aCall[0], $aCall[2])
+EndFunc   ;==>_WinAPI_GetClassName_mod
+
+Func _WinAPI_DwmEnableBlurBehindWindow_mod($hWnd, $bEnable = True, $bTransition = False, $hRgn = 0)
+	Local $tBLURBEHIND = DllStructCreate('dword;bool;handle;bool')
+	Local $iFlags = 0
+
+	If $hRgn Then
+		$iFlags += 2
+		DllStructSetData($tBLURBEHIND, 3, $hRgn)
+	EndIf
+
+	DllStructSetData($tBLURBEHIND, 1, BitOR($iFlags, 0x05))
+	DllStructSetData($tBLURBEHIND, 2, $bEnable)
+	DllStructSetData($tBLURBEHIND, 4, $bTransition)
+
+	Local $aCall = DllCall($hDwmapi, 'long', 'DwmEnableBlurBehindWindow', 'hwnd', $hWnd, 'struct*', $tBLURBEHIND)
+	If @error Then Return SetError(@error, @extended, 0)
+	If $aCall[0] Then Return SetError(10, $aCall[0], 0)
+
+	Return 1
+EndFunc   ;==>_WinAPI_DwmEnableBlurBehindWindow_mod
+
+Func _WinAPI_DwmIsCompositionEnabled_mod()
+	Local $aCall = DllCall($hDwmapi, 'long', 'DwmIsCompositionEnabled', 'bool*', 0)
+	If @error Then Return SetError(@error, @extended, 0)
+	If $aCall[0] Then Return SetError(10, $aCall[0], 0)
+
+	Return $aCall[1]
+EndFunc   ;==>_WinAPI_DwmIsCompositionEnabled_mod
+
+Func _WinAPI_SetWinEventHook_mod($iEventMin, $iEventMax, $pEventProc, $iPID = 0, $iThreadId = 0, $iFlags = 0)
+	Local $aCall = DllCall($hUser32, 'handle', 'SetWinEventHook', 'uint', $iEventMin, 'uint', $iEventMax, 'ptr', 0, _
+			'ptr', $pEventProc, 'dword', $iPID, 'dword', $iThreadId, 'uint', $iFlags)
+	If @error Then Return SetError(@error, @extended, 0)
+	; If Not $aCall[0] Then Return SetError(1000, 0, 0)
+
+	Return $aCall[0]
+EndFunc   ;==>_WinAPI_SetWinEventHook_mod
+
+Func _WinAPI_UnhookWinEvent_mod($hEventHook)
+	Local $aCall = DllCall($hUser32, 'bool', 'UnhookWinEvent', 'handle', $hEventHook)
+	If @error Then Return SetError(@error, @extended, False)
+	; If Not $aCall[0] Then Return SetError(1000, 0, 0)
+
+	Return $aCall[0]
+EndFunc   ;==>_WinAPI_UnhookWinEvent_mod
+
+Func _WinAPI_GetWindowFileName_mod($hWnd)
+    Local $aCall = DllCall($hKernel32, 'HANDLE', 'OpenProcess', 'DWORD', 0x410, 'BOOL', 0, 'DWORD', WinGetProcess($hWnd)), _
+          $hProc = $aCall[0]
+    $aCall = DllCall($hpsapi, 'DWORD', 'GetModuleBaseNameW', 'HANDLE', $hProc, 'HANDLE', 0, 'WSTR', '', 'INT', 65536)
+    DllCall($hKernel32, "BOOL", "CloseHandle", "HANDLE", $hProc)
+    Return $aCall[3]
+EndFunc   ;==>_WinAPI_GetWindowFileName_mod
+
+Func _WinAPI_IsWindowVisible_mod($hWnd)
+	Local $aCall = DllCall($hUser32, "bool", "IsWindowVisible", "hwnd", $hWnd)
+	If @error Then Return SetError(@error, @extended, 0)
+
+	Return $aCall[0]
+EndFunc   ;==>_WinAPI_IsWindowVisible_mod
 
 #cs
 Func WinListtest()
@@ -1286,7 +1327,7 @@ Func WinListtest()
         For $i = 1 To $aWinList[0][0]
 		;If $sClassName = $aWinList[$i] Then Return
                 Local $hWnd = $aWinList[$i][1]
-                Local $sClassName = _WinAPI_GetClassName($hWnd)
+                Local $sClassName = _WinAPI_GetClassName_mod($hWnd)
                 $iPID = WinGetProcess ($aWinList[$i][1])
 		$sName = _ProcessGetName($iPID)
                 If $aWinList[$i][0] = "" Then $aWinList[$i][0] = "<blank title>"

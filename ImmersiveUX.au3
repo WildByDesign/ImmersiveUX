@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX
-#AutoIt3Wrapper_Res_Fileversion=1.3.0
+#AutoIt3Wrapper_Res_Fileversion=1.3.1
 #AutoIt3Wrapper_Res_ProductName=Immersive UX
-#AutoIt3Wrapper_Res_ProductVersion=1.3.0
+#AutoIt3Wrapper_Res_ProductVersion=1.3.1
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -15,7 +15,7 @@
 #AutoIt3Wrapper_Run_Au3Stripper=y
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
-Global $iVersion = '1.3.0'
+Global $iVersion = '1.3.1'
 
 #include <MsgBoxConstants.au3>
 #include <WinAPIFiles.au3>
@@ -309,7 +309,7 @@ Func _StartGUI()
     GUICtrlSetFont(-1, 9, 200, -1, "Segoe MDL2 Assets")
     GUICtrlSetColor(-1, 0xffffff)
 
-    _GUIToolTip_AddTool($hToolTip2, 0, " Add Rule ", GUICtrlGetHandle($AddRuleButton))
+    _GUIToolTip_AddTool($hToolTip2, 0, " Add Custom Rule ", GUICtrlGetHandle($AddRuleButton))
 
     $aPos = ControlGetPos($hGUI, "", $AddRuleButton)
 
@@ -339,7 +339,7 @@ Func _StartGUI()
     GUICtrlSetColor(-1, 0xffffff)
     GUICtrlSetState($DeleteButton, $GUI_DISABLE)
 
-    _GUIToolTip_AddTool($hToolTip2, 0, " Delete Rule ", GUICtrlGetHandle($DeleteButton))
+    _GUIToolTip_AddTool($hToolTip2, 0, " Delete Custom Rule ", GUICtrlGetHandle($DeleteButton))
 
     $aPos = ControlGetPos($hGUI, "", $DeleteButton)
 
@@ -1387,6 +1387,52 @@ Func hBtnAddRule()
     $sTargetLast = ""
 EndFunc
 
+Func hBtnAddRule_nofocus()
+    GUICtrlSetState($TargetInput, $GUI_ENABLE)
+    GUICtrlSetState($idInputRuleType, $GUI_ENABLE)
+    GUICtrlSetState($RuleTypeCombo, $GUI_ENABLE)
+    GUICtrlSetState($hBtnRuleType, $GUI_ENABLE)
+    GUICtrlSetState($RuleEnabledCombo, $GUI_ENABLE)
+    GUICtrlSetState($idInputRuleEnabled, $GUI_ENABLE)
+    GUICtrlSetState($hBtnRuleEnabled, $GUI_ENABLE)
+    GUICtrlSetState($DeleteButton, $GUI_ENABLE)
+    GUICtrlSetState($SaveButton, $GUI_ENABLE)
+    ; reset combos
+    _ResetCombos()
+    ; clear everything
+    _GUICtrlComboBox_SetCurSel($BlurBehindCombo, -1)
+    GUICtrlSetData($idInputBlurBehind, "")
+    GUICtrlSetData($idInputExtendFrame, "")
+	_GUICtrlComboBox_SetCurSel($ExtendFrameCombo, -1)
+    GUICtrlSetData($BlurTintColorInput, "")
+    ;GUICtrlSetBkColor($BlurTintColorPickLabel, 0x000000)
+    GuiFlatButton_SetBkColor($BlurTintColorPickLabel, 0x000000)
+    GUICtrlSetData($idInputCornerPreference, "")
+    _GUICtrlComboBox_SetCurSel($CornerPreferenceCombo, -1)
+    GUICtrlSetData($idInputTitleBarBackdrop, "")
+    _GUICtrlComboBox_SetCurSel($TitleBarBackdropCombo, -1)
+    GUICtrlSetData($BorderColorInput, "")
+    ;GUICtrlSetBkColor($colorlabelfill, 0x000000)
+    GuiFlatButton_SetBkColor($colorlabelfill, 0x000000)
+    GUICtrlSetData($TitlebarColorInput, "")
+    ;GUICtrlSetBkColor($TitlebarColorLabel, 0x000000)
+    GuiFlatButton_SetBkColor($TitlebarColorLabel, 0x000000)
+    GUICtrlSetData($TitlebarTextColorInput, "")
+    ;GUICtrlSetBkColor($TitlebarTextColorLabel, 0x000000)
+    GuiFlatButton_SetBkColor($TitlebarTextColorLabel, 0x000000)
+    GUICtrlSetData($idInputDarkTitle, "")
+	_GUICtrlComboBox_SetCurSel($DarkTitleCombo, -1)
+    GUICtrlSetData($TargetInput, "")
+    GUICtrlSetData($idInputRuleType, "")
+    _GUICtrlComboBox_SetCurSel($RuleTypeCombo, -1)
+    GUICtrlSetData($idInput, "")
+    _GUICtrlComboBox_SetCurSel($RuleListCombo, -1)
+    GUICtrlSetData($BlurColorIntensitySlider, 50)
+    _GUICtrlComboBox_SetCurSel($RuleEnabledCombo, -1)
+    GUICtrlSetData($idInputRuleEnabled, "")
+    $sTargetLast = ""
+EndFunc
+
 Func hBtnAddRule_nofocusGlobal()
     ; clear everything
     _GUICtrlComboBox_SetCurSel($BlurBehindCombo, -1)
@@ -1442,7 +1488,9 @@ Func hBtnDeleteRule()
 
     ; need to reload array and combo
     _ReloadRulesCombo()
-    hBtnAddRule()
+    hBtnAddRule_nofocus()
+    GUICtrlSetData($idInput, "Select a rule")
+    ControlFocus($hGUI, "", $RuleListCombo)
 
     _GUICtrlComboBox_InsertString($RuleListCombo, "Global Rules", 0)
     $sTargetLast = ""
@@ -1461,7 +1509,7 @@ Func hBtnReloadRules()
     EndIf
 
     ; clear GUI and reload rules list
-    hBtnAddRule()
+    hBtnAddRule_nofocus()
     _ReloadRulesCombo()
     GUICtrlSetData($idInput, "Select a rule")
     ControlFocus($hGUI, "", $RuleListCombo)
@@ -1604,26 +1652,6 @@ Func _WriteIniSection()
 
     GUICtrlSetState($DeleteButton, $GUI_ENABLE)
 
-    #cs
-    Local $sTargetNew = GUICtrlRead($idInput)
-    If $sTargetNew = "File Explorer" Then
-        GUICtrlSetData($RuleListCombo, $sTargetNew)
-    ElseIf $sTargetNew = "Windows Terminal" Then
-        GUICtrlSetData($RuleListCombo, $sTargetNew)
-    ElseIf $sTargetNew = "Visual Studio 2022" Then
-        GUICtrlSetData($RuleListCombo, $sTargetNew)
-    ElseIf $sTargetNew = "Visual Studio Code" Then
-        GUICtrlSetData($RuleListCombo, $sTargetNew)
-    ElseIf $sTargetNew = "Dialog Boxes" Then
-        GUICtrlSetData($RuleListCombo, $sTargetNew)
-    ElseIf $sTargetNew = "Task Manager" Then
-        GUICtrlSetData($RuleListCombo, $sTargetNew)
-    Else
-        GUICtrlSetData($idInput, GUICtrlRead($TargetInput))
-        GUICtrlSetData($RuleListCombo, GUICtrlRead($TargetInput))
-    EndIf
-    #ce
-
     GUICtrlSetData($idInput, $DisplayName)
     GUICtrlSetData($RuleListCombo, $DisplayName)
 
@@ -1737,27 +1765,6 @@ Func _GetIniDetails()
         ; $aCustomRules[$i][12] = rule enabled/disabled
         ; $aCustomRules[$i][13] = contains sectionname
         ; $aCustomRules[$i][14] = contains FriendlyName
-
-        #cs
-        ; add FriendlyName to array
-        For $i = 0 To UBound($aCustomRules) - 1
-            If $aCustomRules[$i][13] = "CabinetWClass" Then
-                $aCustomRules[$i][14] = "File Explorer"
-            ElseIf $aCustomRules[$i][13] = "CASCADIA_HOSTING_WINDOW_CLASS" Then
-                $aCustomRules[$i][14] = "Windows Terminal"
-            ElseIf $aCustomRules[$i][13] = "devenv.exe" Then
-                $aCustomRules[$i][14] = "Visual Studio 2022"
-            ElseIf $aCustomRules[$i][13] = "Code.exe" Then
-                $aCustomRules[$i][14] = "Visual Studio Code"
-            ElseIf $aCustomRules[$i][13] = "#32770" Then
-                $aCustomRules[$i][14] = "Dialog Boxes"
-            ElseIf $aCustomRules[$i][13] = "TaskManagerWindow" Or $aCustomRules[$i][13] = "Taskmgr.exe" Then
-                $aCustomRules[$i][14] = "Task Manager"
-            Else
-               $aCustomRules[$i][14] = $aCustomRules[$i][13]
-            EndIf
-        Next
-        #ce
 
         ; sort array
         ;_ArraySort($aCustomRules, 0, 0, 0, 1)
