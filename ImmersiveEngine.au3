@@ -42,23 +42,31 @@ Global $bDarkModeEnabled, $bClearChangesOnExit, $bRequireWindows11, $iBorderColo
 Global $aExcludeProcessNames, $aExcludeFromAllClass, $aExclusionsCombined
 Global $bClassicExplorer, $bExplorerExtendClient
 Global $bGlobalDarkTitleBar, $dGlobalBorderColor, $dGlobalTitleBarColor, $dGlobalTitleBarTextColor, $iGlobalTitleBarBackdrop, $iGlobalCornerPreference, $iGlobalExtendFrameIntoClient, $iGlobalEnableBlurBehind
-Global $iGlobalBlurTintColor
+Global $iGlobalBlurTintColor, $dGlobalBlurTintColor, $iGlobalBlurOpacity
 Global $dTerminalBorderColor, $dTerminalBackdrop, $bWindowsTerminalHandling, $dVSStudioBorderColor, $bWindowsTerminalBlur
 Global $dVSCodiumBackdrop, $dVSCodeBackdrop
 Global $bEnable = False
 Global $bBoot = True
 Global $aCustomRules[0][14]
-Global Static $hActiveWndLast
 Global $bElevated = False
 Global $sProdName = "ImmersiveUX"
 Global $sEngName = "ImmersiveEngine"
 Global $DWMWA_COLOR_NONE = "0xFFFFFFFE"
 Global $DWMWA_COLOR_DEFAULT = "0xFFFFFFFF"
+Global $WCA_ACCENT_POLICY = 19
+Global $ACCENT_DISABLED = 0
+Global $ACCENT_ENABLE_GRADIENT = 1
+Global $ACCENT_ENABLE_TRANSPARENTGRADIENT = 2
+Global $ACCENT_ENABLE_BLURBEHIND = 3
+Global $ACCENT_ENABLE_ACRYLICBLURBEHIND = 4
+Global $ACCENT_ENABLE_HOSTBACKDROP = 5
+Global $ACCENT_INVALID_STATE = 6
 
 Global $hDwmapi = DllOpen('dwmapi.dll')
 Global $hUser32 = DllOpen('user32.dll')
 Global $hKernel32 = DllOpen('kernel32.dll')
 Global $hPsapi = DllOpen('psapi.dll')
+Global $hGdi = DllOpen('gdi32.dll')
 
 ;Global $aExcludeWinTitles[17] = ["", "Program Manager", "PopupHost", "CoreInput", "Search", "Start", "DesktopWindowXamlSource", _
 ;	"Chrome Legacy Window", "Quick settings", "System tray overflow window.", "Drag", "Default IME", "OLEChannelWnd", _
@@ -182,6 +190,7 @@ Func DoCleanUp()
 	DllClose($hUser32)
 	DllClose($hKernel32)
 	DllClose($hPsapi)
+	DllClose($hGdi)
 EndFunc
 
 Func _Free()
@@ -260,69 +269,31 @@ Func MainColoringRemoval($hWnd, $sClassName, $sName)
 				If $dGlobalTitleBarTextColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, 0xFFFFFFFF)
 				If $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, 0)
 				If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, 0)
-				If $iGlobalEnableBlurBehind Then
-					_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False)
-					_WinAPI_DwmEnableBlurBehindWindow_mod($hWnd, 0, 0)
+				If $iGlobalEnableBlurBehind Then _WinAPI_DwmEnableBlurBehindWindow11($hWnd, $ACCENT_DISABLED)
+				If $iGlobalExtendFrameIntoClient And Not $iGlobalEnableBlurBehind Then
 					; fix for file explorer losing window control buttons occasionally
-					If $sClassName <> "CabinetWClass" Then
-						_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
-					EndIf
-				EndIf
-				If Not $iGlobalEnableBlurBehind Then
-					; only enable ExtendFrameIntoClientArea if blur behind is not enabled
-					If $iGlobalExtendFrameIntoClient Then
-						; fix for file explorer losing window control buttons occasionally
-						If $sClassName <> "CabinetWClass" Then
-							_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
-						EndIf
-					EndIf
+					If $sClassName <> "CabinetWClass" Then _WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
 				EndIf
 				Return
 			EndIf
-			; dark mode titlebar, fallback to global if not set
-			If $aCustomRules[$i][2] = "True" Then
-				;_WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
-			EndIf
-			If $aCustomRules[$i][2] = "" Then
-				;If $bGlobalDarkTitleBar Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
-			EndIf
 			; border color reset to default
-			If $aCustomRules[$i][3] Or $dGlobalBorderColor Then
-				_WinAPI_DwmSetWindowAttribute__($hWnd, 34, 0xFFFFFFFF)
-			EndIf
+			If $aCustomRules[$i][3] Or $dGlobalBorderColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, 0xFFFFFFFF)
 			; titlebar color reset to default
-			If $aCustomRules[$i][4] Or $dGlobalTitleBarColor Then
-				_WinAPI_DwmSetWindowAttribute__($hWnd, 35, 0xFFFFFFFF)
-			EndIf
+			If $aCustomRules[$i][4] Or $dGlobalTitleBarColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 35, 0xFFFFFFFF)
 			; titlebar text color reset to default
-			If $aCustomRules[$i][5] Or $dGlobalTitleBarTextColor Then
-				_WinAPI_DwmSetWindowAttribute__($hWnd, 36, 0xFFFFFFFF)
-			EndIf
+			If $aCustomRules[$i][5] Or $dGlobalTitleBarTextColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, 0xFFFFFFFF)
 			; titlebar backdrop reset to default
-			If $aCustomRules[$i][6] <> "" Or $iGlobalTitleBarBackdrop <> "" Then
-				_WinAPI_DwmSetWindowAttribute__($hWnd, 38, 0)
-			EndIf
+			If $aCustomRules[$i][6] <> "" Or $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, 0)
 			; corner preference reset to default
-			If $aCustomRules[$i][7] <> "" Or $iGlobalCornerPreference <> "" Then
-				_WinAPI_DwmSetWindowAttribute__($hWnd, 33, 0)
-			EndIf
+			If $aCustomRules[$i][7] <> "" Or $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, 0)
 			; blur behind removal
-			If $aCustomRules[$i][9] = "True" Or $iGlobalEnableBlurBehind Then
-				_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False)
-				_WinAPI_DwmEnableBlurBehindWindow_mod($hWnd, 0, 0)
-				; fix for file explorer losing window control buttons occasionally
-				If $sClassName <> "CabinetWClass" Then
-					_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
-				EndIf
-			EndIf
+			If $aCustomRules[$i][9] = "True" Or $iGlobalEnableBlurBehind Then _WinAPI_DwmEnableBlurBehindWindow11($hWnd, $ACCENT_DISABLED)
 			; ExtendFrameIntoClientArea removal
 			If $aCustomRules[$i][8] = "True" Or $iGlobalExtendFrameIntoClient Then
 				; only enable ExtendFrameIntoClientArea if blur behind is not enabled
 				If $aCustomRules[$i][9] <> "True" Or Not $iGlobalEnableBlurBehind Then
 					; fix for file explorer losing window control buttons occasionally
-					If $sClassName <> "CabinetWClass" Then
-						_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
-					EndIf
+					If $sClassName <> "CabinetWClass" Then _WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
 				EndIf
 			EndIf
 			$bMatchesFound = True
@@ -337,21 +308,10 @@ Func MainColoringRemoval($hWnd, $sClassName, $sName)
 		If $dGlobalTitleBarTextColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, 0xFFFFFFFF)
 		If $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, 0)
 		If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, 0)
-		If $iGlobalEnableBlurBehind Then
-			_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False)
-			_WinAPI_DwmEnableBlurBehindWindow_mod($hWnd, 0, 0)
+		If $iGlobalEnableBlurBehind Then _WinAPI_DwmEnableBlurBehindWindow11($hWnd, $ACCENT_DISABLED)
+		If $iGlobalExtendFrameIntoClient And Not $iGlobalEnableBlurBehind Then
 			; fix for file explorer losing window control buttons occasionally
-			If $sClassName <> "CabinetWClass" Then
-				_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
-			EndIf
-		EndIf
-		If $iGlobalExtendFrameIntoClient Then
-			If Not $iGlobalEnableBlurBehind Then
-				; fix for file explorer losing window control buttons occasionally
-				If $sClassName <> "CabinetWClass" Then
-					_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
-				EndIf
-			EndIf
+			If $sClassName <> "CabinetWClass" Then _WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
 		EndIf
 	EndIf
 EndFunc
@@ -416,7 +376,7 @@ Func MainColoringContinue($hWnd, $sClassName, $sName)
 				If $dGlobalTitleBarTextColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, _WinAPI_SwitchColor_mod($dGlobalTitleBarTextColor))
 				If $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, Int($iGlobalTitleBarBackdrop))
 				If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, Int($iGlobalCornerPreference))
-				If $iGlobalEnableBlurBehind Then _EnableBlurBehind($hWnd, $sName, $sClassName, $iGlobalBlurTintColor)
+				If $iGlobalEnableBlurBehind Then _EnableBlur11($hWnd, $sName, $sClassName, $dGlobalBlurTintColor, $iGlobalBlurOpacity)
 				If Not $iGlobalEnableBlurBehind Then
 					; only enable ExtendFrameIntoClientArea if blur behind is not enabled
 					If $iGlobalExtendFrameIntoClient Then _DwmExtendFrameIntoClientArea($hWnd, $sName, $sClassName, $i)
@@ -465,20 +425,11 @@ Func MainColoringContinue($hWnd, $sClassName, $sName)
 			Else
 				If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, Int($iGlobalCornerPreference))
 			EndIf
-			; obtain blur tint color and intensity details
-			If $aCustomRules[$i][11] <> "" Then
-				If $aCustomRules[$i][10] Then
-					$iTintColor = $aCustomRules[$i][10]
-					$iIntensity = _percentageOfHex($aCustomRules[$i][11])
-					$iTintColorSwitch = Hex(_WinAPI_SwitchColor_mod($iTintColor), 6)
-					$iTintColorBlur = '0x' & $iIntensity & $iTintColorSwitch
-				EndIf
-			EndIf
 			; blur behind, fallback to global if not set
-			If $aCustomRules[$i][9] = "True" Then _EnableBlurBehind($hWnd, $sName, $sClassName, $iTintColorBlur)
+			If $aCustomRules[$i][9] = "True" Then _EnableBlur11($hWnd, $sName, $sClassName, $aCustomRules[$i][10], $aCustomRules[$i][11])
 			If $aCustomRules[$i][9] = "" Then
 				; only enable blur if not custom set
-				If $iGlobalEnableBlurBehind Then _EnableBlurBehind($hWnd, $sName, $sClassName, $iGlobalBlurTintColor)
+				If $iGlobalEnableBlurBehind Then _EnableBlur11($hWnd, $sName, $sClassName, $dGlobalBlurTintColor, $iGlobalBlurOpacity)
 			EndIf
 			; ExtendFrameIntoClientArea, fallback to global if not set
 			If $aCustomRules[$i][8] = "True" Then
@@ -502,7 +453,7 @@ Func MainColoringContinue($hWnd, $sClassName, $sName)
 		If $dGlobalTitleBarTextColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, _WinAPI_SwitchColor_mod($dGlobalTitleBarTextColor))
 		If $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, Int($iGlobalTitleBarBackdrop))
 		If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, Int($iGlobalCornerPreference))
-		If $iGlobalEnableBlurBehind Then _EnableBlurBehind($hWnd, $sName, $sClassName, $iGlobalBlurTintColor)
+		If $iGlobalEnableBlurBehind Then _EnableBlur11($hWnd, $sName, $sClassName, $dGlobalBlurTintColor, $iGlobalBlurOpacity)
 		If $iGlobalExtendFrameIntoClient And Not $iGlobalEnableBlurBehind Then _DwmExtendFrameIntoClientArea($hWnd, $sName, $sClassName, $i)
 	EndIf
 EndFunc
@@ -519,16 +470,19 @@ Func _ColorBorderOnly($hWnd, $sClassName, $sName)
 					If $dGlobalBorderColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dGlobalBorderColor))
 				EndIf
 			EndIf
-			If $aCustomRules[$i][3] Then
-				_WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($aCustomRules[$i][3]))
-			ElseIf Not $aCustomRules[$i][3] Then
-				If $dGlobalBorderColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dGlobalBorderColor))
+			If $aCustomRules[$i][3] Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($aCustomRules[$i][3]))
+			If Not $aCustomRules[$i][3] And $dGlobalBorderColor Then
+				_WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dGlobalBorderColor))
+			EndIf
+			If Not $aCustomRules[$i][3] And Not $dGlobalBorderColor Then
+				_WinAPI_DwmSetWindowAttribute__($hWnd, 34, $DWMWA_COLOR_DEFAULT)
 			EndIf
 		EndIf
     Next
 
 	If Not $bMatchesFound Then
 		If $dGlobalBorderColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dGlobalBorderColor))
+		If Not $dGlobalBorderColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, $DWMWA_COLOR_DEFAULT)
 	EndIf
 EndFunc
 
@@ -549,12 +503,12 @@ Func _DwmExtendFrameIntoClientArea($hWnd, $sName, $sClassName, $i)
 		;_WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dVSStudioBorderColor))
 	ElseIf $sName = 'VSCodium.exe' Then
 		Sleep(20)
-		;_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False) ; only needed for old vibrancy method
+		;_WinAPI_DwmEnableBlurBehindWindow11($hWnd, 0) ; only needed for old vibrancy method
 		_WinAPI_DwmSetWindowAttribute__($hWnd, 38, Int($dVSCodiumBackdrop))
 		_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
 	ElseIf $sName = 'Code.exe' Then
 		Sleep(20)
-		;_WinAPI_DwmEnableBlurBehindWindow10($hWnd, False) ; only needed for old vibrancy method
+		;_WinAPI_DwmEnableBlurBehindWindow11($hWnd, 0) ; only needed for old vibrancy method
 		_WinAPI_DwmSetWindowAttribute__($hWnd, 38, Int($dVSCodeBackdrop))
 		_WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
 	ElseIf $sClassName = "CASCADIA_HOSTING_WINDOW_CLASS" Then
@@ -565,9 +519,8 @@ Func _DwmExtendFrameIntoClientArea($hWnd, $sName, $sClassName, $i)
 	EndIf
 EndFunc
 
-Func _EnableBlurBehind($hWnd, $sName, $sClassName, $iTintColorBlur = "")
-	_WinAPI_DwmEnableBlurBehindWindow_mod($hWnd, 1, 0)
-	_WinAPI_DwmEnableBlurBehindWindow10($hWnd, True, $iTintColorBlur)
+Func _EnableBlur11($hWnd, $sName, $sClassName, $BlendColor = "", $ColorOpacity = "")
+	_WinAPI_DwmEnableBlurBehindWindow11($hWnd, $ACCENT_ENABLE_ACRYLICBLURBEHIND, True, $BlendColor, $ColorOpacity)
 
 	If $sClassName = 'CabinetWClass' Then
 		Sleep(20)
@@ -585,9 +538,9 @@ Func _EnableBlurBehind($hWnd, $sName, $sClassName, $iTintColorBlur = "")
 EndFunc
 
 Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread, $imsEventTime)
-	Local Static $hWndLastShow, $hWndLastReorder, $hWndLastForeground, $hWndLastNameChange
+	Local Static $hWndLastShow, $hWndLastReorder, $hWndLastForeground, $hWndLastNameChange, $hActiveWndLast
 	Local $sActiveWindow, $sName, $sClassName
-	Local $hTerminal
+	Local $hTerminal, $hExplorer
 	Local $bMatchesFound = False
     Switch $iEvent
 		Case $EVENT_OBJECT_SHOW
@@ -634,6 +587,13 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 				Return
 			EndIf
 
+			; fix modern File Explorer losing client area backdrop material when losing focus
+			; fix modern File Explorer titlebar losing blur after gaining focus
+			If $bExplorerExtendClient And Not $bClassicExplorer Then 
+				$hExplorer = WinGetHandle("[CLASS:CabinetWClass]")
+				If $hExplorer Then _WinAPI_DwmExtendFrameIntoClientArea_mod($hExplorer, _WinAPI_CreateMargins(-1, -1, -1, -1))
+			EndIf
+
 			$sActiveWindow = _WinAPI_GetWindowTextMod($hWnd)
 
 			; Visual Studio Handling
@@ -644,20 +604,11 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 
 			; special handling for Windows Terminal backdrop
 			If $bWindowsTerminalHandling Then
-				If WinExists("[CLASS:CASCADIA_HOSTING_WINDOW_CLASS]") Then
-					$hTerminal = WinGetHandle("[CLASS:CASCADIA_HOSTING_WINDOW_CLASS]")
+				$hTerminal = WinGetHandle("[CLASS:CASCADIA_HOSTING_WINDOW_CLASS]")
+				If $hTerminal Then
 					If Not $bWindowsTerminalBlur Then _WinAPI_DwmSetWindowAttribute__($hTerminal, 38, Int($dTerminalBackdrop))
 					Sleep(20)
 					If Not $bWindowsTerminalBlur Then _WinAPI_DwmSetWindowAttribute__($hTerminal, 38, Int($dTerminalBackdrop))
-				EndIf
-			EndIf
-
-			; fix modern File Explorer losing client area backdrop material when losing focus
-			; fix modern File Explorer titlebar losing blur after gaining focus
-			If $bExplorerExtendClient And Not $bClassicExplorer Then 
-				If WinExists("[CLASS:CabinetWClass]") Then
-					$hExplorerHandle = WinGetHandle("[CLASS:CabinetWClass]")
-					_WinAPI_DwmExtendFrameIntoClientArea_mod($hExplorerHandle, _WinAPI_CreateMargins(-1, -1, -1, -1))
 				EndIf
 			EndIf
 
@@ -858,18 +809,22 @@ Func _TaskSched_Run()
 EndFunc   ;==>_TaskSched_Run
 
 ; #FUNCTION# ====================================================================================================================
-; Name ..........: _WinAPI_DwmEnableBlurBehindWindow10
-; Description ...: Enables Aero-like blurred background in Windows 10.
-; Syntax ........: _WinAPI_DwmEnableBlurBehindWindow10($hWnd[, $iMode = $ACCENT_ENABLE_BLURBEHIND])
-; Parameters ....: $hWnd                - Window handle.
-;                  $bEnable             - [optional] Enable or disable the blur effect.
-;                  $iBlurColor          - [optional] Sets blur tint color and intensity (alpha)
+; Name ..........: _WinAPI_DwmEnableBlurBehindWindow11
+; Description ...: Enables Aero-like blurred background in Windows 11.
+; Syntax ........: _WinAPI_DwmEnableBlurBehindWindow11($hWnd[, $AccentState, $BlendColor, $ColorOpacity, $AccentFlags, $AnimationId])
+; Parameters ....: $hWnd                - Window handle
+;                  $AccentState         - [optional] Enable or disable the blur effect
+;                  $IncludeCaption      - [optional] Extend effects to the titlebar
+;                  $BlendColor          - [optional] Sets GradientColor
+;                  $ColorOpacity        - [optional] Sets blending color opacity value
+;                  $AccentFlags         - [optional] Sets AccentFlags value
+;                  $AnimationId         - [optional] Sets AnimationId value
 ; Return values .: 1 on success, 0 otherwise. Call _WinAPI_GetLastError on failure for more information.
 ; Author ........: scintilla4evr
-; Modified ......: WildByDesign - added $iBlurColor for blur tint color and color intensity (alpha)
+; Modified ......: WildByDesign - added $AccentState, $BlendColor, $ColorOpacity, $AccentFlags and $AnimationId
 ; Remarks .......:
 ; Related .......:
-; Link ..........: http://vhanla.codigobit.info/2015/07/enable-windows-10-aero-glass-aka-blur.html and http://undoc.airesoft.co.uk/user32.dll/SetWindowCompositionAttribute.php
+; Link ..........:
 ; Example .......: Yes
 ;    ACCENT_DISABLED = 0
 ;    ACCENT_ENABLE_GRADIENT = 1
@@ -879,34 +834,45 @@ EndFunc   ;==>_TaskSched_Run
 ;    ACCENT_ENABLE_HOSTBACKDROP = 5
 ;    ACCENT_INVALID_STATE = 6
 ; ===============================================================================================================================
-Func _WinAPI_DwmEnableBlurBehindWindow10($hWnd, $bEnable = True, $iBlurColor = "")
-	Local $tAccentPolicy = DllStructCreate("int AccentState; int AccentFlags; int GradientColor; int AnimationId")
-	Local $tAttrData = DllStructCreate("dword Attribute; ptr DataBuffer; ulong Size")
-	$tAccentPolicy.AccentState = $bEnable ? 4 : 0
-	$tAccentPolicy.AccentFlags = 0
-	;If $iBlurColor <> "" Then $tAccentPolicy.AccentFlags = 2
-    If $iBlurColor <> "" Then $tAccentPolicy.GradientColor = $iBlurColor
-	$tAccentPolicy.AnimationId = 0
-	$tAttrData.Attribute = 19 ; WCA_ACCENT_POLICY
-	$tAttrData.DataBuffer = DllStructGetPtr($tAccentPolicy)
-	$tAttrData.Size = DllStructGetSize($tAccentPolicy)
+Func _WinAPI_DwmEnableBlurBehindWindow11($hWnd, $AccentState = $ACCENT_ENABLE_ACRYLICBLURBEHIND, $IncludeCaption = True, $BlendColor = "", $ColorOpacity = "", $AccentFlags = 0, $AnimationId = 0)
+    If $AccentState And $IncludeCaption Then
+		Local $hRgn = _WinAPI_CreateEllipticRgn_mod(_WinAPI_CreateRectEx(0, 0, 0, 0))
+		_WinAPI_DwmEnableBlurBehindWindow_mod($hWnd, 1, 0, $hRgn)
+		If $hRgn Then _WinAPI_DeleteObject($hRgn)
+	EndIf
+    If Not $AccentState Then _WinAPI_DwmEnableBlurBehindWindow_mod($hWnd, 0)
+    Local $tAccentPolicy = DllStructCreate("int AccentState; int AccentFlags; int GradientColor; int AnimationId")
+    Local $tAttrData = DllStructCreate("dword Attribute; ptr DataBuffer; ulong Size")
+    $tAccentPolicy.AccentState = $AccentState
+    If $AccentState = $ACCENT_ENABLE_TRANSPARENTGRADIENT And $AccentFlags = 0 Then $AccentFlags = 2
+    $tAccentPolicy.AccentFlags = $AccentFlags
+	If $BlendColor Then
+		Local $iVal = Int($ColorOpacity > 99 ? 100 : ($ColorOpacity < 1 ? 0 : $ColorOpacity)) ; no more than 100% or less than 0%
+		Local $sTransparencyHex = Hex(Ceiling(($iVal * 100) * (2.55 * 100) / (100 * 100)), 2)
+		$tAccentPolicy.GradientColor = '0x' & $sTransparencyHex & Hex(_WinAPI_SwitchColor_mod($BlendColor), 6)
+	EndIf
+    $tAccentPolicy.AnimationId = $AnimationId
+    $tAttrData.Attribute = $WCA_ACCENT_POLICY
+    $tAttrData.DataBuffer = DllStructGetPtr($tAccentPolicy)
+    $tAttrData.Size = DllStructGetSize($tAccentPolicy)
 
-	Local $aResult = DllCall("user32.dll", "bool", "SetWindowCompositionAttribute", "hwnd", $hWnd, "ptr", DllStructGetPtr($tAttrData))
+    Local $aResult = DllCall($hUser32, "bool", "SetWindowCompositionAttribute", "hwnd", $hWnd, "ptr", DllStructGetPtr($tAttrData))
 	If @error Then Return SetError(@error, @extended, 0)
 
-	Return $aResult[0]
-EndFunc
+    If $AccentState And $IncludeCaption Then _WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
+	If Not $AccentState And $IncludeCaption Then
+		Local $sClassName = _WinAPI_GetClassName_mod($hWnd)
+		If $sClassName <> "CabinetWClass" Then _WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(0, 0, 0, 0))
+		If $sClassName = "CabinetWClass" Then _WinAPI_DwmExtendFrameIntoClientArea_mod($hWnd, _WinAPI_CreateMargins(-1, -1, -1, -1))
+	EndIf
+
+    Return $aResult[0]
+EndFunc   ;==>_WinAPI_DwmEnableBlurBehindWindow11
 
 Func _WinAPI_GetWindowTextMod($hWnd)
 	Local $aCall = DllCall($hUser32, "int", "GetWindowTextW", "hwnd", $hWnd, "wstr", "", "int", 4096)
 	If @error Or Not $aCall[0] Then Return ""
 	Return $aCall[2]
-EndFunc
-
-; Function by argumentum
-Func _percentageOfHex($iVal)
-    $iVal = Int($iVal > 99 ? 100 : ($iVal < 1 ? 0 : $iVal)) ; no more than 100% or less than 0%
-    Return Hex(Ceiling(($iVal * 100) * (2.55 * 100) / (100 * 100)), 2) ; calculate in integers, as floating point numbers suck in a CPU
 EndFunc
 
 Func idGUI()
@@ -1002,7 +968,7 @@ Func ReadIniFile()
 	$iGlobalExtendFrameIntoClient = _ToBoolean(IniRead($IniFile, "GlobalRules", "GlobalExtendFrameIntoClient", "False"))
 	$iGlobalEnableBlurBehind = _ToBoolean(IniRead($IniFile, "GlobalRules", "GlobalEnableBlurBehind", "False"))
 	$dGlobalBlurTintColor = IniRead($IniFile, "GlobalRules", "GlobalBlurTintColor", "")
-	$iGlobalTintColorIntensity = Int(IniRead($IniFile, "GlobalRules", "GlobalTintColorIntensity", ""))
+	$iGlobalBlurOpacity = Int(IniRead($IniFile, "GlobalRules", "GlobalTintColorIntensity", ""))
 
 	$bClearChangesOnExit = _ToBoolean(IniRead($IniFile, "Settings", "ClearChangesOnExit", "True"))
 	$bRequireWindows11 = _ToBoolean(IniRead($IniFile, "Settings", "RequireWindows11", "True"))
@@ -1165,12 +1131,6 @@ Func ReadIniFile()
 
 	$sAccentColor = '0x' & $sPart1 & $sPart2 & $sPart3
 
-	; blur behind color tinting and intensity
-	Local $iTintColor = $dGlobalBlurTintColor
-	Local $iIntensity = _percentageOfHex($iGlobalTintColorIntensity)
-	Local $iTintColorSwitch = Hex(_WinAPI_SwitchColor_mod($iTintColor), 6)
-	$iGlobalBlurTintColor = '0x' & $iIntensity & $iTintColorSwitch
-
 	; check registry settings as well, will get checked on settings refresh also
 	ReadFromRegistry()
 EndFunc
@@ -1222,6 +1182,14 @@ Func _WinAPI_IsElevated_pid($iPID = 0) ; https://www.autoitscript.com/forum/topi
 	If $iError Then Return SetError($iError, 0, False)
 	Return SetExtended($aRet[0] - 1, $iElev)
 EndFunc   ;==>_WinAPI_IsElevated_pid
+
+Func _WinAPI_CreateEllipticRgn_mod($tRECT)
+	Local $aCall = DllCall($hGdi, 'handle', 'CreateEllipticRgnIndirect', 'struct*', $tRECT)
+	If @error Then Return SetError(@error, @extended, False)
+	; If Not $aCall[0] Then Return SetError(1000, 0, 0)
+
+	Return $aCall[0]
+EndFunc   ;==>_WinAPI_CreateEllipticRgn_mod
 
 Func _WinAPI_SwitchColor_mod($iColor)
 	If $iColor = $DWMWA_COLOR_NONE Then Return 0xFFFFFFFE
