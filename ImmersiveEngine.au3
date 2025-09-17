@@ -4,9 +4,9 @@
 #AutoIt3Wrapper_Outfile_x64=ImmersiveEngine.exe
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.3.1
+#AutoIt3Wrapper_Res_Fileversion=1.3.2
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.3.1
+#AutoIt3Wrapper_Res_ProductVersion=1.3.2
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=Y
@@ -186,11 +186,6 @@ Func DoCleanUp()
         $sMsg &= '"' & _FormatAutoItExitCode() & '"'
         MsgBox(0, "Immersive UX", $sMsg)
     EndIf
-	DllClose($hDwmapi)
-	DllClose($hUser32)
-	DllClose($hKernel32)
-	DllClose($hPsapi)
-	DllClose($hGdi)
 EndFunc
 
 Func _Free()

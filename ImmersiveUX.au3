@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX
-#AutoIt3Wrapper_Res_Fileversion=1.3.1
+#AutoIt3Wrapper_Res_Fileversion=1.3.2
 #AutoIt3Wrapper_Res_ProductName=Immersive UX
-#AutoIt3Wrapper_Res_ProductVersion=1.3.1
+#AutoIt3Wrapper_Res_ProductVersion=1.3.2
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -15,7 +15,7 @@
 #AutoIt3Wrapper_Run_Au3Stripper=y
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
-Global $iVersion = '1.3.1'
+Global $iVersion = '1.3.2'
 
 #include <MsgBoxConstants.au3>
 #include <WinAPIFiles.au3>
@@ -212,6 +212,7 @@ Func _StartGUI()
     _WinAPI_SetWindowTheme($hToolTip2, "", "")
     _GUIToolTip_SetTipBkColor($hToolTip2, 0x202020)
     _GUIToolTip_SetTipTextColor($hToolTip2, 0xe0e0e0)
+    _GUIToolTip_SetMargin($hToolTip2, 4, 2, 4, 2)
 
     ;$idPart2 = GUICtrlCreateLabel("Special Handling  ▼", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6, 164 * $iDPI1, -1)
     $idPart2 = GUICtrlCreateLabel(" Special Handling  ▼ ", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6, -1, -1, $SS_CENTER)
@@ -309,7 +310,7 @@ Func _StartGUI()
     GUICtrlSetFont(-1, 9, 200, -1, "Segoe MDL2 Assets")
     GUICtrlSetColor(-1, 0xffffff)
 
-    _GUIToolTip_AddTool($hToolTip2, 0, " Add Custom Rule ", GUICtrlGetHandle($AddRuleButton))
+    _GUIToolTip_AddTool($hToolTip2, $hGUI, "Add Custom Rule", GUICtrlGetHandle($AddRuleButton))
 
     $aPos = ControlGetPos($hGUI, "", $AddRuleButton)
 
@@ -325,7 +326,7 @@ Func _StartGUI()
     GUICtrlSetColor(-1, 0xffffff)
     GUICtrlSetState($SaveButton, $GUI_DISABLE)
 
-    _GUIToolTip_AddTool($hToolTip2, 0, " Save Changes ", GUICtrlGetHandle($SaveButton))
+    _GUIToolTip_AddTool($hToolTip2, $hGUI, "Save Changes", GUICtrlGetHandle($SaveButton))
 
     $aPos = ControlGetPos($hGUI, "", $SaveButton)
 
@@ -339,7 +340,7 @@ Func _StartGUI()
     GUICtrlSetColor(-1, 0xffffff)
     GUICtrlSetState($DeleteButton, $GUI_DISABLE)
 
-    _GUIToolTip_AddTool($hToolTip2, 0, " Delete Custom Rule ", GUICtrlGetHandle($DeleteButton))
+    _GUIToolTip_AddTool($hToolTip2, $hGUI, "Delete Custom Rule", GUICtrlGetHandle($DeleteButton))
 
     $aPos = ControlGetPos($hGUI, "", $DeleteButton)
 
@@ -352,7 +353,7 @@ Func _StartGUI()
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe Fluent Icons")
     GUICtrlSetColor(-1, 0xffffff)
 
-    _GUIToolTip_AddTool($hToolTip2, 0, " Reload & Refresh Rules ", GUICtrlGetHandle($ReloadButton))
+    _GUIToolTip_AddTool($hToolTip2, $hGUI, "Reload & Refresh Rules", GUICtrlGetHandle($ReloadButton))
 
     $TargetLabel = GUICtrlCreateLabel("Target:", 20, $RuleListComboPosV + 20, -1, -1)
     GUICtrlSetColor(-1, 0xffffff)
@@ -587,7 +588,7 @@ Func _StartGUI()
     GUICtrlSetOnEvent(-1, "ColorPicker")
     ;GUICtrlSetBkColor($colorlabelfill, 0xFF0000)
 
-    _GUIToolTip_AddTool($hToolTip2, 0, " Change Color ", GUICtrlGetHandle($colorlabelfill))
+    _GUIToolTip_AddTool($hToolTip2, $hGUI, "Change Color", GUICtrlGetHandle($colorlabelfill))
 
     $aPos = ControlGetPos($hGUI, "", $colorlabelfill)
 
@@ -600,7 +601,7 @@ Func _StartGUI()
     GUICtrlSetOnEvent(-1, "hBtnNoBorder")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe Fluent Icons")
 
-    _GUIToolTip_AddTool($hToolTip2, 0, " No Border ", GUICtrlGetHandle($hBtnNoBorder))
+    _GUIToolTip_AddTool($hToolTip2, $hGUI, "No Border", GUICtrlGetHandle($hBtnNoBorder))
 
     $TitlebarColorLabel = GUICtrlCreateLabel("Titlebar Color:", $idInputDarkTitlePosH + $FontHeight + 40, $BorderColorInputPosV + 20, -1, -1)
     GUICtrlSetColor(-1, 0xffffff)
@@ -625,7 +626,7 @@ Func _StartGUI()
     $TitlebarColorLabel = GuiFlatButton_Create(" ", $TitlebarColorInputPosH + 14, $TitlebarColorInputPosV2, $FontHeight, $FontHeight)
     GuiFlatButton_SetBkColor(-1, 0x000000)
     ;GuiFlatButton_SetColorsEx(-1, $aColorsEx2)
-    _GUIToolTip_AddTool($hToolTip2, 0, " Change Color ", GUICtrlGetHandle($TitlebarColorLabel))
+    _GUIToolTip_AddTool($hToolTip2, $hGUI, "Change Color", GUICtrlGetHandle($TitlebarColorLabel))
     GUICtrlSetOnEvent(-1, "ColorPickerTitlebar")
 
     $TitlebarTextColorLabel = GUICtrlCreateLabel("Titlebar Text Color:", $idInputDarkTitlePosH + $FontHeight + 40, $TitlebarColorInputPosV + 20, -1, -1)
@@ -649,7 +650,7 @@ Func _StartGUI()
     $TitlebarTextColorLabel = GuiFlatButton_Create(" ", $TitlebarColorInputPosH + 14, $TitlebarTextColorInputPosV2, $FontHeight, $FontHeight)
     GuiFlatButton_SetBkColor(-1, 0x000000)
     ;GuiFlatButton_SetColorsEx(-1, $aColorsEx2)
-    _GUIToolTip_AddTool($hToolTip2, 0, " Change Color ", GUICtrlGetHandle($TitlebarTextColorLabel))
+    _GUIToolTip_AddTool($hToolTip2, $hGUI, "Change Color", GUICtrlGetHandle($TitlebarTextColorLabel))
     GUICtrlSetOnEvent(-1, "ColorPickerTitlebarText")
 
     $ExtendFrameLabel = GUICtrlCreateLabel("Extend Frame To Client:", $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $TitlebarColorLabelPosV2, -1, -1)
@@ -676,12 +677,12 @@ Func _StartGUI()
     ;$InfoButton = GUICtrlCreateLabel(ChrW(0xE946), $ExtendFrameLabelPosH2 + $AdvancedWidth, $BorderColorLabelPosV2 + 2, -1, -1, $SS_CENTER)
     ;GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
     Local $ToolMsg
-    $ToolMsg = " Special Considerations:" & @CRLF & @CRLF
-    $ToolMsg &= " These options require an app to have a black background. This ensures " & @CRLF
-    $ToolMsg &= " that the background has an alpha value of 0 for best results. " & @CRLF & @CRLF
-    $ToolMsg &= " You can use the Rectify11 Black Mica theme to force a black background " & @CRLF
-    $ToolMsg &= " on most Win32 apps. "
-    _GUIToolTip_AddTool($hToolTip2, 0, $ToolMsg, GUICtrlGetHandle($InfoButton))
+    $ToolMsg = "Special Considerations:" & @CRLF & @CRLF
+    $ToolMsg &= "These options require an app to have a black background. This ensures" & @CRLF
+    $ToolMsg &= "that the background has an alpha value of 0 for best results." & @CRLF & @CRLF
+    $ToolMsg &= "You can use the Rectify11 Black Mica theme to force a black background" & @CRLF
+    $ToolMsg &= "on most Win32 apps."
+    _GUIToolTip_AddTool($hToolTip2, $hGUI, $ToolMsg, GUICtrlGetHandle($InfoButton))
     GUICtrlSetColor(-1, 0xffffff)
     GUISetFont($FontSize, $FW_NORMAL, -1, $MainFont)
 
@@ -776,7 +777,7 @@ Func _StartGUI()
     $BlurTintColorPickLabel = GuiFlatButton_Create(" ", $BlurTintColorInputPosH + 14, $BlurTintColorInputPosV2, $FontHeight, $FontHeight)
     GuiFlatButton_SetBkColor(-1, 0x000000)
     ;GuiFlatButton_SetColorsEx(-1, $aColorsEx2)
-    _GUIToolTip_AddTool($hToolTip2, 0, " Change Color ", GUICtrlGetHandle($BlurTintColorPickLabel))
+    _GUIToolTip_AddTool($hToolTip2, $hGUI, "Change Color", GUICtrlGetHandle($BlurTintColorPickLabel))
     GUICtrlSetOnEvent(-1, "ColorPickerBlurTintColor")
 
     $BlurColorIntensityLabel = GUICtrlCreateLabel("Blur Color Intensity:", $idInputExtendFramePosH + $FontHeight + 40, $BlurTintColorInputPosV + 20, -1, -1)
@@ -792,8 +793,6 @@ Func _StartGUI()
     GUICtrlSetBkColor($BlurColorIntensitySlider, 0x00000000)
     GUICtrlSetLimit(-1, 100, 0)
     GUICtrlSetData($BlurColorIntensitySlider, 50)
-
-    ;_GUIToolTip_AddTool($hToolTip2, 0, GUICtrlRead($BlurColorIntensitySlider), GUICtrlGetHandle($BlurColorIntensitySlider))
 
     $aPos = ControlGetPos($hGUI, "", $BlurColorIntensitySlider)
 
