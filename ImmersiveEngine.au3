@@ -4,9 +4,9 @@
 #AutoIt3Wrapper_Outfile_x64=ImmersiveEngine.exe
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.3.2
+#AutoIt3Wrapper_Res_Fileversion=1.4.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.3.2
+#AutoIt3Wrapper_Res_ProductVersion=1.4.0
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=Y
@@ -36,7 +36,7 @@ If @Compiled = 0 Then
 	DllCall("User32.dll", "bool", "SetProcessDpiAwarenessContext" , "HWND", "DPI_AWARENESS_CONTEXT" -4)
 EndIf
 
-Global $iPID, $sINFO, $oService
+Global $iPID, $sINFO, $oService, $fSpeed = 4
 Global $IniFile = @ScriptDir & "\ImmersiveUX.ini"
 Global $bDarkModeEnabled, $bClearChangesOnExit, $bRequireWindows11, $iBorderColorOptions
 Global $aExcludeProcessNames, $aExcludeFromAllClass, $aExclusionsCombined
@@ -45,6 +45,7 @@ Global $bGlobalDarkTitleBar, $dGlobalBorderColor, $dGlobalTitleBarColor, $dGloba
 Global $iGlobalBlurTintColor, $dGlobalBlurTintColor, $iGlobalBlurOpacity
 Global $dTerminalBorderColor, $dTerminalBackdrop, $bWindowsTerminalHandling, $dVSStudioBorderColor, $bWindowsTerminalBlur
 Global $dVSCodiumBackdrop, $dVSCodeBackdrop
+Global $hActiveWnd
 Global $bEnable = False
 Global $bBoot = True
 Global $aCustomRules[0][14]
@@ -67,15 +68,16 @@ Global $hUser32 = DllOpen('user32.dll')
 Global $hKernel32 = DllOpen('kernel32.dll')
 Global $hPsapi = DllOpen('psapi.dll')
 Global $hGdi = DllOpen('gdi32.dll')
+Global $hUxtheme = DllOpen('uxtheme.dll')
 
 ;Global $aExcludeWinTitles[17] = ["", "Program Manager", "PopupHost", "CoreInput", "Search", "Start", "DesktopWindowXamlSource", _
 ;	"Chrome Legacy Window", "Quick settings", "System tray overflow window.", "Drag", "Default IME", "OLEChannelWnd", _
 ;	"OleMainThreadWndName", "MSCTFIME UI", "CicMarshalWnd", "XCP"]
 
-Global $aExcludeClassNames[15] = ["Progman", "Xaml_WindowedPopupClass", "Windows.UI.Core.CoreComponentInputSource", _
+Global $aExcludeClassNames[16] = ["Progman", "Xaml_WindowedPopupClass", "Windows.UI.Core.CoreComponentInputSource", _
 	"Windows.UI.Core.CoreWindow", "Windows.UI.Composition.DesktopWindowContentBridge", "Chrome_RenderWidgetHostHWND", _
 	"ControlCenterWindow", "TopLevelWindowForOverflowXamlIsland", "SysDragImage", "IME", "OleMainThreadWndClass", "MSCTFIME UI", _
-	"CicMarshalWndClass", "XCPTimerClass", "msctls_statusbar32"]
+	"CicMarshalWndClass", "XCPTimerClass", "msctls_statusbar32", "Microsoft.UI.Content.PopupWindowSiteBridge"]
 
 ReadIniFile()
 
@@ -142,13 +144,13 @@ EndIf
 
 If IsAdmin() Then $bElevated = True
 
-;Global $aSectionTS[3][2] = [[2, ""], ["StartedByTask", $g_iIsTaskSchedRun], ["PID", @AutoItPID]]
 Global $aSectionTS[4][2] = [[3, ""], ["StartedByTask", $g_iIsTaskSchedRun], ["PID", @AutoItPID], ["Elevated", $bElevated]]
 IniWriteSection($IniFile, "StartupInfoOnly", $aSectionTS)
 
 Opt("SetExitCode", 1)
 
 OnAutoItExitRegister(DoCleanUp)
+AutoItWinSetTitle("Immersive UX Engine")
 
 Global $hHookFunc = DllCallbackRegister('_WinEventProc', 'none', 'ptr;uint;hwnd;int;int;uint;uint')
 Global $hWinHook = _WinAPI_SetWinEventHook_mod($EVENT_SYSTEM_FOREGROUND, $EVENT_OBJECT_NAMECHANGE, DllCallbackGetPtr($hHookFunc))
@@ -170,6 +172,15 @@ If @Compiled Then ProcessSetPriority($sEngName & ".exe", 4)
 
 ; start GUI/tray process
 idGUI()
+
+; start ImmersiveLED border effects if configured
+If $iBorderColorOptions = 2 Then
+	If @Compiled Then
+		ShellExecute(@ScriptDir & "\ImmersiveLED.exe", "", @ScriptDir, $SHEX_OPEN)
+	ElseIf Not @Compiled Then
+		ShellExecute(@ScriptDir & "\ImmersiveLED.au3", "")
+	EndIf
+EndIf
 
 While 1
     Sleep(10000)
@@ -354,8 +365,8 @@ EndFunc
 
 Func MainColoringContinue($hWnd, $sClassName, $sName)
 	Local $i
-	Local $iIntensity, $iTintColor, $iTintColorSwitch, $iTintColorBlur
 	Local $bMatchesFound = False
+	Local $bIsDarkTitle = _WinAPI_ShouldAppsUseDarkMode()
 
 	; determine if process rule or class rule matches for custom rules
 	For $i = 0 To UBound($aCustomRules) - 1
@@ -363,7 +374,7 @@ Func MainColoringContinue($hWnd, $sClassName, $sName)
 		If $sName = $aCustomRules[$i][1] Or $sClassName = $aCustomRules[$i][1] Then
 			; skip custom rules that are not Enabled
 			If Not $aCustomRules[$i][12] Then
-				If $bGlobalDarkTitleBar Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
+				If $bGlobalDarkTitleBar And $bIsDarkTitle Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
 				;If $iBorderColorOptions <> 0 Then
 				;	If $dGlobalBorderColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dGlobalBorderColor))
 				;EndIf
@@ -380,11 +391,11 @@ Func MainColoringContinue($hWnd, $sClassName, $sName)
 				Return
 			EndIf
 			; dark mode titlebar, fallback to global if not set
-			If $aCustomRules[$i][2] = "True" Then
+			If $aCustomRules[$i][2] = "True" And $bIsDarkTitle Then
 				_WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
 			EndIf
 			If $aCustomRules[$i][2] = "" Then
-				If $bGlobalDarkTitleBar Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
+				If $bGlobalDarkTitleBar And $bIsDarkTitle Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
 			EndIf
 			#cs ; don't need border coloring here anymore since dealt with in foreground event
 			; border color, fallback to global if not set
@@ -443,7 +454,7 @@ Func MainColoringContinue($hWnd, $sClassName, $sName)
 
 	; fallback to global when no custom rules match
 	If Not $bMatchesFound Then
-		If $bGlobalDarkTitleBar Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
+		If $bGlobalDarkTitleBar And $bIsDarkTitle Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
 		If $dGlobalTitleBarColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 35, _WinAPI_SwitchColor_mod($dGlobalTitleBarColor))
 		If $dGlobalTitleBarTextColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, _WinAPI_SwitchColor_mod($dGlobalTitleBarTextColor))
 		If $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, Int($iGlobalTitleBarBackdrop))
@@ -461,12 +472,14 @@ Func _ColorBorderOnly($hWnd, $sClassName, $sName)
 			$bMatchesFound = True
 			; skip custom rules that are not Enabled
 			If Not $aCustomRules[$i][12] Then
-				If $iBorderColorOptions <> 0 Then
+				If $iBorderColorOptions = 1 Then
 					If $dGlobalBorderColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dGlobalBorderColor))
 				EndIf
 			EndIf
-			If $aCustomRules[$i][3] Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($aCustomRules[$i][3]))
-			If Not $aCustomRules[$i][3] And $dGlobalBorderColor Then
+			If $aCustomRules[$i][3] And Not $iBorderColorOptions = 2 Then
+				_WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($aCustomRules[$i][3]))
+			EndIf
+			If Not $aCustomRules[$i][3] And $dGlobalBorderColor And Not $iBorderColorOptions = 2 Then
 				_WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dGlobalBorderColor))
 			EndIf
 			If Not $aCustomRules[$i][3] And Not $dGlobalBorderColor Then
@@ -895,10 +908,10 @@ Func idGUI()
 			ShellExecute(@ScriptDir & "\" & $sProdName & ".exe", "hidegui", @ScriptDir, $SHEX_OPEN)
 			; since gui was hidden, bring original active window to foreground
 			$hProcess = WinWait("Immersive UX", "", 10)
-			$iPID = _WinAPI_GetProcessID($hProcess)
-			$iParentPID = _WinAPI_GetParentProcess($iPID)
+			$iPID = _WinAPI_GetProcessID_mod($hProcess)
+			$iParentPID = _WinAPI_GetParentProcess_mod($iPID)
 			$hParentProc = _GetHwndFromPID($iParentPID)
-			$sParentProcName = _WinAPI_GetProcessName($iParentPID)
+			$sParentProcName = _WinAPI_GetProcessName_mod($iParentPID)
 			If $sParentProcName = "explorer.exe" Then
 				WinActivate("[CLASS:CabinetWClass]")
 			Else
@@ -920,10 +933,10 @@ Func idGUI()
 		If Not $bAu3Running Then ShellExecute(@ScriptDir & "\" & $sProdName & ".au3", "hidegui")
 		; since gui was hidden, bring original active window to foreground
 		$hProcess = WinWait("Immersive UX", "", 10)
-		$iPID = _WinAPI_GetProcessID($hProcess)
-		$iParentPID = _WinAPI_GetParentProcess($iPID)
+		$iPID = _WinAPI_GetProcessID_mod($hProcess)
+		$iParentPID = _WinAPI_GetParentProcess_mod($iPID)
 		$hParentProc = _GetHwndFromPID($iParentPID)
-		$sParentProcName = _WinAPI_GetProcessName($iParentPID)
+		$sParentProcName = _WinAPI_GetProcessName_mod($iParentPID)
 		If $sParentProcName = "explorer.exe" Then
 			WinActivate("[CLASS:CabinetWClass]")
 		Else
@@ -1146,7 +1159,7 @@ Func _WinAPI_IsElevated_pid($iPID = 0) ; https://www.autoitscript.com/forum/topi
 	_WinAPI_AdjustTokenPrivileges($hToken1, $SE_DEBUG_NAME, $SE_PRIVILEGE_ENABLED, $aAdjust)
 	_WinAPI_CloseHandle($hToken1)
 	If $iPID <> 0 Then
-		$hProcess = DllCall('kernel32.dll', 'handle', 'OpenProcess', 'dword', $dwDesiredAccess, 'bool', 0, 'dword', $iPID)
+		$hProcess = DllCall($hKernel32, 'handle', 'OpenProcess', 'dword', $dwDesiredAccess, 'bool', 0, 'dword', $iPID)
 		If @error Or Not $hProcess[0] Then Return SetError(@error + 10, @extended, 0)
 		$hToken2 = _WinAPI_OpenProcessToken(0x0008, $hProcess[0])
 	Else
@@ -1278,6 +1291,76 @@ Func _WinAPI_IsWindowVisible_mod($hWnd)
 
 	Return $aCall[0]
 EndFunc   ;==>_WinAPI_IsWindowVisible_mod
+
+Func _WinAPI_GetParentProcess_mod($iPID = 0)
+	If Not $iPID Then $iPID = @AutoItPID
+
+	Local $hSnapshot = DllCall($hKernel32, 'handle', 'CreateToolhelp32Snapshot', 'dword', $TH32CS_SNAPPROCESS, 'dword', 0)
+	If @error Or Not $hSnapshot[0] Then Return SetError(@error + 10, @extended, 0)
+
+	Local $tPROCESSENTRY32 = DllStructCreate($tagPROCESSENTRY32)
+	Local $iResult = 0
+
+	$hSnapshot = $hSnapshot[0]
+	DllStructSetData($tPROCESSENTRY32, 'Size', DllStructGetSize($tPROCESSENTRY32))
+	Local $aCall = DllCall($hKernel32, 'bool', 'Process32FirstW', 'handle', $hSnapshot, 'struct*', $tPROCESSENTRY32)
+	Local $iError = @error
+	While (Not @error) And ($aCall[0])
+		If DllStructGetData($tPROCESSENTRY32, 'ProcessID') = $iPID Then
+			$iResult = DllStructGetData($tPROCESSENTRY32, 'ParentProcessID')
+			ExitLoop
+		EndIf
+		$aCall = DllCall($hKernel32, 'bool', 'Process32NextW', 'handle', $hSnapshot, 'struct*', $tPROCESSENTRY32)
+		$iError = @error
+	WEnd
+	DllCall($hKernel32, "bool", "CloseHandle", "handle", $hSnapshot)
+	If Not $iResult Then Return SetError($iError, 0, 0)
+
+	Return $iResult
+EndFunc   ;==>_WinAPI_GetParentProcess_mod
+
+Func _WinAPI_GetProcessName_mod($iPID = 0)
+	If Not $iPID Then $iPID = @AutoItPID
+
+	Local $hSnapshot = DllCall($hKernel32, 'handle', 'CreateToolhelp32Snapshot', 'dword', $TH32CS_SNAPPROCESS, 'dword', 0)
+	If @error Then Return SetError(@error + 10, @extended, '')
+	If $hSnapshot[0] = Ptr(-1) Then Return SetError(20, _WinAPI_GetLastError(), '') ; $INVALID_HANDLE_VALUE
+
+	$hSnapshot = $hSnapshot[0]
+	Local $tPROCESSENTRY32 = DllStructCreate($tagPROCESSENTRY32)
+	DllStructSetData($tPROCESSENTRY32, 'Size', DllStructGetSize($tPROCESSENTRY32))
+	Local $aCall = DllCall($hKernel32, 'bool', 'Process32FirstW', 'handle', $hSnapshot, 'struct*', $tPROCESSENTRY32)
+	Local $iError = @error
+	While (Not @error) And ($aCall[0])
+		If DllStructGetData($tPROCESSENTRY32, 'ProcessID') = $iPID Then
+			ExitLoop
+		EndIf
+		$aCall = DllCall($hKernel32, 'bool', 'Process32NextW', 'handle', $hSnapshot, 'struct*', $tPROCESSENTRY32)
+		$iError = @error
+	WEnd
+	Local $iLastError = _WinAPI_GetLastError()
+
+	DllCall($hKernel32, "bool", "CloseHandle", "handle", $hSnapshot)
+	If $iError Then Return SetError($iError + 30, $iLastError, '')
+	If $iLastError = 18 Then Return SetError(1, $iLastError, '') ; $ERROR_NO_MORE_FILES = no process found
+
+	Return DllStructGetData($tPROCESSENTRY32, 'ExeFile')
+EndFunc   ;==>_WinAPI_GetProcessName_mod
+
+Func _WinAPI_GetProcessID_mod($hProcess)
+	Local $aCall = DllCall($hKernel32, 'dword', 'GetProcessId', 'handle', $hProcess)
+	If @error Then Return SetError(@error, @extended, 0)
+	; If Not $aCall[0] Then Return SetError(1000, 0, 0)
+
+	Return $aCall[0]
+EndFunc   ;==>_WinAPI_GetProcessID_mod
+
+Func _WinAPI_ShouldAppsUseDarkMode()
+	Local $fnShouldAppsUseDarkMode = 132
+	Local $aResult = DllCall($hUxtheme, 'bool', $fnShouldAppsUseDarkMode)
+	If @error Then Return SetError(@error, @extended, False)
+	Return $aResult[0]
+EndFunc   ;==>_WinAPI_ShouldAppsUseDarkMode
 
 #cs
 Func WinListtest()

@@ -4,10 +4,10 @@
 #AutoIt3Wrapper_Outfile_x64=ImmersiveUX.exe
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
-#AutoIt3Wrapper_Res_Description=Immersive UX
-#AutoIt3Wrapper_Res_Fileversion=1.3.2
-#AutoIt3Wrapper_Res_ProductName=Immersive UX
-#AutoIt3Wrapper_Res_ProductVersion=1.3.2
+#AutoIt3Wrapper_Res_Description=Immersive UX GUI
+#AutoIt3Wrapper_Res_Fileversion=1.4.0
+#AutoIt3Wrapper_Res_ProductName=Immersive UX GUI
+#AutoIt3Wrapper_Res_ProductVersion=1.4.0
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -15,7 +15,7 @@
 #AutoIt3Wrapper_Run_Au3Stripper=y
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
-Global $iVersion = '1.3.2'
+Global $iVersion = '1.4.0'
 
 #include <MsgBoxConstants.au3>
 #include <WinAPIFiles.au3>
@@ -68,7 +68,7 @@ Opt("TrayOnEventMode", 1)
 Global $hGUI, $hSpecialMenu, $hTaskMenu, $FontHeight
 Global $bGlobalDarkTitleBar, $dGlobalBorderColor, $dGlobalTitleBarColor, $dGlobalTitleBarTextColor, $iGlobalTitleBarBackdrop
 Global $iGlobalCornerPreference, $iGlobalExtendFrameIntoClient, $iGlobalEnableBlurBehind, $dGlobalBlurTintColor, $iGlobalTintColorIntensity
-Global $BorderColorInput, $colorlabelfill, $TitlebarColorInput, $TitlebarColorLabel
+Global $BorderColorInput, $colorlabelfill, $TitlebarColorInput, $TitlebarColorLabel, $iBorderColorOptions
 Global $TitlebarTextColorInput, $TitlebarTextColorLabel, $BlurTintColorInput, $BlurTintColorPickLabel
 Global $idInput, $RuleListCombo, $idInputRuleType, $RuleTypeCombo, $idInputDarkTitle, $idStatusInput
 Global $DarkTitleCombo, $idInputTitleBarBackdrop, $TitleBarBackdropCombo
@@ -178,6 +178,9 @@ Func _StartGUI()
     $hSpecialMenu = _GUICtrlMenu_CreatePopup()
     _GUICtrlMenu_InsertMenuItem($hSpecialMenu, 0, "VSCode", 0, $hSubItems1)
     _GUICtrlMenu_InsertMenuItem($hSpecialMenu, 2, "Terminal", 0, $hSubItems2)
+    _GUICtrlMenu_InsertMenuItem($hSpecialMenu, 3, "LED Strobe Border", 5)
+    If $iBorderColorOptions = 2 Then _GUICtrlMenu_CheckMenuItem($hSpecialMenu, 2)
+    If $iBorderColorOptions <> 2 Then _GUICtrlMenu_CheckMenuItem($hSpecialMenu, 2, 0)
 
     $hTaskMenu = _GUICtrlMenu_CreatePopup()
     _GUICtrlMenu_InsertMenuItem($hTaskMenu, 0, "Install Task (Admin)", 1)
@@ -215,7 +218,7 @@ Func _StartGUI()
     _GUIToolTip_SetMargin($hToolTip2, 4, 2, 4, 2)
 
     ;$idPart2 = GUICtrlCreateLabel("Special Handling  ▼", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6, 164 * $iDPI1, -1)
-    $idPart2 = GUICtrlCreateLabel(" Special Handling  ▼ ", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6, -1, -1, $SS_CENTER)
+    $idPart2 = GUICtrlCreateLabel(" Other Settings  ▼ ", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6, -1, -1, $SS_CENTER)
     GUICtrlSetOnEvent(-1, "idSpecialHandlingTest")
     GUICtrlSetBkColor(-1, 0x000000)
     GUICtrlSetColor(-1, 0xffffff)
@@ -1035,6 +1038,18 @@ Func idSpecialHandlingTest()
             $sMsg &= "Changes should be reflected immediately in any running instances" & @CRLF
             $sMsg &= "of Windows Terminal." & @CRLF
             _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+        Case 5
+            $iBorderColorOptions = Int(IniRead($sIniPath, "Configuration", "BorderColorOptions", "0"))
+            If $iBorderColorOptions = 2 Then
+                IniWrite($sIniPath, "Configuration", "BorderColorOptions", "0")
+                _GUICtrlMenu_CheckMenuItem($hSpecialMenu, 2, 0)
+                _RestartTask()
+            EndIf
+            If $iBorderColorOptions <> 2 Then
+                IniWrite($sIniPath, "Configuration", "BorderColorOptions", "2")
+                _GUICtrlMenu_CheckMenuItem($hSpecialMenu, 2)
+                _RestartTask()
+            EndIf
 	EndSwitch
 EndFunc
 
@@ -1697,6 +1712,9 @@ Func _GetIniDetails()
         $dGlobalBlurTintColor = IniRead($sIniPath, "GlobalRules", "GlobalBlurTintColor", "")
         $iGlobalTintColorIntensity = IniRead($sIniPath, "GlobalRules", "GlobalTintColorIntensity", "")
 
+        ; settings
+        $iBorderColorOptions = Int(IniRead($sIniPath, "Configuration", "BorderColorOptions", "0"))
+
         ; temporary fix for mistakenly allowing Global on dropdown, remove later
         If $bGlobalDarkTitleBar = "Global" Then
             $bGlobalDarkTitleBar = "True"
@@ -2097,6 +2115,9 @@ Func _IsTaskRunning()
 EndFunc
 
 Func _RestartTask()
+    ; close Immersive LED
+    WinClose("Immersive UX LED")
+
     $IsRunFromTS = _ToBoolean(IniRead($sIniPath, "StartupInfoOnly", "StartedByTask", "False"))
     If Not $IsRunFromTS Then
         If @Compiled Then
@@ -2888,6 +2909,9 @@ Func _Exit()
     ElseIf $IsRunFromTS Then
         _TaskSched_End()
     EndIf
+
+    ; close Immersive LED
+    WinClose("Immersive UX LED")
 
     Exit
 EndFunc
