@@ -2,11 +2,12 @@
 #Region ;**** Directives created by AutoIt3Wrapper_GUI ****
 #AutoIt3Wrapper_Icon=app.ico
 #AutoIt3Wrapper_Outfile_x64=ImmersiveEngine.exe
+#AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.4.0
+#AutoIt3Wrapper_Res_Fileversion=1.4.1
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.4.0
+#AutoIt3Wrapper_Res_ProductVersion=1.4.1
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=Y
@@ -45,7 +46,8 @@ Global $bGlobalDarkTitleBar, $dGlobalBorderColor, $dGlobalTitleBarColor, $dGloba
 Global $iGlobalBlurTintColor, $dGlobalBlurTintColor, $iGlobalBlurOpacity
 Global $dTerminalBorderColor, $dTerminalBackdrop, $bWindowsTerminalHandling, $dVSStudioBorderColor, $bWindowsTerminalBlur
 Global $dVSCodiumBackdrop, $dVSCodeBackdrop
-Global $hActiveWnd
+;Global $hActiveWnd
+Global Static $hLEDWndLast
 Global $bEnable = False
 Global $bBoot = True
 Global $aCustomRules[0][14]
@@ -70,17 +72,6 @@ Global $hPsapi = DllOpen('psapi.dll')
 Global $hGdi = DllOpen('gdi32.dll')
 Global $hUxtheme = DllOpen('uxtheme.dll')
 
-;Global $aExcludeWinTitles[17] = ["", "Program Manager", "PopupHost", "CoreInput", "Search", "Start", "DesktopWindowXamlSource", _
-;	"Chrome Legacy Window", "Quick settings", "System tray overflow window.", "Drag", "Default IME", "OLEChannelWnd", _
-;	"OleMainThreadWndName", "MSCTFIME UI", "CicMarshalWnd", "XCP"]
-
-Global $aExcludeClassNames[16] = ["Progman", "Xaml_WindowedPopupClass", "Windows.UI.Core.CoreComponentInputSource", _
-	"Windows.UI.Core.CoreWindow", "Windows.UI.Composition.DesktopWindowContentBridge", "Chrome_RenderWidgetHostHWND", _
-	"ControlCenterWindow", "TopLevelWindowForOverflowXamlIsland", "SysDragImage", "IME", "OleMainThreadWndClass", "MSCTFIME UI", _
-	"CicMarshalWndClass", "XCPTimerClass", "msctls_statusbar32", "Microsoft.UI.Content.PopupWindowSiteBridge"]
-
-ReadIniFile()
-
 ; requires Windows 11 build 22621+
 $OSBuild = @OSBuild
 If $bRequireWindows11 = True Then
@@ -97,28 +88,17 @@ If Not _WinAPI_DwmIsCompositionEnabled_mod() Then
         Exit
 EndIf
 
-#cs
-If StringInStr($CmdLineRaw, "addtask") Then
-	_TaskSched_Add()
+If StringInStr($CmdLineRaw, "bordereffects") Then
+	_BorderEffectsProcess()
 	Exit
 EndIf
 
-If StringInStr($CmdLineRaw, "removetask") Then
-	_TaskSched_Remove()
-	Exit
-EndIf
+Global $aExcludeClassNames[16] = ["Progman", "Xaml_WindowedPopupClass", "Windows.UI.Core.CoreComponentInputSource", _
+	"Windows.UI.Core.CoreWindow", "Windows.UI.Composition.DesktopWindowContentBridge", "Chrome_RenderWidgetHostHWND", _
+	"ControlCenterWindow", "TopLevelWindowForOverflowXamlIsland", "SysDragImage", "IME", "OleMainThreadWndClass", "MSCTFIME UI", _
+	"CicMarshalWndClass", "XCPTimerClass", "msctls_statusbar32", "Microsoft.UI.Content.PopupWindowSiteBridge"]
 
-If StringInStr($CmdLineRaw, "stoptask") Then
-	SetBorderColor_removeall()
-	_TaskSched_End()
-	Exit
-EndIf
-
-If StringInStr($CmdLineRaw, "starttask") Then
-	_TaskSched_Run()
-	Exit
-EndIf
-#ce
+ReadIniFile()
 
 If StringInStr($CmdLineRaw, "removeall") Then
 	SetBorderColor_removeall()
@@ -176,9 +156,9 @@ idGUI()
 ; start ImmersiveLED border effects if configured
 If $iBorderColorOptions = 2 Then
 	If @Compiled Then
-		ShellExecute(@ScriptDir & "\ImmersiveLED.exe", "", @ScriptDir, $SHEX_OPEN)
+		ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "bordereffects", @ScriptDir, $SHEX_OPEN)
 	ElseIf Not @Compiled Then
-		ShellExecute(@ScriptDir & "\ImmersiveLED.au3", "")
+		ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "bordereffects")
 	EndIf
 EndIf
 
@@ -700,112 +680,6 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
     EndSwitch
 EndFunc
 
-#cs
-#Region TaskSched
-
-Func _TaskSched_Add()
-	_TaskSched_Install()
-EndFunc
-
-Func _TaskSched_Remove()
-	If _TaskSched_AlreadyInstalled() Then
-		If _TaskSched_Uninstall() Then
-			Return 0
-		Else
-			Return 5
-		EndIf
-	Else
-		Return 6
-	EndIf
-EndFunc   ;==>_TaskSched_Remove
-
-Func _TaskSched_AlreadyInstalled()
-	If RunWait('schtasks.exe /Query /TN ' & $sProdName, '', @SW_HIDE) <> 0 Then Return 0
-	Return 1
-EndFunc   ;==>_TaskSched_AlreadyInstalled
-
-Func _TaskSched_Install() ; UTF-16 LE BOM
-	Local $sAuthor = StringUpper(@LogonDomain) & '\' & @UserName
-	Local $sXML = ""
-	$sXML &= '<?xml version="1.0" encoding="UTF-16"?>' & @CRLF
-	$sXML &= '<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">' & @CRLF ; 1.4 = Win10
-	$sXML &= '  <RegistrationInfo>' & @CRLF
-	$sXML &= '    <Date>2099-' & @MON & '-' & @MDAY & 'T' & @HOUR & ':' & @MIN & ':' & @SEC & '</Date>' & @CRLF ; ..made this by creating manually and exported to .xml
-	$sXML &= '    <Author>' & $sAuthor & '</Author>' & @CRLF
-	$sXML &= '    <Description>Apply border color, title bar color, corner preference, title bar backdrop material and more.</Description>' & @CRLF
-	$sXML &= '    <URI>' & $sProdName & '</URI>' & @CRLF
-	$sXML &= '  </RegistrationInfo>' & @CRLF
-	$sXML &= '  <Triggers>' & @CRLF
-	$sXML &= '    <LogonTrigger>' & @CRLF
-	$sXML &= '      <Enabled>true</Enabled>' & @CRLF
-	$sXML &= '      <UserId>' & $sAuthor & '</UserId>' & @CRLF
-	$sXML &= '    </LogonTrigger>' & @CRLF
-	$sXML &= '  </Triggers>' & @CRLF
-	$sXML &= '  <Principals>' & @CRLF
-	$sXML &= '    <Principal id="Author">' & @CRLF
-	$sXML &= '      <UserId>' & $sAuthor & '</UserId>' & @CRLF
-	$sXML &= '      <LogonType>InteractiveToken</LogonType>' & @CRLF
-	$sXML &= '      <RunLevel>' & (IsAdmin() ? 'HighestAvailable' : 'LeastPrivilege') & '</RunLevel>' & @CRLF
-	$sXML &= '    </Principal>' & @CRLF
-	$sXML &= '  </Principals>' & @CRLF
-	$sXML &= '  <Settings>' & @CRLF
-	$sXML &= '    <MultipleInstancesPolicy>Parallel</MultipleInstancesPolicy>' & @CRLF ; IgnoreNew ; Parallel ;
-	$sXML &= '    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>' & @CRLF
-	$sXML &= '    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>' & @CRLF
-	$sXML &= '    <AllowHardTerminate>false</AllowHardTerminate>' & @CRLF
-	$sXML &= '    <StartWhenAvailable>false</StartWhenAvailable>' & @CRLF
-	$sXML &= '    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>' & @CRLF
-	$sXML &= '    <IdleSettings>' & @CRLF
-	$sXML &= '      <StopOnIdleEnd>false</StopOnIdleEnd>' & @CRLF
-	$sXML &= '      <RestartOnIdle>false</RestartOnIdle>' & @CRLF
-	$sXML &= '    </IdleSettings>' & @CRLF
-	$sXML &= '    <AllowStartOnDemand>true</AllowStartOnDemand>' & @CRLF
-	$sXML &= '    <Enabled>true</Enabled>' & @CRLF
-	$sXML &= '    <Hidden>false</Hidden>' & @CRLF
-	$sXML &= '    <RunOnlyIfIdle>false</RunOnlyIfIdle>' & @CRLF
-;~     $sXML &= '    <DisallowStartOnRemoteAppSession>false</DisallowStartOnRemoteAppSession>' & @CRLF
-	$sXML &= '    <UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine>' & @CRLF
-	$sXML &= '    <WakeToRun>false</WakeToRun>' & @CRLF
-	$sXML &= '    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>' & @CRLF
-	$sXML &= '    <Priority>7</Priority>' & @CRLF
-	$sXML &= '  </Settings>' & @CRLF
-	$sXML &= '  <Actions Context="Author">' & @CRLF
-	$sXML &= '    <Exec>' & @CRLF
-	$sXML &= '      <Command>"' & @ScriptDir & "\" & $sEngName & ".exe" & '"</Command>' & @CRLF
-	$sXML &= '      <Arguments>runtask</Arguments>' & @CRLF
-;~ 	$sXML &= '      <WorkingDirectory>"' & @ScriptDir & '"</WorkingDirectory>' & @CRLF
-	$sXML &= '    </Exec>' & @CRLF
-	$sXML &= '  </Actions>' & @CRLF
-	$sXML &= '</Task>'
-
-	Local $sFileXML = @TempDir & '\$~schtsk_' & @MIN & @SEC & @MSEC & '.xml'
-	Local $hFile = FileOpen($sFileXML, 34) ; $FO_UTF16_LE(32) + $FO_OVERWRITE(2) = 34
-	FileWrite($hFile, $sXML)
-	FileClose($hFile)
-	If FileRead($sFileXML) <> $sXML Then Return SetError(2, 0, 2)
-	Local $iReturn = RunWait('schtasks.exe /Create /XML "' & $sFileXML & '" /TN ' & $sProdName, '', @SW_HIDE)
-	FileDelete($sFileXML)
-	Return SetError(($iReturn ? 1 : 0), $iReturn, ($iReturn ? 1 : 0))
-EndFunc   ;==>_TaskSched_Install
-
-Func _TaskSched_Uninstall()
-	If RunWait('schtasks.exe /Delete /F /TN ' & $sProdName, '', @SW_HIDE) <> 0 Then Return SetError(1, 0, 0)
-	Return SetError(0, 0, 1)
-EndFunc   ;==>_TaskSched_Uninstall
-
-Func _TaskSched_Run()
-	Local $sRun = 'schtasks.exe /Run /HRESULT /TN ' & $sProdName
-	RunWait($sRun, '', @SW_HIDE)
-EndFunc   ;==>_TaskSched_Run
-
-Func _TaskSched_End()
-	Local $sRun = 'schtasks.exe /End /HRESULT /TN ' & $sProdName
-	RunWait($sRun, '', @SW_HIDE)
-EndFunc   ;==>_TaskSched_End
-
-#EndRegion TaskSched
-#ce
-
 Func _TaskSched_AlreadyInstalled()
 	If RunWait('schtasks.exe /Query /TN ' & $sProdName, '', @SW_HIDE) <> 0 Then Return 0
 	Return 1
@@ -924,7 +798,7 @@ Func idGUI()
 	If Not @Compiled Then
 		Local $aWinList = WinList()
 		For $i = 1 To $aWinList[0][0]
-			If StringInStr($aWinList[$i][0], "Immersive UX") Then
+			If $aWinList[$i][0] = "Immersive UX" Then
 				$bAu3Running = True
 				WinActivate($aWinList[$i][1])
 				Return
@@ -1361,6 +1235,66 @@ Func _WinAPI_ShouldAppsUseDarkMode()
 	If @error Then Return SetError(@error, @extended, False)
 	Return $aResult[0]
 EndFunc   ;==>_WinAPI_ShouldAppsUseDarkMode
+
+Func _BorderEffectsProcess()
+	AutoItWinSetTitle("Immersive UX LED")
+
+	While 1
+		Sleep(40)
+		$hLEDWnd = _WinAPI_GetForegroundWindow()
+		If $hLEDWnd <> $hLEDWndLast Then
+			_WinAPI_DwmSetWindowAttribute__($hLEDWndLast, 34, $DWMWA_COLOR_NONE)
+			$hLEDWndLast = $hLEDWnd
+		ElseIf $hLEDWnd = $hLEDWndLast Then
+			_BorderEffects($hLEDWnd)
+		EndIf
+	WEnd
+EndFunc
+
+Func _BorderEffects($hWnd)
+    Local Const $fInverseSpeed = 1/$fSpeed
+    Local Static $fHue
+
+    ;the border col will be calculated based on the time elapsed from a single timer.
+    Local Static $hTimer = TimerInit()
+    Local Static $fLastTime
+    Local $fCurTime = TimerDiff($hTimer)
+    Local $fTimerSec = ($fCurTime - $fLastTime)/1000
+    If $fTimerSec < 1/25 Then Return ;Slow down processing (do not needlessly refresh faster than 25hz)
+    $fLastTime = $fCurTime
+
+    ;Hue is a value between 0 and 1.
+    ;Its value is based on the internal timer..
+    $fHue += ($fTimerSec * $fInverseSpeed)
+    If $fHue >= 1 Then $fHue -= Int($fHue)
+
+    ;T = transition value.  So RGB values are all based on this.
+    ;We want RGB values to be between 0 and 1.
+    Local $fT = 6 * $fHue
+    Local $fR = Abs($fT - 3) - 1
+    Local $fG = 2 - Abs($fT - 2)
+    Local $fB = 2 - Abs($fT - 4)
+
+    ;Max values out at 0 and 1.
+    $fR = ($fR < 0) ? 0 : ($fR > 1) ? 1 : $fR
+    $fG = ($fG < 0) ? 0 : ($fG > 1) ? 1 : $fG
+    $fB = ($fB < 0) ? 0 : ($fB > 1) ? 1 : $fB
+
+    ;RGB is now a percentage of max values
+    $fR *= 255
+    $fG *= 255
+    $fB *= 255
+
+    ;Construct RGB Value. (reverse order due to endianness!)
+    Local $iRGB = BitOr(BitShift(Int($fB), -16), BitShift(Int($fG), -8), Int($fR))
+
+    DllCall($hDwmapi, 'long', 'DwmSetWindowAttribute', 'hwnd', $hWnd, 'dword', 34, 'dword*', $iRGB, 'dword', 4)
+EndFunc   ;==>_BorderEffects
+
+Func _WinAPI_GetForegroundWindow()
+    Local $aCall = DllCall($hUser32, "hwnd", "GetForegroundWindow")
+    Return $aCall[0]
+EndFunc   ;==>_WinAPI_GetForegroundWindow
 
 #cs
 Func WinListtest()

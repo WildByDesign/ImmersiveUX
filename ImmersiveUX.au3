@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX GUI
-#AutoIt3Wrapper_Res_Fileversion=1.4.0
+#AutoIt3Wrapper_Res_Fileversion=1.4.1
 #AutoIt3Wrapper_Res_ProductName=Immersive UX GUI
-#AutoIt3Wrapper_Res_ProductVersion=1.4.0
+#AutoIt3Wrapper_Res_ProductVersion=1.4.1
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -15,7 +15,7 @@
 #AutoIt3Wrapper_Run_Au3Stripper=y
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
-Global $iVersion = '1.4.0'
+Global $iVersion = '1.4.1'
 
 #include <MsgBoxConstants.au3>
 #include <WinAPIFiles.au3>
@@ -189,8 +189,7 @@ Func _StartGUI()
     _GUICtrlMenu_InsertMenuItem($hTaskMenu, 3, "Restart Task", 4)
 
     $hGUI = GUICreate("Immersive UX", $iW * $iDPI1, $iH * $iDPI1)
-    If IsAdmin() Then WinSetTitle($hGUI, "", "Immersive UX" & " [Administrator]")
-    ;GUICtrlSetDefColor(0xFFFFFF)
+
     If $SegUIVarExists Then
         Global $MainFont = "Segoe UI Variable Display"
         Global $FontSize = 9
@@ -1072,14 +1071,8 @@ Func idStatusInputTest()
 			; nothing
 		Case 1
 			; Install Task (Admin)
-            ; obtain PID for engine process
-            Local $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
-            If $iPID <> "" Then
-                ; get handle from PID
-                Local $hWnd = _GetHwndFromPID($iPID)
-                ; close engine process in a way that allows proper process cleanup
-                WinClose($hWnd)
-            EndIf
+            If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
+            If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
             Sleep(200)
             _InstallTask()
             Sleep(500)
@@ -1090,14 +1083,8 @@ Func idStatusInputTest()
             _IsEngineProcRunning()
 		Case 2
 			; Install Task
-            ; obtain PID for engine process
-            Local $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
-            If $iPID <> "" Then
-                ; get handle from PID
-                Local $hWnd = _GetHwndFromPID($iPID)
-                ; close engine process in a way that allows proper process cleanup
-                WinClose($hWnd)
-            EndIf
+            If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
+            If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
             Sleep(200)
             _InstallTask()
             Sleep(500)
@@ -1108,12 +1095,8 @@ Func idStatusInputTest()
             _IsEngineProcRunning()
 		Case 3
             ; Uninstall Task
-            ; obtain PID for engine process
-            Local $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
-            ; get handle from PID
-            Local $hWnd = _GetHwndFromPID($iPID)
-            ; close engine process in a way that allows proper process cleanup
-            WinClose($hWnd)
+            If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
+            If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
             Sleep(200)
             _UninstallTask()
             Sleep(500)
@@ -2115,45 +2098,16 @@ Func _IsTaskRunning()
 EndFunc
 
 Func _RestartTask()
-    ; close Immersive LED
-    WinClose("Immersive UX LED")
-
-    $IsRunFromTS = _ToBoolean(IniRead($sIniPath, "StartupInfoOnly", "StartedByTask", "False"))
-    If Not $IsRunFromTS Then
-        If @Compiled Then
-            ; handle situation when engine process is elevated and GUI process is not
-            Local $bElevated = _ToBoolean(IniRead($sIniPath, "StartupInfoOnly", "Elevated", "False"))
-            If $bElevated And Not IsAdmin() Then
-                $sMsg = "Error: Unable to control elevated engine process without Admin privileges." & @CRLF & @CRLF
-                $sMsg &= "Please consider installing " & @CRLF
-        		_ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
-                Return
-            EndIf
-            ; obtain PID for engine process
-            Local $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
-            ; get handle from PID
-            Local $hWnd = _GetHwndFromPID($iPID)
-            ; close engine process in a way that allows proper process cleanup
-            WinClose($hWnd)
-            ;Sleep(200)
-            ShellExecute(@ScriptDir & "\" & $sEngName & ".exe")
-        ElseIf Not @Compiled Then
-            ; get program files x86 folder
-            Local $sAutoIt3 = @ProgramFilesDir & "\AutoIt3\AutoIt3.exe"
-            $sAutoIt3 = StringReplace($sAutoIt3, "Program Files", "Program Files (x86)")
-            ; get PID of running script
-            Local $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
-            ; get handle from PID
-            Local $hWnd = _GetHwndFromPID($iPID)
-            ; close engine process in a way that allows proper process cleanup
-            WinClose($hWnd)
-            ;Sleep(500)
-            ShellExecute(@ScriptDir & "\" & $sEngName & ".au3")
-        EndIf
-    ElseIf $IsRunFromTS Then
-        _TaskSched_End()
-        Sleep(100)
+    If @Compiled Then
+        If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
+        If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
+        Sleep(200)
         ShellExecute(@ScriptDir & "\" & $sEngName & ".exe")
+    ElseIf Not @Compiled Then
+        If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
+        If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
+        Sleep(200)
+        ShellExecute(@ScriptDir & "\" & $sEngName & ".au3")
     EndIf
 EndFunc
 
@@ -2875,43 +2829,8 @@ Func _About()
 EndFunc
 
 Func _Exit()
-    ; need to close engine process here
-    $IsRunFromTS = _ToBoolean(IniRead($sIniPath, "StartupInfoOnly", "StartedByTask", "False"))
-    If Not $IsRunFromTS Then
-        If @Compiled Then
-            ; handle situation when engine process is elevated and GUI process is not
-            Local $bElevated = _ToBoolean(IniRead($sIniPath, "StartupInfoOnly", "Elevated", "False"))
-            If $bElevated And Not IsAdmin() Then
-                $sMsg = "Error: Unable to control elevated engine process without Admin privileges." & @CRLF & @CRLF
-                $sMsg &= "Please consider installing " & @CRLF
-        		_ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
-                Return
-            EndIf
-            ; obtain PID for engine process
-            Local $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
-            ; get handle from PID
-            Local $hWnd = _GetHwndFromPID($iPID)
-            ; close engine process in a way that allows proper process cleanup
-            WinClose($hWnd)
-            ProcessWaitClose($iPID)
-        ElseIf Not @Compiled Then
-            ; get program files x86 folder
-            Local $sAutoIt3 = @ProgramFilesDir & "\AutoIt3\AutoIt3.exe"
-            $sAutoIt3 = StringReplace($sAutoIt3, "Program Files", "Program Files (x86)")
-            ; get PID of running script
-            Local $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
-            ; get handle from PID
-            Local $hWnd = _GetHwndFromPID($iPID)
-            ; close engine process in a way that allows proper process cleanup
-            WinClose($hWnd)
-            ProcessWaitClose($iPID)
-        EndIf
-    ElseIf $IsRunFromTS Then
-        _TaskSched_End()
-    EndIf
-
-    ; close Immersive LED
-    WinClose("Immersive UX LED")
+    If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
+    If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
 
     Exit
 EndFunc
