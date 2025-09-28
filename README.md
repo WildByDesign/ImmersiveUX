@@ -33,7 +33,7 @@ Additionally, there is special handling available for **File Explorer** (both mo
 
 <details>
   <summary>Visual Studio Code with Mica Alt (Tabbed), small rounded corners and LED Strobe border effects</summary>
-![Animation](https://github.com/user-attachments/assets/792f38f4-cc2a-4be4-a432-9daba606d46e)
+<img width="1293" height="742" alt="image" src="https://github.com/user-attachments/assets/792f38f4-cc2a-4be4-a432-9daba606d46e" />
 </details>
 
 <details>
