@@ -32,11 +32,6 @@ Additionally, there is special handling available for **File Explorer** (both mo
 </details>
 
 <details>
-  <summary>Visual Studio Code with Mica Alt (Tabbed), small rounded corners and LED Strobe border effects</summary>
-<img width="1293" height="742" alt="image" src="https://github.com/user-attachments/assets/792f38f4-cc2a-4be4-a432-9daba606d46e" />
-</details>
-
-<details>
   <summary>Task Manager with Blur Behind</summary>
 <img width="1148" height="733" alt="image" src="https://github.com/user-attachments/assets/49998798-0580-4b22-9c67-3c10e4d5f78c" />
 </details>
