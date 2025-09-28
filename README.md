@@ -22,8 +22,8 @@ Additionally, there is special handling available for **File Explorer** (both mo
 ## Screenshots:
 
 <details>
-  <summary>Windows Terminal with Acrylic and square corners</summary>
-<img width="1198" height="564" alt="image" src="https://github.com/user-attachments/assets/bd118a07-b05b-4798-ba21-17f9e3f11825" />
+  <summary>Windows Terminal with Blur Behind and no border</summary>
+<img width="1049" height="711" alt="ux-terminal-blur" src="https://github.com/user-attachments/assets/8c1c8455-1a6f-4edc-bfeb-04ad9e76a069" />
 </details>
 
 <details>
