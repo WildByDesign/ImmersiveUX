@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX GUI
-#AutoIt3Wrapper_Res_Fileversion=1.4.1
+#AutoIt3Wrapper_Res_Fileversion=1.4.2
 #AutoIt3Wrapper_Res_ProductName=Immersive UX GUI
-#AutoIt3Wrapper_Res_ProductVersion=1.4.1
+#AutoIt3Wrapper_Res_ProductVersion=1.4.2
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -15,7 +15,7 @@
 #AutoIt3Wrapper_Run_Au3Stripper=y
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
-Global $iVersion = '1.4.1'
+Global $iVersion = '1.4.2'
 
 #include <MsgBoxConstants.au3>
 #include <WinAPIFiles.au3>
@@ -340,7 +340,7 @@ Func _StartGUI()
     GUICtrlSetOnEvent(-1, "hBtnDeleteRule")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe Fluent Icons")
     GUICtrlSetColor(-1, 0xffffff)
-    GUICtrlSetState($DeleteButton, $GUI_DISABLE)
+    GuiFlatButton_SetState($DeleteButton, $GUI_DISABLE)
 
     _GUIToolTip_AddTool($hToolTip2, $hGUI, "Delete Custom Rule", GUICtrlGetHandle($DeleteButton))
 
@@ -1344,7 +1344,7 @@ Func hBtnAddRule()
     GUICtrlSetState($RuleEnabledCombo, $GUI_ENABLE)
     GUICtrlSetState($idInputRuleEnabled, $GUI_ENABLE)
     GUICtrlSetState($hBtnRuleEnabled, $GUI_ENABLE)
-    GUICtrlSetState($DeleteButton, $GUI_ENABLE)
+    GuiFlatButton_SetState($DeleteButton, $GUI_ENABLE)
     GUICtrlSetState($SaveButton, $GUI_ENABLE)
     ; reset combos
     _ResetCombos()
@@ -1392,7 +1392,7 @@ Func hBtnAddRule_nofocus()
     GUICtrlSetState($RuleEnabledCombo, $GUI_ENABLE)
     GUICtrlSetState($idInputRuleEnabled, $GUI_ENABLE)
     GUICtrlSetState($hBtnRuleEnabled, $GUI_ENABLE)
-    GUICtrlSetState($DeleteButton, $GUI_ENABLE)
+    ;GuiFlatButton_SetState($DeleteButton, $GUI_ENABLE)
     GUICtrlSetState($SaveButton, $GUI_ENABLE)
     ; reset combos
     _ResetCombos()
@@ -1467,21 +1467,25 @@ EndFunc
 
 Func hBtnDeleteRule()
     Local $SectionName = GUICtrlRead($RuleListCombo)
-    ;ConsoleWrite("section to delete: " & $SectionName & @CRLF)
+
     $sMsg = " This will delete the following rule: " & $SectionName & @CRLF
 	$sMsg &= " " & @CRLF
 	$sMsg &= " Do you want to continue? " & @CRLF
 	$iRetValue = _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 4, $sProdName, $sMsg)
 
 	If $iRetValue = 1 Then
-		IniDelete($sIniPath, $SectionName)
+        For $i = 0 To Ubound($aCustomRules)-1
+            If $aCustomRules[$i][14] = $SectionName Then
+                IniDelete($sIniPath, $aCustomRules[$i][13])
+            EndIf
+        Next
 	ElseIf $iRetValue = 2 Then
 		Return
 	EndIf
 
     ;GUICtrlSetData($RuleListCombo, "")
     ;_GUICtrlComboBox_SetCurSel($RuleListCombo, -1)
-    _GUICtrlComboBox_ResetContent($RuleListCombo)
+    ;_GUICtrlComboBox_ResetContent($RuleListCombo)
 
     ; need to reload array and combo
     _ReloadRulesCombo()
@@ -1491,6 +1495,8 @@ Func hBtnDeleteRule()
 
     _GUICtrlComboBox_InsertString($RuleListCombo, "Global Rules", 0)
     $sTargetLast = ""
+
+    ;GuiFlatButton_SetState($DeleteButton, $GUI_SHOW)
 EndFunc
 
 Func hBtnReloadRules()
@@ -1626,7 +1632,7 @@ Func _WriteIniSection()
     Local $SectionName = GUICtrlRead($TargetInput)
     Local $DisplayName = GUICtrlRead($idInput)
     If $SectionName = "Select a rule" Then Return
-    If $DisplayName = "" Then $DisplayName = $SectionName
+    If $DisplayName = "" Or $DisplayName = "Select a rule" Then $DisplayName = $SectionName
     ; need to determine if ini section needs to be renamed
     If $SectionName <> $sTargetLast Then
         If $sTargetLast <> "" Then
@@ -1647,7 +1653,7 @@ Func _WriteIniSection()
     _ReloadRulesCombo()
     _UpdateColorBoxes()
 
-    GUICtrlSetState($DeleteButton, $GUI_ENABLE)
+    GuiFlatButton_SetState($DeleteButton, $GUI_ENABLE)
 
     GUICtrlSetData($idInput, $DisplayName)
     GUICtrlSetData($RuleListCombo, $DisplayName)
@@ -1816,7 +1822,7 @@ Func _RuleList()
         GUICtrlSetState($RuleEnabledCombo, $GUI_DISABLE)
         GUICtrlSetState($idInputRuleEnabled, $GUI_DISABLE)
         GUICtrlSetState($hBtnRuleEnabled, $GUI_DISABLE)
-        GUICtrlSetState($DeleteButton, $GUI_DISABLE)
+        GuiFlatButton_SetState($DeleteButton, $GUI_DISABLE)
         ;GUICtrlSetBkColor($TargetInput, 0x101010)
         ;GUICtrlSetBkColor($idInputRuleType, 0x101010)
         GUICtrlSetState($SaveButton, $GUI_ENABLE)
@@ -1829,7 +1835,7 @@ Func _RuleList()
         GUICtrlSetState($RuleEnabledCombo, $GUI_ENABLE)
         GUICtrlSetState($idInputRuleEnabled, $GUI_ENABLE)
         GUICtrlSetState($hBtnRuleEnabled, $GUI_ENABLE)
-        GUICtrlSetState($DeleteButton, $GUI_ENABLE)
+        GuiFlatButton_SetState($DeleteButton, $GUI_ENABLE)
         ;GUICtrlSetBkColor($TargetInput, 0x202020)
         ;GUICtrlSetBkColor($idInputRuleType, 0x202020)
         GUICtrlSetState($SaveButton, $GUI_ENABLE)

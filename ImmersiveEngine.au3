@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.4.1
+#AutoIt3Wrapper_Res_Fileversion=1.4.2
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.4.1
+#AutoIt3Wrapper_Res_ProductVersion=1.4.2
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=Y
@@ -1241,7 +1241,7 @@ Func _BorderEffectsProcess()
 
 	While 1
 		Sleep(40)
-		$hLEDWnd = _WinAPI_GetForegroundWindow()
+		$hLEDWnd = _WinAPI_GetForegroundWindow_mod()
 		If $hLEDWnd <> $hLEDWndLast Then
 			_WinAPI_DwmSetWindowAttribute__($hLEDWndLast, 34, $DWMWA_COLOR_NONE)
 			$hLEDWndLast = $hLEDWnd
@@ -1291,10 +1291,10 @@ Func _BorderEffects($hWnd)
     DllCall($hDwmapi, 'long', 'DwmSetWindowAttribute', 'hwnd', $hWnd, 'dword', 34, 'dword*', $iRGB, 'dword', 4)
 EndFunc   ;==>_BorderEffects
 
-Func _WinAPI_GetForegroundWindow()
+Func _WinAPI_GetForegroundWindow_mod()
     Local $aCall = DllCall($hUser32, "hwnd", "GetForegroundWindow")
     Return $aCall[0]
-EndFunc   ;==>_WinAPI_GetForegroundWindow
+EndFunc   ;==>_WinAPI_GetForegroundWindow_mod
 
 #cs
 Func WinListtest()
