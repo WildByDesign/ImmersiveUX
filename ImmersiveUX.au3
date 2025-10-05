@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX GUI
-#AutoIt3Wrapper_Res_Fileversion=1.4.2
+#AutoIt3Wrapper_Res_Fileversion=1.5.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX GUI
-#AutoIt3Wrapper_Res_ProductVersion=1.4.2
+#AutoIt3Wrapper_Res_ProductVersion=1.5.0
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -15,7 +15,7 @@
 #AutoIt3Wrapper_Run_Au3Stripper=y
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
-Global $iVersion = '1.4.2'
+Global $iVersion = '1.5.0'
 
 #include <MsgBoxConstants.au3>
 #include <WinAPIFiles.au3>
@@ -44,7 +44,7 @@ Global $iVersion = '1.4.2'
 #include "include\ExtMsgBox.au3"
 #include "include\JSON.au3"
 
-Global $aCustomRules[0][15]
+Global $aCustomRules[0][17]
 
 Global $sIniPath = @ScriptDir & "\ImmersiveUX.ini"
 Global $sProdName = "ImmersiveUX"
@@ -66,10 +66,12 @@ Opt("TrayAutoPause", 0)
 Opt("TrayOnEventMode", 1)
 
 Global $hGUI, $hSpecialMenu, $hTaskMenu, $FontHeight
+Global $dGlobalBlurTintColorInactive, $iGlobalColorIntensityInactive
 Global $bGlobalDarkTitleBar, $dGlobalBorderColor, $dGlobalTitleBarColor, $dGlobalTitleBarTextColor, $iGlobalTitleBarBackdrop
 Global $iGlobalCornerPreference, $iGlobalExtendFrameIntoClient, $iGlobalEnableBlurBehind, $dGlobalBlurTintColor, $iGlobalTintColorIntensity
 Global $BorderColorInput, $colorlabelfill, $TitlebarColorInput, $TitlebarColorLabel, $iBorderColorOptions
 Global $TitlebarTextColorInput, $TitlebarTextColorLabel, $BlurTintColorInput, $BlurTintColorPickLabel
+Global $BlurTintColorInputInact, $BlurTintColorPickLabelInact, $BlurColorIntensitySliderInact
 Global $idInput, $RuleListCombo, $idInputRuleType, $RuleTypeCombo, $idInputDarkTitle, $idStatusInput
 Global $DarkTitleCombo, $idInputTitleBarBackdrop, $TitleBarBackdropCombo
 Global $idInputCornerPreference, $CornerPreferenceCombo, $idInputExtendFrame, $ExtendFrameCombo
@@ -188,7 +190,24 @@ Func _StartGUI()
     _GUICtrlMenu_InsertMenuItem($hTaskMenu, 2, "Uninstall Task", 3)
     _GUICtrlMenu_InsertMenuItem($hTaskMenu, 3, "Restart Task", 4)
 
-    $hGUI = GUICreate("Immersive UX", $iW * $iDPI1, $iH * $iDPI1)
+    If $iDPI1 = 1 Then
+        $iH = 450
+        $iW = 660
+    EndIf
+    If $iDPI1 = 1.25 Then
+        $iH = 410
+        $iW = 624
+    EndIf
+    If $iDPI1 = 1.5 Then
+        $iH = 370
+        $iW = 620
+    EndIf
+    If $iDPI1 <> 1 And $iDPI1 <> 1.25 And $iDPI1 <> 1.5 Then
+        $iH = 370
+        $iW = 620
+    EndIf
+
+    $hGUI = GUICreate("Immersive UX", $iW * $iDPI1, $iH * $iDPI1, -1, -1, -1, $WS_EX_COMPOSITED)
 
     If $SegUIVarExists Then
         Global $MainFont = "Segoe UI Variable Display"
@@ -217,26 +236,30 @@ Func _StartGUI()
     _GUIToolTip_SetMargin($hToolTip2, 4, 2, 4, 2)
 
     ;$idPart2 = GUICtrlCreateLabel("Special Handling  ▼", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6, 164 * $iDPI1, -1)
-    $idPart2 = GUICtrlCreateLabel(" Other Settings  ▼ ", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6, -1, -1, $SS_CENTER)
+    $idPart2 = GUICtrlCreateLabel(" Other Settings  ▼ ", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6 - 6, -1, $FontHeight + 12, $SS_CENTER + $SS_CENTERIMAGE)
     GUICtrlSetOnEvent(-1, "idSpecialHandlingTest")
-    GUICtrlSetBkColor(-1, 0x000000)
+    GUICtrlSetBkColor(-1, $GUI_BKCOLOR_TRANSPARENT)
     GUICtrlSetColor(-1, 0xffffff)
     ;If Not @Compiled Then GUICtrlSetState(-1, $GUI_DISABLE)
-    $idPart1 = GUICtrlCreateLabel(" ", 20, ($iH * $iDPI1) - $FontHeight - 6, 164 * $iDPI1, -1)
-    GUICtrlSetBkColor(-1, 0x000000)
+    $idPart1 = GUICtrlCreateLabel(" ", 20, ($iH * $iDPI1) - $FontHeight - 6 - 6, 164 * $iDPI1, $FontHeight + 12, $SS_CENTERIMAGE)
+    GUICtrlSetBkColor(-1, $GUI_BKCOLOR_TRANSPARENT)
     GUICtrlSetColor(-1, 0xffffff)
     ;If Not @Compiled Then GUICtrlSetState(-1, $GUI_DISABLE)
-    $idPart0 = GUICtrlCreateLabel("Task Installed: " & $TaskInstalled, 180 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6, 164 * $iDPI1, -1)
-    GUICtrlSetBkColor(-1, 0x000000)
+    $idPart0 = GUICtrlCreateLabel("Task Installed: " & $TaskInstalled, 180 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6 - 6, 164 * $iDPI1, $FontHeight + 12, $SS_CENTERIMAGE)
+    GUICtrlSetBkColor(-1, $GUI_BKCOLOR_TRANSPARENT)
     GUICtrlSetColor(-1, 0xffffff)
     ;If Not @Compiled Then GUICtrlSetState(-1, $GUI_DISABLE)
     ;$idStatusInput = GUICtrlCreateLabel("Startup Task  ▼", 344 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6, 164 * $iDPI1, -1)
-    $idStatusInput = GUICtrlCreateLabel(" Startup Task  ▼ ", 344 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6, -1, -1, $SS_CENTER)
+    $idStatusInput = GUICtrlCreateLabel(" Startup Task  ▼ ", 344 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6 - 6, -1, $FontHeight + 12, $SS_CENTER + $SS_CENTERIMAGE)
     GUICtrlSetOnEvent($idStatusInput, "idStatusInputTest")
-    GUICtrlSetBkColor(-1, 0x000000)
+    GUICtrlSetBkColor(-1, $GUI_BKCOLOR_TRANSPARENT)
     GUICtrlSetColor(-1, 0xffffff)
     ;If Not @Compiled Then GUICtrlSetState(-1, $GUI_DISABLE)
     ;EndIf
+
+    $idStatusBar = GUICtrlCreateLabel(" ", 0, ($iH * $iDPI1) - $FontHeight - 6 - 6, $iW * $iDPI1, $FontHeight + 20)
+    GUICtrlSetBkColor(-1, 0x121212)
+    GUICtrlSetState(-1, $GUI_DISABLE)
 
     _IsEngineProcRunning()
 
@@ -264,14 +287,14 @@ Func _StartGUI()
 
     ;Global $idInput = GUICtrlCreateInput("Select a rule", 20, 40, 100 * $iDPI1Big, $FontHeight, $ES_READONLY, 0)
     $idInput = _RGUI_RoundInput("Select a rule", 0xFFFFFF, 20, $RuleListLabelPosV, 260 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
-    GUICtrlSetBkColor(-1, 0x202020)
+    ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
     $aRegistry = ""
     ;$aRegistry &= "|" & "Global Rules"
 
     For $i = 0 To Ubound($aCustomRules)-1
-            $aRegistry &= "|" & $aCustomRules[$i][14]
+            $aRegistry &= "|" & $aCustomRules[$i][16]
     Next
     GUICtrlSetData($RuleListCombo, $aRegistry)
 
@@ -368,7 +391,7 @@ Func _StartGUI()
     ;$TargetInput = GUICtrlCreateInput("", 20, $TargetLabelPosV, 100 * $iDPI1Big, $FontHeight, -1, 0)
     $TargetInput = _RGUI_RoundInput("", 0xFFFFFF, 20, $TargetLabelPosV, 260 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1)
     GUICtrlSetResizing(-1, $GUI_DOCKALL)
-    GUICtrlSetBkColor(-1, 0x202020)
+    ;GUICtrlSetBkColor(-1, 0x202020)
 
     $aPos = ControlGetPos($hGUI, "", $TargetInput)
 
@@ -395,7 +418,7 @@ Func _StartGUI()
 
     ;$idInputRuleType = GUICtrlCreateInput("", $TargetInputPosH + 20, $RuleTypeLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
     $idInputRuleType = _RGUI_RoundInput("", 0xFFFFFF, $TargetInputPosH + 30, $RuleTypeLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
-    GUICtrlSetBkColor(-1, 0x202020)
+    ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
     $aPos = ControlGetPos($hGUI, "", $RuleTypeCombo)
@@ -437,7 +460,7 @@ Func _StartGUI()
 
     ;$idInputRuleType = GUICtrlCreateInput("", $TargetInputPosH + 20, $RuleTypeLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
     $idInputRuleEnabled = _RGUI_RoundInput("", 0xFFFFFF, $hBtnRuleTypePosH + 20, $RuleTypeLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
-    GUICtrlSetBkColor(-1, 0x202020)
+    ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
     $aPos = ControlGetPos($hGUI, "", $RuleEnabledCombo)
@@ -455,7 +478,7 @@ Func _StartGUI()
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
     ;
 
-    $DarkTitleLabel = GUICtrlCreateLabel("Dark Titlebar:", 20, $TargetInputPosV + 20 + 20, -1, -1)
+    $DarkTitleLabel = GUICtrlCreateLabel("Dark Titlebar:", 20, $TargetInputPosV + 20 + 20 + 16, -1, -1)
     GUICtrlSetColor(-1, 0xffffff)
     $aPos = ControlGetPos($hGUI, "", $DarkTitleLabel)
 
@@ -484,7 +507,7 @@ Func _StartGUI()
 
     ;$idInputDarkTitle = GUICtrlCreateInput("", 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
     $idInputDarkTitle = _RGUI_RoundInput("", 0xFFFFFF, 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
-    GUICtrlSetBkColor(-1, 0x202020)
+    ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
     $aPos = ControlGetPos($hGUI, "", $idInputDarkTitle)
@@ -511,7 +534,7 @@ Func _StartGUI()
 
     ;$idInputTitleBarBackdrop = GUICtrlCreateInput("", 20, $TitleBarBackdropLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
     $idInputTitleBarBackdrop = _RGUI_RoundInput("", 0xFFFFFF, 20, $TitleBarBackdropLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
-    GUICtrlSetBkColor(-1, 0x202020)
+    ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
     $aPos = ControlGetPos($hGUI, "", $idInputTitleBarBackdrop)
@@ -551,7 +574,7 @@ Func _StartGUI()
 
     ;$idInputCornerPreference = GUICtrlCreateInput("", 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
     $idInputCornerPreference = _RGUI_RoundInput("", 0xFFFFFF, 20, $CornerPreferenceLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0x202020, 8, 1, $ES_READONLY)
-    GUICtrlSetBkColor(-1, 0x202020)
+    ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
     $aPos = ControlGetPos($hGUI, "", $idInputCornerPreference)
@@ -559,7 +582,7 @@ Func _StartGUI()
     $idInputCornerPreferencePosV = $aPos[1] + $aPos[3]
     $idInputCornerPreferencePosH = $aPos[0] + $aPos[2]
 
-    $BorderColorLabel = GUICtrlCreateLabel("Border Color:", $idInputDarkTitlePosH + $FontHeight + 40, $TargetInputPosV + 20 + 20, -1, -1)
+    $BorderColorLabel = GUICtrlCreateLabel("Border Color:", $idInputDarkTitlePosH + $FontHeight + 40, $TargetInputPosV + 20 + 20 + 16, -1, -1)
     GUICtrlSetColor(-1, 0xffffff)
     $aPos = ControlGetPos($hGUI, "", $BorderColorLabel)
 
@@ -569,7 +592,7 @@ Func _StartGUI()
     ;$BorderColorInput = GUICtrlCreateInput("", 20, $BorderColorLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
     $BorderColorInput = _RGUI_RoundInput("", 0xFFFFFF, $idInputDarkTitlePosH + $FontHeight + 40, $BorderColorLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1)
     GUICtrlSetResizing(-1, $GUI_DOCKALL)
-    GUICtrlSetBkColor(-1, 0x202020)
+    ;GUICtrlSetBkColor(-1, 0x202020)
 
     $aPos = ControlGetPos($hGUI, "", $BorderColorInput)
 
@@ -615,7 +638,7 @@ Func _StartGUI()
     ;$TitlebarColorInput = GUICtrlCreateInput("", 20, $TitlebarColorLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
     $TitlebarColorInput = _RGUI_RoundInput("", 0xFFFFFF, $idInputDarkTitlePosH + $FontHeight + 40, $TitlebarColorLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1)
     GUICtrlSetResizing(-1, $GUI_DOCKALL)
-    GUICtrlSetBkColor(-1, 0x202020)
+    ;GUICtrlSetBkColor(-1, 0x202020)
 
     $aPos = ControlGetPos($hGUI, "", $TitlebarColorInput)
 
@@ -636,11 +659,12 @@ Func _StartGUI()
     $aPos = ControlGetPos($hGUI, "", $TitlebarTextColorLabel)
 
     $TitlebarTextColorLabelPosV = $aPos[1] + $aPos[3]
+    $TitlebarTextColorLabelPosV2 = $aPos[1]
 
     ;$TitlebarTextColorInput = GUICtrlCreateInput("", 20, $TitlebarTextColorLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
     $TitlebarTextColorInput = _RGUI_RoundInput("", 0xFFFFFF, $idInputDarkTitlePosH + $FontHeight + 40, $TitlebarTextColorLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1)
     GUICtrlSetResizing(-1, $GUI_DOCKALL)
-    GUICtrlSetBkColor(-1, 0x202020)
+    ;GUICtrlSetBkColor(-1, 0x202020)
 
     $aPos = ControlGetPos($hGUI, "", $TitlebarTextColorInput)
 
@@ -655,7 +679,7 @@ Func _StartGUI()
     _GUIToolTip_AddTool($hToolTip2, $hGUI, "Change Color", GUICtrlGetHandle($TitlebarTextColorLabel))
     GUICtrlSetOnEvent(-1, "ColorPickerTitlebarText")
 
-    $ExtendFrameLabel = GUICtrlCreateLabel("Extend Frame To Client:", $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $TitlebarColorLabelPosV2, -1, -1)
+    $ExtendFrameLabel = GUICtrlCreateLabel("Extend Frame To Client:", $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $BorderColorLabelPosV2, -1, -1)
     $aPos = ControlGetPos($hGUI, "", $ExtendFrameLabel)
     GUICtrlSetColor(-1, 0xffffff)
 
@@ -667,13 +691,13 @@ Func _StartGUI()
 
     GUISetFont(10, $FW_NORMAL, -1, "Segoe MDL2 Assets")
     If $iDPI1 = 1 Then
-        $InfoButton = GUICtrlCreateLabel(ChrW(0xE946), $ExtendFrameLabelPosH2 + $AdvancedWidth, $BorderColorLabelPosV2 + 3, -1, -1, $SS_CENTER)
+        $InfoButton = GUICtrlCreateLabel(ChrW(0xE946), $ExtendFrameLabelPosH2 + $AdvancedWidth, $BorderColorLabelPosV2 + 3 - 30, -1, -1, $SS_CENTER)
     ElseIf $iDPI1 = 1.25 Then
-        $InfoButton = GUICtrlCreateLabel(ChrW(0xE946), $ExtendFrameLabelPosH2 + $AdvancedWidth, $BorderColorLabelPosV2 + 1, -1, -1, $SS_CENTER)
+        $InfoButton = GUICtrlCreateLabel(ChrW(0xE946), $ExtendFrameLabelPosH2 + $AdvancedWidth, $BorderColorLabelPosV2 + 1 - 30, -1, -1, $SS_CENTER)
     ElseIf $iDPI1 = 1.5 Then
-        $InfoButton = GUICtrlCreateLabel(ChrW(0xE946), $ExtendFrameLabelPosH2 + $AdvancedWidth, $BorderColorLabelPosV2, -1, -1, $SS_CENTER)
+        $InfoButton = GUICtrlCreateLabel(ChrW(0xE946), $ExtendFrameLabelPosH2 + $AdvancedWidth, $BorderColorLabelPosV2 - 30, -1, -1, $SS_CENTER)
     Else
-        $InfoButton = GUICtrlCreateLabel(ChrW(0xE946), $ExtendFrameLabelPosH2 + $AdvancedWidth, $BorderColorLabelPosV2, -1, -1, $SS_CENTER)
+        $InfoButton = GUICtrlCreateLabel(ChrW(0xE946), $ExtendFrameLabelPosH2 + $AdvancedWidth, $BorderColorLabelPosV2 - 30, -1, -1, $SS_CENTER)
     EndIf
 
     ;$InfoButton = GUICtrlCreateLabel(ChrW(0xE946), $ExtendFrameLabelPosH2 + $AdvancedWidth, $BorderColorLabelPosV2 + 2, -1, -1, $SS_CENTER)
@@ -689,8 +713,10 @@ Func _StartGUI()
     GUISetFont($FontSize, $FW_NORMAL, -1, $MainFont)
 
     $measureadvwidth = $DarkTitleLabelPosH + $colorlabelfillPosH
+    $measureadvheight = $TitlebarTextColorInputPosV - $BorderColorLabelPosV2
 
-    $idGroup = _RGUI_RoundGroup("Advanced", 0xffffff, $ExtendFrameLabelPosH2 - 20, $BorderColorLabelPosV2 + 8, $measureadvwidth, (180 * $iDPI1) + 2, 0x404040, 0x000000, 8, 6)
+    ;$idGroup = _RGUI_RoundGroup("Advanced", 0xffffff, $ExtendFrameLabelPosH2 - 20, $BorderColorLabelPosV2 + 8 - 30, $measureadvwidth, (200 * $iDPI1) + 2, 0x404040, 0x000000, 8, 6)
+    $idGroup = _RGUI_RoundGroup("Advanced", 0xffffff, $ExtendFrameLabelPosH2 - 20, $BorderColorLabelPosV2 + 8 - 30, $measureadvwidth, $measureadvheight + 50, 0x404040, 0x000000, 8, 6)
 
     $idGroupPosV = $aPos[1] + $aPos[3]
     $idGroupPosH = $aPos[0] + $aPos[2]
@@ -711,7 +737,7 @@ Func _StartGUI()
 
     ;$idInputDarkTitle = GUICtrlCreateInput("", 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
     $idInputExtendFrame = _RGUI_RoundInput("", 0xFFFFFF, $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $ExtendFrameLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
-    GUICtrlSetBkColor(-1, 0x202020)
+    ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
     $aPos = ControlGetPos($hGUI, "", $idInputExtendFrame)
@@ -725,13 +751,13 @@ Func _StartGUI()
     GUICtrlSetOnEvent(-1, "hBtnExtendFrame")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
 
-    $BlurBehindLabel = GUICtrlCreateLabel("Enable Blur Behind:", $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $idInputExtendFramePosV + 20, -1, -1)
+    $BlurBehindLabel = GUICtrlCreateLabel("Enable Blur Behind:", $idInputExtendFramePosH + $FontHeight + 40, $BorderColorLabelPosV2, -1, -1)
     $aPos = ControlGetPos($hGUI, "", $BlurBehindLabel)
     GUICtrlSetColor(-1, 0xffffff)
 
     $BlurBehindLabelPosV = $aPos[1] + $aPos[3]
 
-    $BlurBehindCombo = GUICtrlCreateCombo("", $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $BlurBehindLabelPosV, 100 * $iDPI1, $FontHeight, BitOR($CBS_DROPDOWNLIST, $WS_HSCROLL, $WS_VSCROLL))
+    $BlurBehindCombo = GUICtrlCreateCombo("", $idInputExtendFramePosH + $FontHeight + 40, $BlurBehindLabelPosV, 100 * $iDPI1, $FontHeight, BitOR($CBS_DROPDOWNLIST, $WS_HSCROLL, $WS_VSCROLL))
     _GUICtrlComboBoxEx_SetColor(-1, 0x202020, 0xffffff)
     ;GUICtrlSetData($BlurBehindCombo, "True|False|Global")
     GUICtrlSetOnEvent(-1, "idComboBlurBehind")
@@ -749,8 +775,8 @@ Func _StartGUI()
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
 
     ;$idInputDarkTitle = GUICtrlCreateInput("", 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $idInputBlurBehind = _RGUI_RoundInput("", 0xFFFFFF, $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $BlurBehindLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
-    GUICtrlSetBkColor(-1, 0x202020)
+    $idInputBlurBehind = _RGUI_RoundInput("", 0xFFFFFF, $idInputExtendFramePosH + $FontHeight + 40, $BlurBehindLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
+    ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
     $aPos = ControlGetPos($hGUI, "", $idInputBlurBehind)
@@ -758,16 +784,16 @@ Func _StartGUI()
     $idInputBlurBehindPosV = $aPos[1] + $aPos[3]
     $idInputBlurBehindPosH = $aPos[0] + $aPos[2]
 
-    $BlurTintColorLabel = GUICtrlCreateLabel("Blur Tint Color:", $idInputExtendFramePosH + $FontHeight + 40, $TitlebarColorLabelPosV2, -1, -1)
+    $BlurTintColorLabel = GUICtrlCreateLabel("Blur Tint Color (Active):", $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $TitlebarColorLabelPosV2, -1, -1)
     GUICtrlSetColor(-1, 0xffffff)
     $aPos = ControlGetPos($hGUI, "", $BlurTintColorLabel)
 
     $BlurTintColorLabelPosV = $aPos[1] + $aPos[3]
 
     ;$TitlebarTextColorInput = GUICtrlCreateInput("", 20, $TitlebarTextColorLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $BlurTintColorInput = _RGUI_RoundInput("", 0xFFFFFF, $idInputExtendFramePosH + $FontHeight + 40, $BlurTintColorLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1)
+    $BlurTintColorInput = _RGUI_RoundInput("", 0xFFFFFF, $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $BlurTintColorLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1)
     GUICtrlSetResizing(-1, $GUI_DOCKALL)
-    GUICtrlSetBkColor(-1, 0x202020)
+    ;GUICtrlSetBkColor(-1, 0x202020)
 
     $aPos = ControlGetPos($hGUI, "", $BlurTintColorInput)
 
@@ -782,7 +808,35 @@ Func _StartGUI()
     _GUIToolTip_AddTool($hToolTip2, $hGUI, "Change Color", GUICtrlGetHandle($BlurTintColorPickLabel))
     GUICtrlSetOnEvent(-1, "ColorPickerBlurTintColor")
 
-    $BlurColorIntensityLabel = GUICtrlCreateLabel("Blur Color Intensity:", $idInputExtendFramePosH + $FontHeight + 40, $BlurTintColorInputPosV + 20, -1, -1)
+    ;
+
+    $BlurTintColorLabelInact = GUICtrlCreateLabel("Blur Tint Color (Inactive):", $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $TitlebarTextColorLabelPosV2, -1, -1)
+    GUICtrlSetColor(-1, 0xffffff)
+    $aPos = ControlGetPos($hGUI, "", $BlurTintColorLabelInact)
+
+    $BlurTintColorLabelInactPosV = $aPos[1] + $aPos[3]
+
+    ;$TitlebarTextColorInput = GUICtrlCreateInput("", 20, $TitlebarTextColorLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
+    $BlurTintColorInputInact = _RGUI_RoundInput("", 0xFFFFFF, $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $BlurTintColorLabelInactPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1)
+    GUICtrlSetResizing(-1, $GUI_DOCKALL)
+    ;GUICtrlSetBkColor(-1, 0x202020)
+
+    $aPos = ControlGetPos($hGUI, "", $BlurTintColorInputInact)
+
+    $BlurTintColorInputInactPosV = $aPos[1] + $aPos[3]
+    $BlurTintColorInputInactPosH = $aPos[0] + $aPos[2]
+    $BlurTintColorInputInactPosV2 = $aPos[1]
+
+    ;$BlurTintColorPickLabel = GUICtrlCreateLabel(" ", $BlurTintColorInputPosH + 14, $BlurTintColorInputPosV2, $FontHeight, $FontHeight, $WS_BORDER)
+    $BlurTintColorPickLabelInact = GuiFlatButton_Create(" ", $BlurTintColorInputInactPosH + 14, $BlurTintColorInputInactPosV2, $FontHeight, $FontHeight)
+    GuiFlatButton_SetBkColor(-1, 0x000000)
+    ;GuiFlatButton_SetColorsEx(-1, $aColorsEx2)
+    _GUIToolTip_AddTool($hToolTip2, $hGUI, "Change Color", GUICtrlGetHandle($BlurTintColorPickLabelInact))
+    GUICtrlSetOnEvent(-1, "ColorPickerBlurTintColorInact")
+
+    ;
+
+    $BlurColorIntensityLabel = GUICtrlCreateLabel("Color Opacity (Active):", $idInputExtendFramePosH + $FontHeight + 40, $TitlebarColorLabelPosV2, -1, -1)
     GUICtrlSetColor(-1, 0xffffff)
     $aPos = ControlGetPos($hGUI, "", $BlurColorIntensityLabel)
 
@@ -801,6 +855,24 @@ Func _StartGUI()
     $BlurColorIntensitySliderPosV = $aPos[1] + $aPos[3]
     $BlurColorIntensitySliderPosH = $aPos[0] + $aPos[2]
     $BlurColorIntensitySliderV2 = $aPos[1]
+
+    ;
+
+    $BlurColorIntensityLabelInact = GUICtrlCreateLabel("Color Opacity (Inactive):", $idInputExtendFramePosH + $FontHeight + 40, $TitlebarTextColorLabelPosV2, -1, -1)
+    GUICtrlSetColor(-1, 0xffffff)
+    $aPos = ControlGetPos($hGUI, "", $BlurColorIntensityLabelInact)
+
+    $BlurColorIntensityLabelInactPosV = $aPos[1] + $aPos[3]
+
+    $BlurColorIntensitySliderInact = GUICtrlCreateSlider($idInputExtendFramePosH + $FontHeight + 40 - 4, $BlurColorIntensityLabelInactPosV, 100 * $iDPI1 + 40, $FontHeight, BitOR($TBS_TOOLTIPS, $TBS_AUTOTICKS))
+    ;GUICtrlSetOnEvent(-1, "SliderFunction")
+    $hWndTT = _GUICtrlSlider_GetToolTips($BlurColorIntensitySliderInact)
+    _GUICtrlSlider_SetToolTips($BlurColorIntensitySliderInact, $hWndTT)
+    GUICtrlSetBkColor($BlurColorIntensitySliderInact, 0x00000000)
+    GUICtrlSetLimit(-1, 100, 0)
+    GUICtrlSetData($BlurColorIntensitySliderInact, 50)
+
+    ;
 
     ;ConsoleWrite("$BlurColorIntensitySliderPosH " & $BlurColorIntensitySliderPosH & @CRLF)
 
@@ -857,12 +929,12 @@ Func _StartGUI()
         $aCInfo = GUIGetCursorInfo($hGUI)
         If $aCInfo[4] = $idStatusInput Then
             If $fOver = False Then
-                GUICtrlSetBkColor($idStatusInput, 0x151515)
+                GUICtrlSetBkColor($idStatusInput, 0x242424)
                 $fOver = True
             EndIf
         Else
             If $fOver = True Then
-                GUICtrlSetBkColor($idStatusInput, 0x000000)
+                GUICtrlSetBkColor($idStatusInput, $GUI_BKCOLOR_TRANSPARENT)
                 $fOver = False
             EndIf
         EndIf
@@ -870,12 +942,12 @@ Func _StartGUI()
         $aCInfo2 = GUIGetCursorInfo($hGUI)
         If $aCInfo2[4] = $idPart2 Then
             If $fOver2 = False Then
-                GUICtrlSetBkColor($idPart2, 0x151515)
+                GUICtrlSetBkColor($idPart2, 0x242424)
                 $fOver2 = True
             EndIf
         Else
             If $fOver2 = True Then
-                GUICtrlSetBkColor($idPart2, 0x000000)
+                GUICtrlSetBkColor($idPart2, $GUI_BKCOLOR_TRANSPARENT)
                 $fOver2 = False
             EndIf
         EndIf
@@ -962,6 +1034,24 @@ Func ColorPickerBlurTintColor()
     EndIf
 EndFunc
 
+Func ColorPickerBlurTintColorInact()
+    Local $colorprev = GUICtrlRead($BlurTintColorInputInact)
+    Local $colorsel
+    If $colorprev <> "" Then
+        $colorsel = $colorprev
+    Else
+        $colorsel = 0x7F7F7F
+    EndIf
+	Local $color = _ChooseColor(2, $colorsel, 2)
+    If @error Then
+        GUICtrlSetData($BlurTintColorInputInact, $colorprev)
+    Else
+        GUICtrlSetData($BlurTintColorInputInact, $color)
+        ;GUICtrlSetBkColor($BlurTintColorPickLabel, $color)
+        GuiFlatButton_SetBkColor($BlurTintColorPickLabelInact, $color)
+    EndIf
+EndFunc
+
 Func _UpdateColorBoxes()
     Local $color1 = GUICtrlRead($BorderColorInput)
     ;If $color1 <> $DWMWA_COLOR_NONE Then GUICtrlSetBkColor($colorlabelfill, $color1)
@@ -977,6 +1067,9 @@ Func _UpdateColorBoxes()
     Local $color4 = GUICtrlRead($BlurTintColorInput)
 	;GUICtrlSetBkColor($BlurTintColorPickLabel, $color4)
     GuiFlatButton_SetBkColor($BlurTintColorPickLabel, $color4)
+    Local $color5 = GUICtrlRead($BlurTintColorInputInact)
+	;GUICtrlSetBkColor($BlurTintColorPickLabelInact, $color5)
+    GuiFlatButton_SetBkColor($BlurTintColorPickLabelInact, $color5)
 EndFunc
 
 Func idSpecialHandlingTest()
@@ -1356,6 +1449,9 @@ Func hBtnAddRule()
     GUICtrlSetData($BlurTintColorInput, "")
     ;GUICtrlSetBkColor($BlurTintColorPickLabel, 0x000000)
     GuiFlatButton_SetBkColor($BlurTintColorPickLabel, 0x000000)
+    GUICtrlSetData($BlurTintColorInputInact, "")
+    ;GUICtrlSetBkColor($BlurTintColorPickLabelInact, 0x000000)
+    GuiFlatButton_SetBkColor($BlurTintColorPickLabelInact, 0x000000)
     GUICtrlSetData($idInputCornerPreference, "")
     _GUICtrlComboBox_SetCurSel($CornerPreferenceCombo, -1)
     GUICtrlSetData($idInputTitleBarBackdrop, "")
@@ -1377,6 +1473,7 @@ Func hBtnAddRule()
     GUICtrlSetData($idInput, "")
     _GUICtrlComboBox_SetCurSel($RuleListCombo, -1)
     GUICtrlSetData($BlurColorIntensitySlider, 50)
+    GUICtrlSetData($BlurColorIntensitySliderInact, 50)
     _GUICtrlComboBox_SetCurSel($RuleEnabledCombo, -1)
     GUICtrlSetData($idInputRuleEnabled, "")
     ; set focus to Target input
@@ -1404,6 +1501,9 @@ Func hBtnAddRule_nofocus()
     GUICtrlSetData($BlurTintColorInput, "")
     ;GUICtrlSetBkColor($BlurTintColorPickLabel, 0x000000)
     GuiFlatButton_SetBkColor($BlurTintColorPickLabel, 0x000000)
+    GUICtrlSetData($BlurTintColorInputInact, "")
+    ;GUICtrlSetBkColor($BlurTintColorPickLabelInact, 0x000000)
+    GuiFlatButton_SetBkColor($BlurTintColorPickLabelInact, 0x000000)
     GUICtrlSetData($idInputCornerPreference, "")
     _GUICtrlComboBox_SetCurSel($CornerPreferenceCombo, -1)
     GUICtrlSetData($idInputTitleBarBackdrop, "")
@@ -1425,6 +1525,7 @@ Func hBtnAddRule_nofocus()
     GUICtrlSetData($idInput, "")
     _GUICtrlComboBox_SetCurSel($RuleListCombo, -1)
     GUICtrlSetData($BlurColorIntensitySlider, 50)
+    GUICtrlSetData($BlurColorIntensitySliderInact, 50)
     _GUICtrlComboBox_SetCurSel($RuleEnabledCombo, -1)
     GUICtrlSetData($idInputRuleEnabled, "")
     $sTargetLast = ""
@@ -1439,6 +1540,9 @@ Func hBtnAddRule_nofocusGlobal()
     GUICtrlSetData($BlurTintColorInput, "")
     ;GUICtrlSetBkColor($BlurTintColorPickLabel, 0x000000)
     GuiFlatButton_SetBkColor($BlurTintColorPickLabel, 0x000000)
+    GUICtrlSetData($BlurTintColorInputInact, "")
+    ;GUICtrlSetBkColor($BlurTintColorPickLabelInact, 0x000000)
+    GuiFlatButton_SetBkColor($BlurTintColorPickLabelInact, 0x000000)
     GUICtrlSetData($idInputCornerPreference, "")
     _GUICtrlComboBox_SetCurSel($CornerPreferenceCombo, -1)
     GUICtrlSetData($idInputTitleBarBackdrop, "")
@@ -1460,6 +1564,7 @@ Func hBtnAddRule_nofocusGlobal()
     ;GUICtrlSetData($idInput, "")
     ;_GUICtrlComboBox_SetCurSel($RuleListCombo, -1)
     GUICtrlSetData($BlurColorIntensitySlider, 50)
+    GUICtrlSetData($BlurColorIntensitySliderInact, 50)
     _GUICtrlComboBox_SetCurSel($RuleEnabledCombo, -1)
     GUICtrlSetData($idInputRuleEnabled, "")
     $sTargetLast = ""
@@ -1475,8 +1580,8 @@ Func hBtnDeleteRule()
 
 	If $iRetValue = 1 Then
         For $i = 0 To Ubound($aCustomRules)-1
-            If $aCustomRules[$i][14] = $SectionName Then
-                IniDelete($sIniPath, $aCustomRules[$i][13])
+            If $aCustomRules[$i][16] = $SectionName Then
+                IniDelete($sIniPath, $aCustomRules[$i][15])
             EndIf
         Next
 	ElseIf $iRetValue = 2 Then
@@ -1584,8 +1689,14 @@ Func _WriteIniSection()
         IniWrite($sIniPath, "GlobalRules", "GlobalEnableBlurBehind", $EnableBlurBehind)
         Local $BlurTintColor = GUICtrlRead($BlurTintColorInput)
         IniWrite($sIniPath, "GlobalRules", "GlobalBlurTintColor", $BlurTintColor)
+        Local $BlurTintColorInact = GUICtrlRead($BlurTintColorInputInact)
+        IniWrite($sIniPath, "GlobalRules", "GlobalBlurTintColorInactive", $BlurTintColorInact)
         Local $TintColorIntensity = GUICtrlRead($BlurColorIntensitySlider)
+        If $TintColorIntensity = "0" Then $TintColorIntensity = ""
         IniWrite($sIniPath, "GlobalRules", "GlobalTintColorIntensity", $TintColorIntensity)
+        Local $TintColorIntensityInact = GUICtrlRead($BlurColorIntensitySliderInact)
+        If $TintColorIntensityInact = "0" Then $TintColorIntensityInact = ""
+        IniWrite($sIniPath, "GlobalRules", "GlobalColorIntensityInactive", $TintColorIntensityInact)
 
         _GetIniDetails()
         _UpdateColorBoxes()
@@ -1627,6 +1738,10 @@ Func _WriteIniSection()
     If $EnableBlurBehind = "Global" Then $EnableBlurBehind = ""
     Local $BlurTintColor = GUICtrlRead($BlurTintColorInput)
     Local $TintColorIntensity = GUICtrlRead($BlurColorIntensitySlider)
+    If $TintColorIntensity = "0" Then $TintColorIntensity = ""
+    Local $BlurTintColorInact = GUICtrlRead($BlurTintColorInputInact)
+    Local $TintColorIntensityInact = GUICtrlRead($BlurColorIntensitySliderInact)
+    If $TintColorIntensityInact = "0" Then $TintColorIntensityInact = ""
     Local $RuleEnabled = GUICtrlRead($idInputRuleEnabled)
 
     Local $SectionName = GUICtrlRead($TargetInput)
@@ -1643,7 +1758,7 @@ Func _WriteIniSection()
 
     $sTargetLast = $SectionName
 
-    Local $aSection[15][2] = [[14, ""], ["RuleType", $RuleType], ["Target", $Target], ["DarkTitleBar", $DarkTitleBar], ["BorderColor", $BorderColor], ["TitleBarColor", $TitleBarColor], ["TitleBarTextColor", $TitleBarTextColor], ["TitleBarBackdrop", $TitleBarBackdrop], ["CornerPreference", $CornerPreference], ["ExtendFrameIntoClient", $ExtendFrameIntoClient], ["EnableBlurBehind", $EnableBlurBehind], ["BlurTintColor", $BlurTintColor], ["TintColorIntensity", $TintColorIntensity], ["Enabled", $RuleEnabled], ["DisplayName", $DisplayName]]
+    Local $aSection[17][2] = [[16, ""], ["RuleType", $RuleType], ["Target", $Target], ["DarkTitleBar", $DarkTitleBar], ["BorderColor", $BorderColor], ["TitleBarColor", $TitleBarColor], ["TitleBarTextColor", $TitleBarTextColor], ["TitleBarBackdrop", $TitleBarBackdrop], ["CornerPreference", $CornerPreference], ["ExtendFrameIntoClient", $ExtendFrameIntoClient], ["EnableBlurBehind", $EnableBlurBehind], ["BlurTintColor", $BlurTintColor], ["TintColorIntensity", $TintColorIntensity], ["BlurTintColorInactive", $BlurTintColorInact],["ColorIntensityInactive", $TintColorIntensityInact], ["Enabled", $RuleEnabled], ["DisplayName", $DisplayName]]
 
     $IniWriteStatus = IniWriteSection($sIniPath, $SectionName, $aSection)
     If $IniWriteStatus = 0 Then _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, " Failed to write changes to file. " & @CRLF)
@@ -1670,7 +1785,7 @@ Func _ReloadRulesCombo()
     _GUICtrlComboBox_ResetContent($RuleListCombo)
 
     ; need to reload array and combo
-    Global $aCustomRules[0][15]
+    Global $aCustomRules[0][17]
     _GetIniDetails()
 
 
@@ -1678,104 +1793,135 @@ Func _ReloadRulesCombo()
     ;$aRegistry &= "|" & "Global Rules"
 
     For $i = 0 To Ubound($aCustomRules)-1
-            $aRegistry &= "|" & $aCustomRules[$i][14]
+            $aRegistry &= "|" & $aCustomRules[$i][16]
     Next
     GUICtrlSetData($RuleListCombo, $aRegistry)
 EndFunc
 
 Func _GetIniDetails()
-        Local $count = 0
-        Local $sIniPath = @ScriptDir & "\ImmersiveUX.ini"
-        ; Create a constant variable in Local scope of the filepath that will be read/written to.
-        ;Local Const $sFilePath = _WinAPI_GetTempFileName(@TempDir)
+    Local $count = 0
+    Local $sIniPath = @ScriptDir & "\ImmersiveUX.ini"
+    ; Create a constant variable in Local scope of the filepath that will be read/written to.
+    ;Local Const $sFilePath = _WinAPI_GetTempFileName(@TempDir)
 
-        ; Global rules
-        $bGlobalDarkTitleBar = IniRead($sIniPath, "GlobalRules", "GlobalDarkTitleBar", "True")
-        $dGlobalBorderColor = IniRead($sIniPath, "GlobalRules", "GlobalBorderColor", "")
-        $dGlobalTitleBarColor = IniRead($sIniPath, "GlobalRules", "GlobalTitleBarColor", "")
-        $dGlobalTitleBarTextColor = IniRead($sIniPath, "GlobalRules", "GlobalTitleBarTextColor", "")
-        $iGlobalTitleBarBackdrop = IniRead($sIniPath, "GlobalRules", "GlobalTitleBarBackdrop", "0")
-        $iGlobalCornerPreference = IniRead($sIniPath, "GlobalRules", "GlobalCornerPreference", "0")
-        $iGlobalExtendFrameIntoClient = IniRead($sIniPath, "GlobalRules", "GlobalExtendFrameIntoClient", "False")
-        $iGlobalEnableBlurBehind = IniRead($sIniPath, "GlobalRules", "GlobalEnableBlurBehind", "False")
-        $dGlobalBlurTintColor = IniRead($sIniPath, "GlobalRules", "GlobalBlurTintColor", "")
-        $iGlobalTintColorIntensity = IniRead($sIniPath, "GlobalRules", "GlobalTintColorIntensity", "")
+    ; Global rules
+    $bGlobalDarkTitleBar = IniRead($sIniPath, "GlobalRules", "GlobalDarkTitleBar", "True")
+    $dGlobalBorderColor = IniRead($sIniPath, "GlobalRules", "GlobalBorderColor", "")
+    $dGlobalTitleBarColor = IniRead($sIniPath, "GlobalRules", "GlobalTitleBarColor", "")
+    $dGlobalTitleBarTextColor = IniRead($sIniPath, "GlobalRules", "GlobalTitleBarTextColor", "")
+    $iGlobalTitleBarBackdrop = IniRead($sIniPath, "GlobalRules", "GlobalTitleBarBackdrop", "0")
+    $iGlobalCornerPreference = IniRead($sIniPath, "GlobalRules", "GlobalCornerPreference", "0")
+    $iGlobalExtendFrameIntoClient = IniRead($sIniPath, "GlobalRules", "GlobalExtendFrameIntoClient", "False")
+    $iGlobalEnableBlurBehind = IniRead($sIniPath, "GlobalRules", "GlobalEnableBlurBehind", "False")
+    $dGlobalBlurTintColor = IniRead($sIniPath, "GlobalRules", "GlobalBlurTintColor", "")
+    $iGlobalTintColorIntensity = IniRead($sIniPath, "GlobalRules", "GlobalTintColorIntensity", "")
+    $dGlobalBlurTintColorInactive = IniRead($sIniPath, "GlobalRules", "GlobalBlurTintColorInactive", "missing")
+    $iGlobalColorIntensityInactive = IniRead($sIniPath, "GlobalRules", "GlobalColorIntensityInactive", "missing")
 
-        ; settings
-        $iBorderColorOptions = Int(IniRead($sIniPath, "Configuration", "BorderColorOptions", "0"))
+    If $dGlobalBlurTintColorInactive = "missing" Then
+        ; create backup of pre-1.5.0 config file
+        Local $bCopyStatus = FileCopy($sIniPath, @ScriptDir & "\ImmersiveUX-pre-1.5-backup.ini")
+        If $bCopyStatus = 0 Then FileCopy($sIniPath, @DesktopDir & "\ImmersiveUX-pre-1.5-backup.ini")
+        ; add to config
+        IniWrite($sIniPath, "GlobalRules", "GlobalBlurTintColorInactive", "")
+        $dGlobalBlurTintColorInactive = ""
+    EndIf
+    If $iGlobalColorIntensityInactive = "missing" Then
+        ; add to config
+        IniWrite($sIniPath, "GlobalRules", "GlobalColorIntensityInactive", "")
+        $iGlobalColorIntensityInactive = ""
+    EndIf
 
-        ; temporary fix for mistakenly allowing Global on dropdown, remove later
-        If $bGlobalDarkTitleBar = "Global" Then
-            $bGlobalDarkTitleBar = "True"
-            IniWrite($sIniPath, "GlobalRules", "GlobalDarkTitleBar", "True")
+    ; settings
+    $iBorderColorOptions = Int(IniRead($sIniPath, "Configuration", "BorderColorOptions", "0"))
+
+    ; temporary fix for mistakenly allowing Global on dropdown, remove later
+    If $bGlobalDarkTitleBar = "Global" Then
+        $bGlobalDarkTitleBar = "True"
+        IniWrite($sIniPath, "GlobalRules", "GlobalDarkTitleBar", "True")
+    EndIf
+    ; temporary fix for mistakenly allowing Global on dropdown, remove later
+    If $iGlobalTitleBarBackdrop = "Global" Then
+        $iGlobalTitleBarBackdrop = "0"
+        IniWrite($sIniPath, "GlobalRules", "GlobalTitleBarBackdrop", "0")
+    EndIf
+    ; temporary fix for mistakenly allowing Global on dropdown, remove later
+    If $iGlobalCornerPreference = "Global" Then
+        $iGlobalCornerPreference = "0"
+        IniWrite($sIniPath, "GlobalRules", "GlobalCornerPreference", "0")
+    EndIf
+    ; temporary fix for mistakenly allowing Global on dropdown, remove later
+    If $iGlobalExtendFrameIntoClient = "Global" Then
+        $iGlobalExtendFrameIntoClient = "True"
+        IniWrite($sIniPath, "GlobalRules", "GlobalExtendFrameIntoClient", "True")
+    EndIf
+    ; temporary fix for mistakenly allowing Global on dropdown, remove later
+    If $iGlobalEnableBlurBehind = "Global" Then
+        $iGlobalEnableBlurBehind = "True"
+        IniWrite($sIniPath, "GlobalRules", "GlobalEnableBlurBehind", "True")
+    EndIf
+
+    ; Read the INI section labelled 'General'. This will return a 2 dimensional array.
+    Local $aSectionNames = IniReadSectionNames($sIniPath)
+
+    For $i = 1 To $aSectionNames[0]
+    ;For $i = 1 To 2
+        ;If StringInStr($aSectionNames[$i], "CustomRules") Then
+        Local $a = $aSectionNames[$i]
+        If $a <> "Configuration" And $a <> "ProcessExclusion" And $a <> "ClassExclusion" And $a <> "Settings" And $a <> "GlobalRules" And $a <> "StartupInfoOnly" And $a <> "VSCodeInstallPath" Then
+            $count += 1
+            ;ConsoleWrite($aSectionNames[$i] & @CRLF)
+            Local $aArray = IniReadSection($sIniPath, $aSectionNames[$i])
+            ;ConsoleWrite("test: " & $aArray[$i][$i] & @CRLF)
+            ;For $z = 0 To UBound($aArray) -1
+                ;ConsoleWrite("test: " & '[' & $z & ']' & $aArray[$z][0] & @CRLF)
+                ;ConsoleWrite("test: " & $aArray[0][0] & @CRLF)
+            ;Next
+            If $aArray[0][0] = "14" Then
+                _ArrayInsert($aArray, 13, "BlurTintColorInactive", 0)
+                _ArrayInsert($aArray, 14, "ColorIntensityInactive", 0)
+                IniWriteSection($sIniPath, $aSectionNames[$i], $aArray)
+            EndIf
+
+            _ArrayColDelete($aArray, 0)
+            _ArrayDelete($aArray, 0)
+            ; adds section name to last column of array
+            _ArrayAdd($aArray, $aSectionNames[$i])
+            _ArrayTranspose($aArray)
+            _ArrayAdd($aCustomRules, $aArray)
+            ;$aArray[$i][11] = $aSectionNames[$i]
+            ;If $i = 1 Then _ArrayAdd($aCustomRules, $aArray)
+            ;ConsoleWrite("$aSectionNames[$i] " & $aSectionNames[$i] & @CRLF)
+            ;$aCustomRules[$i][11] = $aSectionNames[$i]
         EndIf
-        ; temporary fix for mistakenly allowing Global on dropdown, remove later
-        If $iGlobalTitleBarBackdrop = "Global" Then
-            $iGlobalTitleBarBackdrop = "0"
-            IniWrite($sIniPath, "GlobalRules", "GlobalTitleBarBackdrop", "0")
-        EndIf
-        ; temporary fix for mistakenly allowing Global on dropdown, remove later
-        If $iGlobalCornerPreference = "Global" Then
-            $iGlobalCornerPreference = "0"
-            IniWrite($sIniPath, "GlobalRules", "GlobalCornerPreference", "0")
-        EndIf
-        ; temporary fix for mistakenly allowing Global on dropdown, remove later
-        If $iGlobalExtendFrameIntoClient = "Global" Then
-            $iGlobalExtendFrameIntoClient = "True"
-            IniWrite($sIniPath, "GlobalRules", "GlobalExtendFrameIntoClient", "True")
-        EndIf
-        ; temporary fix for mistakenly allowing Global on dropdown, remove later
-        If $iGlobalEnableBlurBehind = "Global" Then
-            $iGlobalEnableBlurBehind = "True"
-            IniWrite($sIniPath, "GlobalRules", "GlobalEnableBlurBehind", "True")
-        EndIf
+    Next
 
-        ; Read the INI section labelled 'General'. This will return a 2 dimensional array.
-        Local $aSectionNames = IniReadSectionNames($sIniPath)
+    ;ConsoleWrite("count: " & $count & @CRLF)
+    ;_ArrayDisplay($aCustomRules, "test", "", 2, Default, "RuleType|Process/Class|DarkMode|BorderColor|TitleBarColor|TitleBarTextColor|CornerPreference|TitleBarBackdrop|ExtendFrameIntoClient|EnableBlurBehind|BlurTintColor|TintColorIntensity|Enabled|SectionName")
 
-        For $i = 1 To $aSectionNames[0]
-                ;If StringInStr($aSectionNames[$i], "CustomRules") Then
-                Local $a = $aSectionNames[$i]
-                If $a <> "Configuration" And $a <> "ProcessExclusion" And $a <> "ClassExclusion" And $a <> "Settings" And $a <> "GlobalRules" And $a <> "StartupInfoOnly" And $a <> "VSCodeInstallPath" Then
-                        $count += 1
-                        ;ConsoleWrite($aSectionNames[$i] & @CRLF)
-                        Local $aArray = IniReadSection($sIniPath, $aSectionNames[$i])
-                        _ArrayColDelete($aArray, 0)
-                        _ArrayDelete($aArray, 0)
-                        ; adds section name to last column of array
-                        _ArrayAdd($aArray, $aSectionNames[$i])
-                        _ArrayTranspose($aArray)
-                        _ArrayAdd($aCustomRules, $aArray)
-                        ;$aArray[$i][11] = $aSectionNames[$i]
-                        ;If $i = 1 Then _ArrayAdd($aCustomRules, $aArray)
-                        ;ConsoleWrite("$aSectionNames[$i] " & $aSectionNames[$i] & @CRLF)
-                        ;$aCustomRules[$i][11] = $aSectionNames[$i]
-                EndIf
-        Next
+    ; $aCustomRules[$i][0] = "RuleType"
+    ; $aCustomRules[$i][1] = "Target"
+    ; $aCustomRules[$i][2] = "DarkTitleBar"
+    ; $aCustomRules[$i][3] = "BorderColor"
+    ; $aCustomRules[$i][4] = "TitleBarColor"
+    ; $aCustomRules[$i][5] = "TitleBarTextColor"
+    ; $aCustomRules[$i][6] = "TitleBarBackdrop"
+    ; $aCustomRules[$i][7] = "CornerPreference"
+    ; $aCustomRules[$i][8] = "ExtendFrameIntoClient"
+    ; $aCustomRules[$i][9] = "EnableBlurBehind"
+    ; $aCustomRules[$i][10] = "BlurTintColor"
+    ; $aCustomRules[$i][11] = "TintColorIntensity"
+    ; $aCustomRules[$i][12] = "BlurTintColorInactive"
+    ; $aCustomRules[$i][13] = "TintColorIntensityInactive"
 
-        ;ConsoleWrite("count: " & $count & @CRLF)
-        ;_ArrayDisplay($aCustomRules, "test", "", 2, Default, "RuleType|Process/Class|DarkMode|BorderColor|TitleBarColor|TitleBarTextColor|CornerPreference|TitleBarBackdrop|ExtendFrameIntoClient|EnableBlurBehind|BlurTintColor|TintColorIntensity|Enabled|SectionName")
+    ; $aCustomRules[$i][14] = rule enabled/disabled
+    ; $aCustomRules[$i][15] = contains sectionname
+    ; $aCustomRules[$i][16] = contains FriendlyName
 
-        ; $aCustomRules[$i][0] = "RuleType"
-        ; $aCustomRules[$i][1] = "Target"
-        ; $aCustomRules[$i][2] = "DarkTitleBar"
-        ; $aCustomRules[$i][3] = "BorderColor"
-        ; $aCustomRules[$i][4] = "TitleBarColor"
-        ; $aCustomRules[$i][5] = "TitleBarTextColor"
-        ; $aCustomRules[$i][6] = "TitleBarBackdrop"
-        ; $aCustomRules[$i][7] = "CornerPreference"
-        ; $aCustomRules[$i][8] = "ExtendFrameIntoClient"
-        ; $aCustomRules[$i][9] = "EnableBlurBehind"
-        ; $aCustomRules[$i][10] = "BlurTintColor"
-        ; $aCustomRules[$i][11] = "TintColorIntensity"
-        ; $aCustomRules[$i][12] = rule enabled/disabled
-        ; $aCustomRules[$i][13] = contains sectionname
-        ; $aCustomRules[$i][14] = contains FriendlyName
-
-        ; sort array
-        ;_ArraySort($aCustomRules, 0, 0, 0, 1)
-        _ArraySwap($aCustomRules, 13, 14, True)
-        _ArraySort($aCustomRules, 0, 0, 0, 14)
+    ; sort array
+    ;_ArraySort($aCustomRules, 0, 0, 0, 1)
+    _ArraySwap($aCustomRules, 15, 16, True)
+    _ArraySort($aCustomRules, 0, 0, 0, 16)
 
 EndFunc   ;==>_GetIniDetails
 
@@ -1916,7 +2062,12 @@ Func _RuleList()
         ;GUICtrlSetBkColor($BlurTintColorPickLabel, $dGlobalBlurTintColor)
         GuiFlatButton_SetBkColor($BlurTintColorPickLabel, $dGlobalBlurTintColor)
 
+        GUICtrlSetData($BlurTintColorInputInact, $dGlobalBlurTintColorInactive)
+        ;GUICtrlSetBkColor($BlurTintColorPickLabelInact, $dGlobalBlurTintColorInactive)
+        GuiFlatButton_SetBkColor($BlurTintColorPickLabelInact, $dGlobalBlurTintColorInactive)
+
         GUICtrlSetData($BlurColorIntensitySlider, $iGlobalTintColorIntensity)
+        GUICtrlSetData($BlurColorIntensitySliderInact, $iGlobalColorIntensityInactive)
         Return
     EndIf
 
@@ -1924,7 +2075,7 @@ Func _RuleList()
 	For $i = 0 To UBound($aCustomRules) - 1
 		; run through all of the custom process/class rules for a match
 		;If StringInStr($sName, $aCustomRules[$i][1], 2) Or StringInStr($sClassName, $aCustomRules[$i][1], 2) Then
-		If $IFEOname = $aCustomRules[$i][14] Then
+		If $IFEOname = $aCustomRules[$i][16] Then
 			GUICtrlSetData($idInputRuleType, $aCustomRules[$i][0])
             If $aCustomRules[$i][0] = "Class" Then _GUICtrlComboBox_SetCurSel($RuleTypeCombo, 0)
 			If $aCustomRules[$i][0] = "Process" Then _GUICtrlComboBox_SetCurSel($RuleTypeCombo, 1)
@@ -2007,12 +2158,17 @@ Func _RuleList()
             ;GUICtrlSetBkColor($BlurTintColorPickLabel, $aCustomRules[$i][10])
             GuiFlatButton_SetBkColor($BlurTintColorPickLabel, $aCustomRules[$i][10])
 
-            GUICtrlSetData($BlurColorIntensitySlider, $aCustomRules[$i][11])
+            GUICtrlSetData($BlurTintColorInputInact, $aCustomRules[$i][12])
+            ;GUICtrlSetBkColor($BlurTintColorPickLabelInact, $aCustomRules[$i][12])
+            GuiFlatButton_SetBkColor($BlurTintColorPickLabelInact, $aCustomRules[$i][12])
 
-            GUICtrlSetData($idInputRuleEnabled, $aCustomRules[$i][12])
-            If $aCustomRules[$i][12] = "True" Then _GUICtrlComboBox_SetCurSel($RuleEnabledCombo, 0)
-			If $aCustomRules[$i][12] = "False" Then _GUICtrlComboBox_SetCurSel($RuleEnabledCombo, 1)
-            If $aCustomRules[$i][12] = "" Then
+            GUICtrlSetData($BlurColorIntensitySlider, $aCustomRules[$i][11])
+            GUICtrlSetData($BlurColorIntensitySliderInact, $aCustomRules[$i][13])
+
+            GUICtrlSetData($idInputRuleEnabled, $aCustomRules[$i][14])
+            If $aCustomRules[$i][14] = "True" Then _GUICtrlComboBox_SetCurSel($RuleEnabledCombo, 0)
+			If $aCustomRules[$i][14] = "False" Then _GUICtrlComboBox_SetCurSel($RuleEnabledCombo, 1)
+            If $aCustomRules[$i][14] = "" Then
             _GUICtrlComboBox_SetCurSel($RuleEnabledCombo, 1)
             GUICtrlSetData($idInputRuleEnabled, "False")
             EndIf
@@ -2367,11 +2523,11 @@ Func _ToBoolean($sString)
     Return (StringStripWS(StringUpper($sString), 8) = "TRUE" ? True : False)
 EndFunc   ;==>_ToBoolean
 
-;Function for getting HWND from PID
+; Function for getting HWND from PID
 Func _GetHwndFromPID($PID)
 	$hWnd = 0
 	$winlist = WinList()
-	;Do
+	Do
 		For $i = 1 To $winlist[0][0]
 			If $winlist[$i][0] <> "" Then
 				$iPID2 = WinGetProcess($winlist[$i][1])
@@ -2381,9 +2537,9 @@ Func _GetHwndFromPID($PID)
 				EndIf
 			EndIf
 		Next
-	;Until $hWnd <> 0
+	Until $hWnd <> 0
 	Return $hWnd
-EndFunc;==>_GetHwndFromPID
+EndFunc   ;==>_GetHwndFromPID
 
 ; Original code - Prog@ndy
 Func _MY_NCHITTEST($hWnd, $uMsg, $wParam, $lParam)

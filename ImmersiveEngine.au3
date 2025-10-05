@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.4.2
+#AutoIt3Wrapper_Res_Fileversion=1.5.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.4.2
+#AutoIt3Wrapper_Res_ProductVersion=1.5.0
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=Y
@@ -40,6 +40,7 @@ EndIf
 Global $iPID, $sINFO, $oService, $fSpeed = 4
 Global $IniFile = @ScriptDir & "\ImmersiveUX.ini"
 Global $bDarkModeEnabled, $bClearChangesOnExit, $bRequireWindows11, $iBorderColorOptions
+Global $dGlobalBlurTintColorInactive, $iGlobalColorIntensityInactive
 Global $aExcludeProcessNames, $aExcludeFromAllClass, $aExclusionsCombined
 Global $bClassicExplorer, $bExplorerExtendClient
 Global $bGlobalDarkTitleBar, $dGlobalBorderColor, $dGlobalTitleBarColor, $dGlobalTitleBarTextColor, $iGlobalTitleBarBackdrop, $iGlobalCornerPreference, $iGlobalExtendFrameIntoClient, $iGlobalEnableBlurBehind
@@ -50,7 +51,8 @@ Global $dVSCodiumBackdrop, $dVSCodeBackdrop
 Global Static $hLEDWndLast
 Global $bEnable = False
 Global $bBoot = True
-Global $aCustomRules[0][14]
+Global $bIsAnyBlurEnabled = False
+Global $aCustomRules[0][16]
 Global $bElevated = False
 Global $sProdName = "ImmersiveUX"
 Global $sEngName = "ImmersiveEngine"
@@ -130,7 +132,10 @@ IniWriteSection($IniFile, "StartupInfoOnly", $aSectionTS)
 Opt("SetExitCode", 1)
 
 OnAutoItExitRegister(DoCleanUp)
-AutoItWinSetTitle("Immersive UX Engine")
+
+Local $hWnd = WinGetHandle(AutoItWinGetTitle())
+_WinAPI_SetWindowText_mod($hWnd, "Immersive UX Engine")
+;AutoItWinSetTitle("Immersive UX Engine")
 
 Global $hHookFunc = DllCallbackRegister('_WinEventProc', 'none', 'ptr;uint;hwnd;int;int;uint;uint')
 Global $hWinHook = _WinAPI_SetWinEventHook_mod($EVENT_SYSTEM_FOREGROUND, $EVENT_OBJECT_NAMECHANGE, DllCallbackGetPtr($hHookFunc))
@@ -246,7 +251,7 @@ Func MainColoringRemoval($hWnd, $sClassName, $sName)
 		; run through all of the custom process/class rules for a match
 		If $sName = $aCustomRules[$i][1] Or $sClassName = $aCustomRules[$i][1] Then
 			; skip custom rules that are not Enabled
-			If Not $aCustomRules[$i][12] Then
+			If Not $aCustomRules[$i][14] Then
 				;If $bGlobalDarkTitleBar Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
 				If $iBorderColorOptions <> 0 Then
 					If $dGlobalBorderColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, 0xFFFFFFFF)
@@ -320,9 +325,10 @@ Func SetBorderColor_apply2all()
 
 	; get active window and apply border only to active window
 	If $iBorderColorOptions = 0 Then
-		$hActiveWndLast = WinGetHandle("[ACTIVE]", "")
+		$hActiveWndLast = _WinAPI_GetForegroundWindow_mod()
 		$sClassNameActive = _WinAPI_GetClassName_mod($hActiveWndLast)
 		$sNameActive = _WinAPI_GetWindowFileName_mod($hActiveWndLast)
+		If $bIsAnyBlurEnabled Then _BlurOnlyActive($hActiveWndLast, $sClassNameActive, $sNameActive)
 		_ColorBorderOnly($hActiveWndLast, $sClassNameActive, $sNameActive)
 	EndIf
 EndFunc   ;==>SetBorderColor_apply2all
@@ -330,7 +336,7 @@ EndFunc   ;==>SetBorderColor_apply2all
 Func MainColoringFunction($hWnd, $sClassName)
 	Local $sName = _WinAPI_GetWindowFileName_mod($hWnd)
 	If Not @Compiled Then
-		Local $sWindow = _WinAPI_GetWindowTextMod($hWnd)
+		Local $sWindow = _WinAPI_GetWindowText_mod($hWnd)
 		If $sWindow = "Immersive UX" Then $sName = "ImmersiveUX.exe"
 	EndIf
 	; exclude process names from global exclusions
@@ -353,7 +359,7 @@ Func MainColoringContinue($hWnd, $sClassName, $sName)
 		; run through all of the custom process/class rules for a match
 		If $sName = $aCustomRules[$i][1] Or $sClassName = $aCustomRules[$i][1] Then
 			; skip custom rules that are not Enabled
-			If Not $aCustomRules[$i][12] Then
+			If Not $aCustomRules[$i][14] Then
 				If $bGlobalDarkTitleBar And $bIsDarkTitle Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
 				;If $iBorderColorOptions <> 0 Then
 				;	If $dGlobalBorderColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dGlobalBorderColor))
@@ -362,7 +368,6 @@ Func MainColoringContinue($hWnd, $sClassName, $sName)
 				If $dGlobalTitleBarTextColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, _WinAPI_SwitchColor_mod($dGlobalTitleBarTextColor))
 				If $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, Int($iGlobalTitleBarBackdrop))
 				If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, Int($iGlobalCornerPreference))
-				If $iGlobalEnableBlurBehind Then _EnableBlur11($hWnd, $sName, $sClassName, $dGlobalBlurTintColor, $iGlobalBlurOpacity)
 				If Not $iGlobalEnableBlurBehind Then
 					; only enable ExtendFrameIntoClientArea if blur behind is not enabled
 					If $iGlobalExtendFrameIntoClient Then _DwmExtendFrameIntoClientArea($hWnd, $sName, $sClassName, $i)
@@ -411,12 +416,6 @@ Func MainColoringContinue($hWnd, $sClassName, $sName)
 			Else
 				If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, Int($iGlobalCornerPreference))
 			EndIf
-			; blur behind, fallback to global if not set
-			If $aCustomRules[$i][9] = "True" Then _EnableBlur11($hWnd, $sName, $sClassName, $aCustomRules[$i][10], $aCustomRules[$i][11])
-			If $aCustomRules[$i][9] = "" Then
-				; only enable blur if not custom set
-				If $iGlobalEnableBlurBehind Then _EnableBlur11($hWnd, $sName, $sClassName, $dGlobalBlurTintColor, $iGlobalBlurOpacity)
-			EndIf
 			; ExtendFrameIntoClientArea, fallback to global if not set
 			If $aCustomRules[$i][8] = "True" Then
 				; only enable ExtendFrameIntoClientArea if blur behind is not enabled
@@ -439,8 +438,83 @@ Func MainColoringContinue($hWnd, $sClassName, $sName)
 		If $dGlobalTitleBarTextColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, _WinAPI_SwitchColor_mod($dGlobalTitleBarTextColor))
 		If $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, Int($iGlobalTitleBarBackdrop))
 		If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, Int($iGlobalCornerPreference))
-		If $iGlobalEnableBlurBehind Then _EnableBlur11($hWnd, $sName, $sClassName, $dGlobalBlurTintColor, $iGlobalBlurOpacity)
 		If $iGlobalExtendFrameIntoClient And Not $iGlobalEnableBlurBehind Then _DwmExtendFrameIntoClientArea($hWnd, $sName, $sClassName, $i)
+	EndIf
+EndFunc
+
+Func _BlurOnlyActive($hWnd, $sClassName, $sName)
+	Local $i
+	Local $bMatchesFound = False
+	Local $dBlurColor, $iBlurOpacity
+
+	; determine if process rule or class rule matches for custom rules
+	For $i = 0 To UBound($aCustomRules) - 1
+		; run through all of the custom process/class rules for a match
+		If $sName = $aCustomRules[$i][1] Or $sClassName = $aCustomRules[$i][1] Then
+
+			; determine if custom rule holds values else fallback to global value
+			If $aCustomRules[$i][10] Then $dBlurColor = $aCustomRules[$i][10]
+			If $aCustomRules[$i][11] Then $iBlurOpacity = $aCustomRules[$i][11]
+			If Not $aCustomRules[$i][10] Then $dBlurColor = $dGlobalBlurTintColor
+			If Not $aCustomRules[$i][11] Then $iBlurOpacity = $iGlobalBlurOpacity
+
+			; skip custom rules that are not Enabled
+			If Not $aCustomRules[$i][14] Then
+				If $iGlobalEnableBlurBehind Then _EnableBlur11($hWnd, $sName, $sClassName, $dGlobalBlurTintColor, $iGlobalBlurOpacity)
+				Return
+			EndIf
+			; blur behind, fallback to global if not set
+			If $aCustomRules[$i][9] = "True" Then _EnableBlur11($hWnd, $sName, $sClassName, $dBlurColor, $iBlurOpacity)
+
+			If $aCustomRules[$i][9] = "" Then
+				; only enable blur if not custom set
+				If $iGlobalEnableBlurBehind Then _EnableBlur11($hWnd, $sName, $sClassName, $dGlobalBlurTintColor, $iGlobalBlurOpacity)
+			EndIf
+			$bMatchesFound = True
+		EndIf
+    Next
+
+	; fallback to global when no custom rules match
+	If Not $bMatchesFound Then
+		If $iGlobalEnableBlurBehind Then _EnableBlur11($hWnd, $sName, $sClassName, $dGlobalBlurTintColor, $iGlobalBlurOpacity)
+	EndIf
+EndFunc
+
+Func _BlurOnlyInactive($hWnd, $sClassName, $sName)
+	Local $i
+	Local $bMatchesFound = False
+	Local $dBlurColor, $iBlurOpacity
+
+	; determine if process rule or class rule matches for custom rules
+	For $i = 0 To UBound($aCustomRules) - 1
+		; run through all of the custom process/class rules for a match
+		If $sName = $aCustomRules[$i][1] Or $sClassName = $aCustomRules[$i][1] Then
+
+			; determine if custom rule holds values else fallback to global value
+			If $aCustomRules[$i][12] Then $dBlurColor = $aCustomRules[$i][12]
+			If $aCustomRules[$i][13] Then $iBlurOpacity = $aCustomRules[$i][13]
+			If Not $aCustomRules[$i][12] Then $dBlurColor = $dGlobalBlurTintColorInactive
+			If Not $aCustomRules[$i][13] Then $iBlurOpacity = $iGlobalColorIntensityInactive
+
+			; skip custom rules that are not Enabled
+			If Not $aCustomRules[$i][14] Then
+				If $iGlobalEnableBlurBehind Then _EnableBlur11($hWnd, $sName, $sClassName, $dGlobalBlurTintColorInactive, $iGlobalColorIntensityInactive)
+				Return
+			EndIf
+			; blur behind, fallback to global if not set
+			If $aCustomRules[$i][9] = "True" Then _EnableBlur11($hWnd, $sName, $sClassName, $dBlurColor, $iBlurOpacity)
+
+			If $aCustomRules[$i][9] = "" Then
+				; only enable blur if not custom set
+				If $iGlobalEnableBlurBehind Then _EnableBlur11($hWnd, $sName, $sClassName, $dGlobalBlurTintColorInactive, $iGlobalColorIntensityInactive)
+			EndIf
+			$bMatchesFound = True
+		EndIf
+    Next
+
+	; fallback to global when no custom rules match
+	If Not $bMatchesFound Then
+		If $iGlobalEnableBlurBehind Then _EnableBlur11($hWnd, $sName, $sClassName, $dGlobalBlurTintColorInactive, $iGlobalColorIntensityInactive)
 	EndIf
 EndFunc
 
@@ -451,7 +525,7 @@ Func _ColorBorderOnly($hWnd, $sClassName, $sName)
 		If $sName = $aCustomRules[$i][1] Or $sClassName = $aCustomRules[$i][1] Then
 			$bMatchesFound = True
 			; skip custom rules that are not Enabled
-			If Not $aCustomRules[$i][12] Then
+			If Not $aCustomRules[$i][14] Then
 				If $iBorderColorOptions = 1 Then
 					If $dGlobalBorderColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dGlobalBorderColor))
 				EndIf
@@ -560,7 +634,7 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 			EndIf
 
 			; exclude windows with blank title
-			$sActiveWindow = _WinAPI_GetWindowTextMod($hWnd)
+			$sActiveWindow = _WinAPI_GetWindowText_mod($hWnd)
 			If $sActiveWindow = "" Then Return
 
 			MainColoringFunction($hWnd, $sClassName)
@@ -582,7 +656,7 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 				If $hExplorer Then _WinAPI_DwmExtendFrameIntoClientArea_mod($hExplorer, _WinAPI_CreateMargins(-1, -1, -1, -1))
 			EndIf
 
-			$sActiveWindow = _WinAPI_GetWindowTextMod($hWnd)
+			$sActiveWindow = _WinAPI_GetWindowText_mod($hWnd)
 
 			; Visual Studio Handling
 			If $sActiveWindow = 'Microsoft Visual Studio' Then
@@ -600,17 +674,23 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 				EndIf
 			EndIf
 
-			If $iBorderColorOptions = 0 Then
+			If $bIsAnyBlurEnabled Or $iBorderColorOptions = 0 Then
 				; border color, only color active window
-				$hActiveWnd = WinGetHandle("[ACTIVE]", "")
-				If $hActiveWnd<>$hActiveWndLast Then
+				$hActiveWnd = _WinAPI_GetForegroundWindow_mod()
+				If $hActiveWnd <> $hActiveWndLast Then
 					; exclude class names and process names from global exclusions
 					$sClassName = _WinAPI_GetClassName_mod($hActiveWndLast)
 					$sName = _WinAPI_GetWindowFileName_mod($hActiveWndLast)
 					For $i = 0 To UBound($aExclusionsCombined) -1
 						If $sName = $aExclusionsCombined[$i] Or $sClassName = $aExclusionsCombined[$i] Then $bMatchesFound = True
 					Next
-					If Not $bMatchesFound Then _WinAPI_DwmSetWindowAttribute__($hActiveWndLast, 34, $DWMWA_COLOR_NONE)
+					; remove blend color
+					If Not $bMatchesFound Then
+						; need to switch to inactive blur func
+						If $bIsAnyBlurEnabled Then _BlurOnlyInactive($hActiveWndLast, $sClassName, $sName)
+						; remove border on inactive window
+						If $iBorderColorOptions = 0 Then _WinAPI_DwmSetWindowAttribute__($hActiveWndLast, 34, $DWMWA_COLOR_NONE)
+					EndIf
 					$hActiveWndLast = $hActiveWnd
 				EndIf
 			EndIf
@@ -629,6 +709,7 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 
 			If Not @Compiled And $sActiveWindow = "Immersive UX" Then $sName = "ImmersiveUX.exe"
 
+			If $bIsAnyBlurEnabled Then _BlurOnlyActive($hWnd, $sClassName, $sName)
 			_ColorBorderOnly($hWnd, $sClassName, $sName)
 
 		Case $EVENT_OBJECT_REORDER
@@ -751,14 +832,21 @@ Func _WinAPI_DwmEnableBlurBehindWindow11($hWnd, $AccentState = $ACCENT_ENABLE_AC
     Return $aResult[0]
 EndFunc   ;==>_WinAPI_DwmEnableBlurBehindWindow11
 
-Func _WinAPI_GetWindowTextMod($hWnd)
+Func _WinAPI_GetWindowText_mod($hWnd)
 	Local $aCall = DllCall($hUser32, "int", "GetWindowTextW", "hwnd", $hWnd, "wstr", "", "int", 4096)
 	If @error Or Not $aCall[0] Then Return ""
 	Return $aCall[2]
-EndFunc
+EndFunc   ;==>_WinAPI_GetWindowText_mod
+
+Func _WinAPI_SetWindowText_mod($hWnd, $sText)
+	Local $aCall = DllCall($hUser32, "bool", "SetWindowTextW", "hwnd", $hWnd, "wstr", $sText)
+	If @error Then Return SetError(@error, @extended, False)
+
+	Return $aCall[0]
+EndFunc   ;==>_WinAPI_SetWindowText_mod
 
 Func idGUI()
-	Local $hActiveWin = WinGetHandle("[ACTIVE]")
+	Local $hActiveWin = _WinAPI_GetForegroundWindow_mod()
 	; only start GUI if not already running
 	If @Compiled Then
 		If $bBoot Then
@@ -819,11 +907,11 @@ Func idGUI()
 	EndIf
 EndFunc
 
-;Function for getting HWND from PID
+; Function for getting HWND from PID
 Func _GetHwndFromPID($PID)
 	$hWnd = 0
 	$winlist = WinList()
-	;Do
+	Do
 		For $i = 1 To $winlist[0][0]
 			If $winlist[$i][0] <> "" Then
 				$iPID2 = WinGetProcess($winlist[$i][1])
@@ -833,12 +921,12 @@ Func _GetHwndFromPID($PID)
 				EndIf
 			EndIf
 		Next
-	;Until $hWnd <> 0
+	Until $hWnd <> 0
 	Return $hWnd
-EndFunc;==>_GetHwndFromPID
+EndFunc   ;==>_GetHwndFromPID
 
 Func ReadIniFile()
-	Global $aCustomRules[0][14]
+	Global $aCustomRules[0][16]
 
 	; Global rules
 	$bGlobalDarkTitleBar = _ToBoolean(IniRead($IniFile, "GlobalRules", "GlobalDarkTitleBar", "True"))
@@ -851,6 +939,10 @@ Func ReadIniFile()
 	$iGlobalEnableBlurBehind = _ToBoolean(IniRead($IniFile, "GlobalRules", "GlobalEnableBlurBehind", "False"))
 	$dGlobalBlurTintColor = IniRead($IniFile, "GlobalRules", "GlobalBlurTintColor", "")
 	$iGlobalBlurOpacity = Int(IniRead($IniFile, "GlobalRules", "GlobalTintColorIntensity", ""))
+	$dGlobalBlurTintColorInactive = IniRead($IniFile, "GlobalRules", "GlobalBlurTintColorInactive", "")
+    $iGlobalColorIntensityInactive = Int(IniRead($IniFile, "GlobalRules", "GlobalColorIntensityInactive", ""))
+
+	If $iGlobalEnableBlurBehind Then $bIsAnyBlurEnabled = True
 
 	$bClearChangesOnExit = _ToBoolean(IniRead($IniFile, "Settings", "ClearChangesOnExit", "True"))
 	$bRequireWindows11 = _ToBoolean(IniRead($IniFile, "Settings", "RequireWindows11", "True"))
@@ -867,6 +959,7 @@ Func ReadIniFile()
         If $a <> "Configuration" And $a <> "ProcessExclusion" And $a <> "ClassExclusion" And $a <> "Settings" And $a <> "GlobalRules" And $a <> "StartupInfoOnly" And $a <> "VSCodeInstallPath" Then
 			Local $aArray = IniReadSection($IniFile, $aSectionNames[$i])
 			;ConsoleWrite("number of lines: " & $aArray[0][0] & @CRLF)
+			#cs
 			If $aArray[0][0] <> '14' Then
 				; problem detected in CustomRules section
 				$msg = 'A problem has been detected in CustomRules section: ' & $aSectionNames[$i] & @CRLF & @CRLF
@@ -874,6 +967,11 @@ Func ReadIniFile()
 				MsgBox($MB_SYSTEMMODAL, "Error", $msg)
 				Exit
 			EndIf
+			#ce
+			If $aArray[0][0] = "14" Then
+                _ArrayInsert($aArray, 13, "BlurTintColorInactive", 0)
+                _ArrayInsert($aArray, 14, "ColorIntensityInactive", 0)
+            EndIf
 			_ArrayColDelete($aArray, 0)
 			_ArrayDelete($aArray, 0)
 			_ArrayTranspose($aArray)
@@ -885,7 +983,9 @@ Func ReadIniFile()
 	For $i = 0 To UBound($aCustomRules) - 1
         ;$aCustomRules[$i][6] = Int($aCustomRules[$i][6])
         ;$aCustomRules[$i][7] = Int($aCustomRules[$i][7])
-		$aCustomRules[$i][12] = _ToBoolean($aCustomRules[$i][12])
+		$aCustomRules[$i][14] = _ToBoolean($aCustomRules[$i][14])
+
+		If $aCustomRules[$i][9] = "True" Then $bIsAnyBlurEnabled = True
     Next
 
 	; need to loop through custom rules to store details for Terminal, Explorer, VSCode, VS Studio
@@ -898,41 +998,41 @@ Func ReadIniFile()
 			; fix for Explorer blur behind titlebar
 			If $aCustomRules[$i][9] = "True" Then $aCustomRules[$i][8] = "True"
 			If $aCustomRules[$i][8] = "True" Then $bExplorerExtendClient = True
-			If Not $aCustomRules[$i][12] Then $bExplorerExtendClient = False
+			If Not $aCustomRules[$i][14] Then $bExplorerExtendClient = False
 		EndIf
 		If StringInStr($aCustomRules[$i][1], "CabinetWClass", $STR_NOCASESENSEBASIC) Then
 			; fix for Explorer blur behind titlebar
 			If $aCustomRules[$i][9] = "True" Then $aCustomRules[$i][8] = "True"
 			If $aCustomRules[$i][8] = "True" Then $bExplorerExtendClient = True
-			If Not $aCustomRules[$i][12] Then $bExplorerExtendClient = False
+			If Not $aCustomRules[$i][14] Then $bExplorerExtendClient = False
 		EndIf
 		If StringInStr($aCustomRules[$i][1], "Terminal.exe", 2) Or StringInStr($aCustomRules[$i][1], "CASCADIA_HOSTING_WINDOW_CLASS", 2) Then
 			If $aCustomRules[$i][8] = "True" Then $bWindowsTerminalHandling = True
 			If $aCustomRules[$i][9] = "True" Then $bWindowsTerminalHandling = True
 			If $aCustomRules[$i][9] = "True" Then $bWindowsTerminalBlur = True
-			If Not $aCustomRules[$i][12] Then $bWindowsTerminalHandling = False
-			If $aCustomRules[$i][12] Then
+			If Not $aCustomRules[$i][14] Then $bWindowsTerminalHandling = False
+			If $aCustomRules[$i][14] Then
 				If $aCustomRules[$i][3] Then
 					$dTerminalBorderColor = $aCustomRules[$i][3]
 				Else
 					$dTerminalBorderColor = $dGlobalBorderColor
 				EndIf
 			EndIf
-			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][12] Then
+			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][14] Then
 				$dTerminalBackdrop = $aCustomRules[$i][6]
 			Else
 				$dTerminalBackdrop = $iGlobalTitleBarBackdrop
 			EndIf
 		EndIf
 		If StringInStr($aCustomRules[$i][1], "VSCodium.exe", $STR_NOCASESENSEBASIC) Then
-			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][12] Then
+			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][14] Then
 				$dVSCodiumBackdrop = $aCustomRules[$i][6]
 			Else
 				$dVSCodiumBackdrop = $iGlobalTitleBarBackdrop
 			EndIf
 		EndIf
 		If StringInStr($aCustomRules[$i][1], "Code.exe", $STR_NOCASESENSEBASIC) Then
-			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][12] Then
+			If $aCustomRules[$i][6] <> "" And $aCustomRules[$i][14] Then
 				$dVSCodeBackdrop = $aCustomRules[$i][6]
 			Else
 				$dVSCodeBackdrop = $iGlobalTitleBarBackdrop
@@ -1237,7 +1337,9 @@ Func _WinAPI_ShouldAppsUseDarkMode()
 EndFunc   ;==>_WinAPI_ShouldAppsUseDarkMode
 
 Func _BorderEffectsProcess()
-	AutoItWinSetTitle("Immersive UX LED")
+	Local $hWnd = WinGetHandle(AutoItWinGetTitle())
+	_WinAPI_SetWindowText_mod($hWnd, "Immersive UX LED")
+	;AutoItWinSetTitle("Immersive UX LED")
 
 	While 1
 		Sleep(40)
@@ -1292,8 +1394,10 @@ Func _BorderEffects($hWnd)
 EndFunc   ;==>_BorderEffects
 
 Func _WinAPI_GetForegroundWindow_mod()
-    Local $aCall = DllCall($hUser32, "hwnd", "GetForegroundWindow")
-    Return $aCall[0]
+	Local $aCall = DllCall($hUser32, "hwnd", "GetForegroundWindow")
+	If @error Then Return SetError(@error, @extended, 0)
+
+	Return $aCall[0]
 EndFunc   ;==>_WinAPI_GetForegroundWindow_mod
 
 #cs
