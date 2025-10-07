@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX GUI
-#AutoIt3Wrapper_Res_Fileversion=1.5.1
+#AutoIt3Wrapper_Res_Fileversion=1.5.2
 #AutoIt3Wrapper_Res_ProductName=Immersive UX GUI
-#AutoIt3Wrapper_Res_ProductVersion=1.5.1
+#AutoIt3Wrapper_Res_ProductVersion=1.5.2
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -15,7 +15,7 @@
 #AutoIt3Wrapper_Run_Au3Stripper=y
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
-Global $iVersion = '1.5.1'
+Global $iVersion = '1.5.2'
 
 #include <MsgBoxConstants.au3>
 #include <WinAPIFiles.au3>
@@ -65,7 +65,7 @@ Opt("TrayMenuMode", 3)
 Opt("TrayAutoPause", 0)
 Opt("TrayOnEventMode", 1)
 
-Global $hGUI, $hSpecialMenu, $hTaskMenu, $FontHeight
+Global $hGUI, $hSpecialMenu, $hTaskMenu, $FontHeight, $hSubItems3
 Global $dGlobalBlurTintColorInactive, $iGlobalColorIntensityInactive
 Global $bGlobalDarkTitleBar, $dGlobalBorderColor, $dGlobalTitleBarColor, $dGlobalTitleBarTextColor, $iGlobalTitleBarBackdrop
 Global $iGlobalCornerPreference, $iGlobalExtendFrameIntoClient, $iGlobalEnableBlurBehind, $dGlobalBlurTintColor, $iGlobalTintColorIntensity
@@ -177,12 +177,23 @@ Func _StartGUI()
     _GUICtrlMenu_InsertMenuItem($hSubItems2, 0, "Patch Terminal", 3)
     _GUICtrlMenu_InsertMenuItem($hSubItems2, 1, "Unpatch Terminal", 4)
 
+    $hSubItems3 = _GUICtrlMenu_CreateMenu()
+    _GUICtrlMenu_InsertMenuItem($hSubItems3, 0, "Active Window Only", 5)
+    _GUICtrlMenu_InsertMenuItem($hSubItems3, 1, "Active && Inactive Windows", 6)
+    _GUICtrlMenu_InsertMenuItem($hSubItems3, 2, "LED Strobe Effects", 7)
+
     $hSpecialMenu = _GUICtrlMenu_CreatePopup()
     _GUICtrlMenu_InsertMenuItem($hSpecialMenu, 0, "VSCode", 0, $hSubItems1)
     _GUICtrlMenu_InsertMenuItem($hSpecialMenu, 2, "Terminal", 0, $hSubItems2)
-    _GUICtrlMenu_InsertMenuItem($hSpecialMenu, 3, "LED Strobe Border", 5)
-    If $iBorderColorOptions = 2 Then _GUICtrlMenu_CheckMenuItem($hSpecialMenu, 2)
-    If $iBorderColorOptions <> 2 Then _GUICtrlMenu_CheckMenuItem($hSpecialMenu, 2, 0)
+    ;_GUICtrlMenu_InsertMenuItem($hSpecialMenu, 3, "LED Strobe Border", 5)
+    _GUICtrlMenu_InsertMenuItem($hSpecialMenu, 3, "Border Options", 0, $hSubItems3)
+    ;If $iBorderColorOptions = 2 Then _GUICtrlMenu_CheckMenuItem($hSpecialMenu, 2)
+    ;If $iBorderColorOptions <> 2 Then _GUICtrlMenu_CheckMenuItem($hSpecialMenu, 2, 0)
+    ;If $iBorderColorOptions = 2 Then _GUICtrlMenu_CheckMenuItem($hSubItems3, 2)
+    ;If $iBorderColorOptions <> 2 Then _GUICtrlMenu_CheckMenuItem($hSubItems3, 2, 0)
+    If $iBorderColorOptions = 0 Then _GUICtrlMenu_CheckRadioItem($hSubItems3, 0, 2, 0)
+    If $iBorderColorOptions = 1 Then _GUICtrlMenu_CheckRadioItem($hSubItems3, 0, 2, 1)
+    If $iBorderColorOptions = 2 Then _GUICtrlMenu_CheckRadioItem($hSubItems3, 0, 2, 2)
 
     $hTaskMenu = _GUICtrlMenu_CreatePopup()
     _GUICtrlMenu_InsertMenuItem($hTaskMenu, 0, "Install Task (Admin)", 1)
@@ -1131,15 +1142,35 @@ Func idSpecialHandlingTest()
             $sMsg &= "of Windows Terminal." & @CRLF
             _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
         Case 5
+            ; active window only
             $iBorderColorOptions = Int(IniRead($sIniPath, "Configuration", "BorderColorOptions", "0"))
-            If $iBorderColorOptions = 2 Then
+            If $iBorderColorOptions = 0 Then
+                Return
+            ElseIf $iBorderColorOptions <> 0 Then
+                ; set value
                 IniWrite($sIniPath, "Configuration", "BorderColorOptions", "0")
-                _GUICtrlMenu_CheckMenuItem($hSpecialMenu, 2, 0)
+                _GUICtrlMenu_CheckRadioItem($hSubItems3, 0, 2, 0)
                 _RestartTask()
             EndIf
-            If $iBorderColorOptions <> 2 Then
+        Case 6
+            ; active and inactive windows
+            $iBorderColorOptions = Int(IniRead($sIniPath, "Configuration", "BorderColorOptions", "0"))
+            If $iBorderColorOptions = 1 Then
+                Return
+            ElseIf $iBorderColorOptions <> 1 Then
+                ; set value
+                IniWrite($sIniPath, "Configuration", "BorderColorOptions", "1")
+                _GUICtrlMenu_CheckRadioItem($hSubItems3, 0, 2, 1)
+                _RestartTask()
+            EndIf
+        Case 7
+            ; LED strobe border effects
+            $iBorderColorOptions = Int(IniRead($sIniPath, "Configuration", "BorderColorOptions", "0"))
+            If $iBorderColorOptions = 2 Then
+                Return
+            ElseIf $iBorderColorOptions <> 2 Then
                 IniWrite($sIniPath, "Configuration", "BorderColorOptions", "2")
-                _GUICtrlMenu_CheckMenuItem($hSpecialMenu, 2)
+                _GUICtrlMenu_CheckRadioItem($hSubItems3, 0, 2, 2)
                 _RestartTask()
             EndIf
 	EndSwitch
