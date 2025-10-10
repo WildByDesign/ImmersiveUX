@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX GUI
-#AutoIt3Wrapper_Res_Fileversion=1.5.2
+#AutoIt3Wrapper_Res_Fileversion=1.5.3
 #AutoIt3Wrapper_Res_ProductName=Immersive UX GUI
-#AutoIt3Wrapper_Res_ProductVersion=1.5.2
+#AutoIt3Wrapper_Res_ProductVersion=1.5.3
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -15,7 +15,7 @@
 #AutoIt3Wrapper_Run_Au3Stripper=y
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
-Global $iVersion = '1.5.2'
+Global $iVersion = '1.5.3'
 
 #include <MsgBoxConstants.au3>
 #include <WinAPIFiles.au3>
@@ -3024,6 +3024,7 @@ EndFunc
 Func _Exit()
     If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
     If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
+    If WinExists("Immersive UX Dark") Then WinClose("Immersive UX Dark")
 
     Exit
 EndFunc

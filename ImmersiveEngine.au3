@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.5.2
+#AutoIt3Wrapper_Res_Fileversion=1.5.3
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.5.2
+#AutoIt3Wrapper_Res_ProductVersion=1.5.3
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=Y
@@ -47,8 +47,10 @@ Global $bGlobalDarkTitleBar, $dGlobalBorderColor, $dGlobalTitleBarColor, $dGloba
 Global $iGlobalBlurTintColor, $dGlobalBlurTintColor, $iGlobalBlurOpacity
 Global $dTerminalBorderColor, $dTerminalBackdrop, $bWindowsTerminalHandling, $dVSStudioBorderColor, $bWindowsTerminalBlur
 Global $dVSCodiumBackdrop, $dVSCodeBackdrop
+Global $hHookFuncDark, $hWinHookDark
 ;Global $hActiveWnd
 Global Static $hLEDWndLast
+Global $bIsDarkFrame
 Global $bEnable = False
 Global $bBoot = True
 Global $bIsAnyBlurEnabled = False
@@ -95,10 +97,15 @@ If StringInStr($CmdLineRaw, "bordereffects") Then
 	Exit
 EndIf
 
-Global $aExcludeClassNames[16] = ["Progman", "Xaml_WindowedPopupClass", "Windows.UI.Core.CoreComponentInputSource", _
+If StringInStr($CmdLineRaw, "darkframe") Then
+	_DarkFrameProcess()
+	Exit
+EndIf
+
+Global $aExcludeClassNames[17] = ["Progman", "Xaml_WindowedPopupClass", "Windows.UI.Core.CoreComponentInputSource", _
 	"Windows.UI.Core.CoreWindow", "Windows.UI.Composition.DesktopWindowContentBridge", "Chrome_RenderWidgetHostHWND", _
 	"ControlCenterWindow", "TopLevelWindowForOverflowXamlIsland", "SysDragImage", "IME", "OleMainThreadWndClass", "MSCTFIME UI", _
-	"CicMarshalWndClass", "XCPTimerClass", "msctls_statusbar32", "Microsoft.UI.Content.PopupWindowSiteBridge"]
+	"CicMarshalWndClass", "XCPTimerClass", "msctls_statusbar32", "Microsoft.UI.Content.PopupWindowSiteBridge", "XamlExplorerHostIslandWindow"]
 
 ReadIniFile()
 
@@ -152,7 +159,7 @@ If StringInStr($Uptime, "min") Then
 EndIf
 
 ; set process priority
-If @Compiled Then ProcessSetPriority($sEngName & ".exe", 4)
+ProcessSetPriority(@AutoItPID, 4)
 
 ; start GUI/tray process
 idGUI()
@@ -606,19 +613,12 @@ Func _EnableBlur11($hWnd, $sName, $sClassName, $BlendColor = "", $ColorOpacity =
 EndFunc
 
 Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread, $imsEventTime)
-	Local Static $hWndLastShow, $hWndLastReorder, $hWndLastForeground, $hWndLastNameChange, $hActiveWndLast
+	Local Static $hWndLastReorder, $hWndLastNameChange, $hActiveWndLast
 	Local $sActiveWindow, $sName, $sClassName
 	Local $hTerminal, $hExplorer
 	Local $bMatchesFound = False
     Switch $iEvent
 		Case $EVENT_OBJECT_SHOW
-			; avoid applying coloring to duplicate hWnd in rapid succession
-			If $hWnd<>$hWndLastShow Then
-				$hWndLastShow = $hWnd
-			ElseIf $hWnd=$hWndLastShow Then
-				Return
-			EndIf
-
 			$sClassName = _WinAPI_GetClassName_mod($hWnd)
 
 			; exclude classnames from global exclusions
@@ -647,13 +647,6 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 
 		Case $EVENT_SYSTEM_FOREGROUND
 			; this Case is mostly for handling border coloring and some special handling
-
-			; avoid applying coloring to duplicate hWnd in rapid succession
-			If $hWnd<>$hWndLastForeground Then
-				$hWndLastForeground = $hWnd
-			ElseIf $hWnd=$hWndLastForeground Then
-				Return
-			EndIf
 
 			; fix modern File Explorer losing client area backdrop material when losing focus
 			; fix modern File Explorer titlebar losing blur after gaining focus
@@ -719,7 +712,11 @@ Func _WinEventProc($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread,
 
 			If $bIsAnyBlurEnabled Then _BlurOnlyActive($hWnd, $sClassName, $sName)
 			;WinSetTrans($hWnd, "", 255)
-			If $iBorderColorOptions = "0" Then _ColorBorderOnly($hWnd, $sClassName, $sName)
+			If $iBorderColorOptions = "0" Then
+				; add slight delay to prevent coloring border too early
+				Sleep(20)
+				_ColorBorderOnly($hWnd, $sClassName, $sName)
+			EndIf
 
 		Case $EVENT_OBJECT_REORDER
 			; this Case is specifically for classic File Explorer when it loses Client Area coloring/backdrop when resizing
@@ -1273,6 +1270,20 @@ Func _WinAPI_IsWindowVisible_mod($hWnd)
 	Return $aCall[0]
 EndFunc   ;==>_WinAPI_IsWindowVisible_mod
 
+Func _WinAPI_IsWindowEnabled_mod($hWnd)
+	Local $aCall = DllCall($hUser32, 'bool', 'IsWindowEnabled', 'hwnd', $hWnd)
+	If @error Then Return SetError(@error, @extended, False)
+
+	Return $aCall[0]
+EndFunc   ;==>_WinAPI_IsWindowEnabled_mod
+
+Func _WinAPI_GetForegroundWindow_mod()
+	Local $aCall = DllCall($hUser32, "hwnd", "GetForegroundWindow")
+	If @error Then Return SetError(@error, @extended, 0)
+
+	Return $aCall[0]
+EndFunc   ;==>_WinAPI_GetForegroundWindow_mod
+
 Func _WinAPI_GetParentProcess_mod($iPID = 0)
 	If Not $iPID Then $iPID = @AutoItPID
 
@@ -1343,9 +1354,47 @@ Func _WinAPI_ShouldAppsUseDarkMode()
 	Return $aResult[0]
 EndFunc   ;==>_WinAPI_ShouldAppsUseDarkMode
 
+Func _DarkFrameProcess()
+	$bGlobalDarkTitleBar = _ToBoolean(IniRead($IniFile, "GlobalRules", "GlobalDarkTitleBar", "True"))
+	$bIsDarkFrame = _WinAPI_ShouldAppsUseDarkMode()
+	OnAutoItExitRegister(DoCleanUpDark)
+
+	Local $hWnd = _GetHwndFromPID(@AutoItPID)
+	_WinAPI_SetWindowText_mod($hWnd, "Immersive UX Dark")
+
+	ProcessSetPriority(@AutoItPID, 4)
+
+	Local $hHookFuncDark = DllCallbackRegister('_WinEventProcDark', 'none', 'ptr;uint;hwnd;int;int;uint;uint')
+	Local $hWinHookDark = _WinAPI_SetWinEventHook_mod($EVENT_OBJECT_CREATE, $EVENT_OBJECT_CREATE, DllCallbackGetPtr($hHookFuncDark))
+
+	While 1
+		Sleep(10000)
+		$bIsDarkFrame = _WinAPI_ShouldAppsUseDarkMode()
+	WEnd
+EndFunc
+
+Func DoCleanUpDark()
+    If $hWinHookDark Then _WinAPI_UnhookWinEvent_mod($hWinHookDark)
+    If $hHookFuncDark Then DllCallbackFree($hHookFuncDark)
+EndFunc   ;==>DoCleanUpDark
+
+Func _WinEventProcDark($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread, $imsEventTime)
+    Switch $iEvent
+		Case $EVENT_OBJECT_CREATE
+			;If $bIsDarkFrame And $bGlobalDarkTitleBar Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
+			If $bIsDarkFrame And $bGlobalDarkTitleBar Then
+				DllCall($hDwmapi, 'long', 'DwmSetWindowAttribute', 'hwnd', $hWnd, 'dword', 20, 'dword*', 1, 'dword', 4)
+			EndIf
+			;If $bIsDarkFrame And $bGlobalDarkTitleBar Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
+			;_WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
+    EndSwitch
+EndFunc
+
 Func _BorderEffectsProcess()
 	Local $hWnd = _GetHwndFromPID(@AutoItPID)
 	_WinAPI_SetWindowText_mod($hWnd, "Immersive UX LED")
+
+	ProcessSetPriority(@AutoItPID, 4)
 
 	While 1
 		Sleep(40)
@@ -1354,7 +1403,7 @@ Func _BorderEffectsProcess()
 			_WinAPI_DwmSetWindowAttribute__($hLEDWndLast, 34, $DWMWA_COLOR_NONE)
 			$hLEDWndLast = $hLEDWnd
 		ElseIf $hLEDWnd = $hLEDWndLast Then
-			_BorderEffects($hLEDWnd)
+			If _WinAPI_IsWindowVisible_mod($hLEDWnd) Then _BorderEffects($hLEDWnd)
 		EndIf
 	WEnd
 EndFunc
@@ -1398,13 +1447,6 @@ Func _BorderEffects($hWnd)
 
     DllCall($hDwmapi, 'long', 'DwmSetWindowAttribute', 'hwnd', $hWnd, 'dword', 34, 'dword*', $iRGB, 'dword', 4)
 EndFunc   ;==>_BorderEffects
-
-Func _WinAPI_GetForegroundWindow_mod()
-	Local $aCall = DllCall($hUser32, "hwnd", "GetForegroundWindow")
-	If @error Then Return SetError(@error, @extended, 0)
-
-	Return $aCall[0]
-EndFunc   ;==>_WinAPI_GetForegroundWindow_mod
 
 #cs
 Func WinListtest()
