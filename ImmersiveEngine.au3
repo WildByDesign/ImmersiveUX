@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.5.3
+#AutoIt3Wrapper_Res_Fileversion=1.6.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.5.3
+#AutoIt3Wrapper_Res_ProductVersion=1.6.0
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=Y
@@ -75,6 +75,8 @@ Global $hKernel32 = DllOpen('kernel32.dll')
 Global $hPsapi = DllOpen('psapi.dll')
 Global $hGdi = DllOpen('gdi32.dll')
 Global $hUxtheme = DllOpen('uxtheme.dll')
+
+Opt("WinTitleMatchMode", 3)
 
 ; requires Windows 11 build 22621+
 $OSBuild = @OSBuild
@@ -1353,6 +1355,32 @@ Func _WinAPI_ShouldAppsUseDarkMode()
 	If @error Then Return SetError(@error, @extended, False)
 	Return $aResult[0]
 EndFunc   ;==>_WinAPI_ShouldAppsUseDarkMode
+
+Func _DarkFrameProcess_new()
+	Local $hDarkWnd
+	Local Static $hDarkWndLast
+	$bGlobalDarkTitleBar = _ToBoolean(IniRead($IniFile, "GlobalRules", "GlobalDarkTitleBar", "True"))
+	$bIsDarkFrame = _WinAPI_ShouldAppsUseDarkMode()
+
+	Local $hWnd = _GetHwndFromPID(@AutoItPID)
+	_WinAPI_SetWindowText_mod($hWnd, "Immersive UX Dark")
+
+	ProcessSetPriority(@AutoItPID, 4)
+
+	While 1
+		Sleep(10)
+		$hDarkWnd = _WinAPI_GetForegroundWindow_mod()
+		If $hDarkWnd <> $hDarkWndLast Then
+			;_WinAPI_DwmSetWindowAttribute__($hDarkWndLast, 34, $DWMWA_COLOR_NONE)
+			If $bIsDarkFrame And $bGlobalDarkTitleBar Then
+				DllCall($hDwmapi, 'long', 'DwmSetWindowAttribute', 'hwnd', $hDarkWnd, 'dword', 20, 'dword*', 1, 'dword', 4)
+			EndIf
+			$hDarkWndLast = $hDarkWnd
+		ElseIf $hDarkWnd = $hDarkWndLast Then
+			;If _WinAPI_IsWindowVisible_mod($hDarkWnd) Then _BorderEffects($hDarkWnd)
+		EndIf
+	WEnd
+EndFunc
 
 Func _DarkFrameProcess()
 	$bGlobalDarkTitleBar = _ToBoolean(IniRead($IniFile, "GlobalRules", "GlobalDarkTitleBar", "True"))

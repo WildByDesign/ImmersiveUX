@@ -5,17 +5,18 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX GUI
-#AutoIt3Wrapper_Res_Fileversion=1.5.3
+#AutoIt3Wrapper_Res_Fileversion=1.6.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX GUI
-#AutoIt3Wrapper_Res_ProductVersion=1.5.3
+#AutoIt3Wrapper_Res_ProductVersion=1.6.0
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
 #AutoIt3Wrapper_Res_Icon_Add=app.ico
 #AutoIt3Wrapper_Run_Au3Stripper=y
+#Au3Stripper_Ignore_Funcs=_traynotifyicon
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
-Global $iVersion = '1.5.3'
+Global $iVersion = '1.6.0'
 
 #include <MsgBoxConstants.au3>
 #include <WinAPIFiles.au3>
@@ -33,9 +34,12 @@ Global $iVersion = '1.5.3'
 #include <File.au3>
 #include <GuiMenu.au3>
 
+#include <WinAPIDiag.au3>
+
 #include "include\StringSize.au3"
 #include "include\RoundGUI.au3"
 #include "include\GuiFlatButton.au3"
+;#include "include\ModernMenuRaw.au3"
 
 #include "include\GUIComboBoxColor.au3"
 ;#include "include\GUIComboBoxFont.au3"
@@ -60,33 +64,36 @@ Else
 EndIf
 
 Opt("GUIOnEventMode", 1)
+Opt("WinTitleMatchMode", 3)
 
 Opt("TrayMenuMode", 3)
 Opt("TrayAutoPause", 0)
 Opt("TrayOnEventMode", 1)
 
-Global $hGUI, $hSpecialMenu, $hTaskMenu, $FontHeight, $hSubItems3
+Global $hGUI, $FontHeight, $iHitTestHeight
+Global $GUI_BackColor, $GUI_FontColor, $GUI_InputBackColor, $GUI_StatusBackColor, $GUI_StatusLineColor
+Global $GUI_MenubarBackColor, $GUI_MenubarLineColor, $GUI_AdvancedLineColor
 Global $dGlobalBlurTintColorInactive, $iGlobalColorIntensityInactive
 Global $bGlobalDarkTitleBar, $dGlobalBorderColor, $dGlobalTitleBarColor, $dGlobalTitleBarTextColor, $iGlobalTitleBarBackdrop
 Global $iGlobalCornerPreference, $iGlobalExtendFrameIntoClient, $iGlobalEnableBlurBehind, $dGlobalBlurTintColor, $iGlobalTintColorIntensity
 Global $BorderColorInput, $colorlabelfill, $TitlebarColorInput, $TitlebarColorLabel, $iBorderColorOptions
 Global $TitlebarTextColorInput, $TitlebarTextColorLabel, $BlurTintColorInput, $BlurTintColorPickLabel
 Global $BlurTintColorInputInact, $BlurTintColorPickLabelInact, $BlurColorIntensitySliderInact
-Global $idInput, $RuleListCombo, $idInputRuleType, $RuleTypeCombo, $idInputDarkTitle, $idStatusInput
+Global $idInput, $RuleListCombo, $idInputRuleType, $RuleTypeCombo, $idInputDarkTitle, $idPart3
 Global $DarkTitleCombo, $idInputTitleBarBackdrop, $TitleBarBackdropCombo
 Global $idInputCornerPreference, $CornerPreferenceCombo, $idInputExtendFrame, $ExtendFrameCombo
 Global $idInputBlurBehind, $BlurBehindCombo, $idInputRuleEnabled, $RuleEnabledCombo
 Global $TargetInput, $hBtnRuleType, $hBtnRuleEnabled, $DeleteButton, $SaveButton
-Global $BlurColorIntensitySlider, $idPart0, $idPart1, $idPart2
+Global $BlurColorIntensitySlider, $idPart2, $idPart1, $idPart4
 Global $TaskIntegrity, $TaskInstalled, $TaskRunning
 Global $aProcessRunning, $IsRunFromTS, $bProcessRunning
+Global $idBorderOpt0, $idBorderOpt1, $idBorderOpt2, $idBorderOpt3
+Global $idTaskOpt0, $idTaskOpt1, $idTaskOpt2, $idTaskOpt3
 Global $sTargetLast = ""
 Global $bHideGUI = False
 Global $TRAY_EVENT_PRIMARYDOWN = -7
 Global $DWMWA_COLOR_NONE = 0xFFFFFFFE
 Global $DWMWA_COLOR_DEFAULT = 0xFFFFFFFF
-Global $fOver = False
-Global $fOver2 = False
 Global $iW = 658, $iH = 420
 
 Global $iDPI = _WinAPI_SetDPIAwareness(), $iDPI_def = 96
@@ -96,31 +103,59 @@ Global $iDPI2 = $iDPI_def / $iDPI
 
 If StringInStr($CmdLineRaw, "hidegui") Then $bHideGUI = True
 
-If _Singleton($sProdName, 1) = 0 Then
-    ; handle situation when engine process is elevated and GUI process is not
-    Local $bElevated = _ToBoolean(IniRead($sIniPath, "StartupInfoOnly", "Elevated", "False"))
-    If $bElevated And Not IsAdmin() Then
-        $sMsg = "Immersive UX is already running in the system tray." & @CRLF & @CRLF
-        $sMsg &= "To avoid mismatching of integrity levels between engine process" & @CRLF
-        $sMsg &= "and GUI process, please start Immersive UX GUI from the system" & @CRLF
-        $sMsg &= "tray menu." & @CRLF
-        _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
-        Exit
-    Else
-        ; show and activate the GUI window
-        $hWnd = WinGetHandle("Immersive UX")
-        _WinAPI_ShowWindow($hWnd, @SW_SHOW)
-        _WinAPI_SetForegroundWindow($hWnd)
-        Exit
+If Not StringInStr($CmdLineRaw, "elevate") Then
+    If _Singleton($sProdName, 1) = 0 Then
+        ; handle situation when engine process is elevated and GUI process is not
+        Local $bElevated = _ToBoolean(IniRead($sIniPath, "StartupInfoOnly", "Elevated", "False"))
+        If $bElevated And Not IsAdmin() Then
+            $sMsg = "Immersive UX is already running in the system tray." & @CRLF & @CRLF
+            $sMsg &= "To avoid mismatching of integrity levels between engine process" & @CRLF
+            $sMsg &= "and GUI process, please start Immersive UX GUI from the system" & @CRLF
+            $sMsg &= "tray menu." & @CRLF
+            _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+            Exit
+        ElseIf Not $bElevated And IsAdmin() Then
+            ; allow upgrading non-admin task to admin task
+            ; need to close all
+            If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
+            If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
+            ;If WinExists("Immersive UX") Then WinClose("Immersive UX")
+            If WinExists("Immersive UX GUI") Then WinClose("Immersive UX GUI")
+
+            ShellExecute(@ScriptDir & "\" & $sProdName & ".exe", "elevate", @ScriptDir, $SHEX_OPEN)
+            Exit
+        Else
+            ; show and activate the GUI window
+            $hWnd = WinGetHandle("Immersive UX")
+            _WinAPI_ShowWindow($hWnd, @SW_SHOW)
+            _WinAPI_SetForegroundWindow($hWnd)
+            Exit
+        EndIf
     EndIf
 EndIf
 
 TraySetOnEvent($TRAY_EVENT_PRIMARYDOWN, 'idGUI')
 TraySetClick(16)
 
+#include "include\ModernMenuRaw.au3"
+
 _GetIniDetails()
+
+Global $hSolidBrush = _WinAPI_CreateBrushIndirect($BS_SOLID, $GUI_MenubarLineColor)
+
+_SetMenuBkColor($GUI_MenubarBackColor)
+_SetMenuIconBkColor($GUI_MenubarBackColor)
+_SetMenuIconBkGrdColor(0x000000)
+_SetMenuSelectBkColor(0x202020)
+_SetMenuSelectRectColor(0x202020)
+_SetMenuSelectTextColor($GUI_FontColor)
+_SetMenuTextColor($GUI_FontColor)
+
 _StartGUI()
 Func _StartGUI()
+    Local $hGuiWnd = _GetHwndFromPID(@AutoItPID)
+    _WinAPI_SetWindowText_mod($hGuiWnd, "Immersive UX GUI")
+
     $aProcessRunning = ProcessList($sEngName & ".exe")
     If $aProcessRunning[0][0] <> 0 Then
         Local $iPID = $aProcessRunning[1][1]
@@ -169,48 +204,16 @@ Func _StartGUI()
     $TaskRunning = _IsTaskRunning()
     If Not $TaskRunning Then $TaskRunning = "No"
 
-    $hSubItems1 = _GUICtrlMenu_CreateMenu()
-    _GUICtrlMenu_InsertMenuItem($hSubItems1, 0, "Patch VSCode", 1)
-    _GUICtrlMenu_InsertMenuItem($hSubItems1, 1, "Unpatch VSCode", 2)
-
-    $hSubItems2 = _GUICtrlMenu_CreateMenu()
-    _GUICtrlMenu_InsertMenuItem($hSubItems2, 0, "Patch Terminal", 3)
-    _GUICtrlMenu_InsertMenuItem($hSubItems2, 1, "Unpatch Terminal", 4)
-
-    $hSubItems3 = _GUICtrlMenu_CreateMenu()
-    _GUICtrlMenu_InsertMenuItem($hSubItems3, 0, "Active Window Only", 5)
-    _GUICtrlMenu_InsertMenuItem($hSubItems3, 1, "Active && Inactive Windows", 6)
-    _GUICtrlMenu_InsertMenuItem($hSubItems3, 2, "LED Strobe Effects", 7)
-
-    $hSpecialMenu = _GUICtrlMenu_CreatePopup()
-    _GUICtrlMenu_InsertMenuItem($hSpecialMenu, 0, "VSCode", 0, $hSubItems1)
-    _GUICtrlMenu_InsertMenuItem($hSpecialMenu, 2, "Terminal", 0, $hSubItems2)
-    ;_GUICtrlMenu_InsertMenuItem($hSpecialMenu, 3, "LED Strobe Border", 5)
-    _GUICtrlMenu_InsertMenuItem($hSpecialMenu, 3, "Border Options", 0, $hSubItems3)
-    ;If $iBorderColorOptions = 2 Then _GUICtrlMenu_CheckMenuItem($hSpecialMenu, 2)
-    ;If $iBorderColorOptions <> 2 Then _GUICtrlMenu_CheckMenuItem($hSpecialMenu, 2, 0)
-    ;If $iBorderColorOptions = 2 Then _GUICtrlMenu_CheckMenuItem($hSubItems3, 2)
-    ;If $iBorderColorOptions <> 2 Then _GUICtrlMenu_CheckMenuItem($hSubItems3, 2, 0)
-    If $iBorderColorOptions = 0 Then _GUICtrlMenu_CheckRadioItem($hSubItems3, 0, 2, 0)
-    If $iBorderColorOptions = 1 Then _GUICtrlMenu_CheckRadioItem($hSubItems3, 0, 2, 1)
-    If $iBorderColorOptions = 2 Then _GUICtrlMenu_CheckRadioItem($hSubItems3, 0, 2, 2)
-
-    $hTaskMenu = _GUICtrlMenu_CreatePopup()
-    _GUICtrlMenu_InsertMenuItem($hTaskMenu, 0, "Install Task (Admin)", 1)
-    _GUICtrlMenu_InsertMenuItem($hTaskMenu, 1, "Install Task", 2)
-    _GUICtrlMenu_InsertMenuItem($hTaskMenu, 2, "Uninstall Task", 3)
-    _GUICtrlMenu_InsertMenuItem($hTaskMenu, 3, "Restart Task", 4)
-
     If $iDPI1 = 1 Then
-        $iH = 450
-        $iW = 660
+        $iH = 450 + 30
+        $iW = 660 + 25
     EndIf
     If $iDPI1 = 1.25 Then
-        $iH = 410
-        $iW = 624
+        $iH = 410 + 30
+        $iW = 624 + 20
     EndIf
     If $iDPI1 = 1.5 Then
-        $iH = 370
+        $iH = 370 + 30
         $iW = 620
     EndIf
     If $iDPI1 <> 1 And $iDPI1 <> 1.25 And $iDPI1 <> 1.5 Then
@@ -219,6 +222,78 @@ Func _StartGUI()
     EndIf
 
     $hGUI = GUICreate("Immersive UX", $iW * $iDPI1, $iH * $iDPI1, -1, -1, -1, $WS_EX_COMPOSITED)
+
+    Local $idFileMenu = _GUICtrlCreateODTopMenu(" &File", $hGUI)
+    Local $idSettingsMenu = _GUICtrlCreateODTopMenu(" &Options", $hGUI)
+    Local $idTaskMenu = _GUICtrlCreateODTopMenu(" &Startup Task", $hGUI)
+    Local $idSpecMenu = _GUICtrlCreateODTopMenu(" &Special Handling", $hGUI)
+
+    Local $idAboutItem = GUICtrlCreateMenuItem("&About", $idFileMenu, 0)
+    GUICtrlSetOnEvent(-1, "_About")
+    GUICtrlCreateMenuItem("", $idFileMenu, 1)
+    Local $idExitItem = GUICtrlCreateMenuItem("&Exit", $idFileMenu, 2)
+    GUICtrlSetOnEvent(-1, "_Exit")
+
+    Local $idBorderMenu = GUICtrlCreateMenu("&Borders", $idSettingsMenu)
+
+    Local $idBorderOpt0 = GUICtrlCreateMenuItem("Active Window Only", $idBorderMenu, 0, 1)
+    GUICtrlSetOnEvent(-1, "_BorderOpt0")
+    Local $idBorderOpt1 = GUICtrlCreateMenuItem("Active && Inactive Windows", $idBorderMenu, 1, 1)
+    GUICtrlSetOnEvent(-1, "_BorderOpt1")
+    Local $idBorderOpt2 = GUICtrlCreateMenuItem("LED Strobe Effects", $idBorderMenu, 2, 1)
+    GUICtrlSetOnEvent(-1, "_BorderOpt2")
+    Local $idBorderOpt3 = GUICtrlCreateMenuItem("Disabled (System)", $idBorderMenu, 3, 1)
+    GUICtrlSetOnEvent(-1, "_BorderOpt3")
+
+    If $iBorderColorOptions = "0" Then GUICtrlSetState($idBorderOpt0, $GUI_CHECKED)
+    If $iBorderColorOptions = "1" Then GUICtrlSetState($idBorderOpt1, $GUI_CHECKED)
+    If $iBorderColorOptions = "2" Then GUICtrlSetState($idBorderOpt2, $GUI_CHECKED)
+    If $iBorderColorOptions = "" Then GUICtrlSetState($idBorderOpt3, $GUI_CHECKED)
+
+    $idTaskOpt0 = GUICtrlCreateMenuItem("Install Task (Admin)", $idTaskMenu)
+    GUICtrlSetOnEvent(-1, "_TaskInstallAdmin")
+    $idTaskOpt1 = GUICtrlCreateMenuItem("Install Task", $idTaskMenu)
+    GUICtrlSetOnEvent(-1, "_TaskInstall")
+    $idTaskOpt2 = GUICtrlCreateMenuItem("Uninstall Task", $idTaskMenu)
+    GUICtrlSetOnEvent(-1, "_TaskUninstall")
+    $idTaskOpt3 = GUICtrlCreateMenuItem("Restart Task", $idTaskMenu)
+    GUICtrlSetOnEvent(-1, "_TaskRestart")
+
+    _UpdateTaskMenu()
+
+    Local $idVSCodeMenu = GUICtrlCreateMenu("&VSCode", $idSpecMenu)
+    GUICtrlCreateMenuItem("Patch VSCode", $idVSCodeMenu)
+    GUICtrlSetOnEvent(-1, "_VSCodePatch")
+    GUICtrlCreateMenuItem("", $idVSCodeMenu)
+    GUICtrlCreateMenuItem("Unpatch VSCode", $idVSCodeMenu)
+    GUICtrlSetOnEvent(-1, "_VSCodeUnpatch")
+
+    Local $idTerminalMenu = GUICtrlCreateMenu("&Terminal", $idSpecMenu)
+    GUICtrlCreateMenuItem("Patch Terminal", $idTerminalMenu)
+    GUICtrlSetOnEvent(-1, "_TerminalPatch")
+    GUICtrlCreateMenuItem("", $idTerminalMenu)
+    GUICtrlCreateMenuItem("Unpatch Terminal", $idTerminalMenu)
+    GUICtrlSetOnEvent(-1, "_TerminalUnpatch")
+
+    ; get menubar height
+    $aMenubar = _GUICtrlMenu_GetMenuBarInfo($hGUI)
+    $iMenubarHeight = $aMenubar[3] - $aMenubar[1]
+
+    ; get titlebar height
+    Local $iCaptionHeight = _WinAPI_GetSystemMetrics($SM_CYCAPTION)
+
+    ; get border height top
+    Local $iBorderHeight = _WinAPI_GetSystemMetrics($SM_CYSIZEFRAME)
+    If $iBorderHeight = 0 Then $iBorderHeight = _WinAPI_GetSystemMetrics($SM_CYFIXEDFRAME)
+    $iBorderHeight = $iBorderHeight / 2
+
+    ; get client size
+    Local $aClientSize = WinGetClientSize($hGUI)
+
+    Local $aGUIPos = WinGetPos($hGUI)
+    Local $iGUIBottom = $aGUIPos[1] + $aGUIPos[3]
+
+    $iHitTestHeight = Round($iMenubarHeight + $iCaptionHeight + $iBorderHeight)
 
     If $SegUIVarExists Then
         Global $MainFont = "Segoe UI Variable Display"
@@ -229,14 +304,15 @@ Func _StartGUI()
             ;ConsoleWrite("$FontHeight " & $FontHeight & @CRLF)
     Else
         Global $MainFont = "Segoe UI"
-        Global $FontSize = (9 * $iDPI2) * $iDPI1
+        Global $FontSize = 9
         GUISetFont($FontSize, $FW_NORMAL, -1, $MainFont)
             $aStringSize = _StringSize("This is just a TEST.", $FontSize, 400, 0, $MainFont)
             $FontHeight = $aStringSize[1] + 3
             ;ConsoleWrite("$FontHeight " & $FontHeight & @CRLF)
     EndIf
     GUISetOnEvent($GUI_EVENT_CLOSE, "SpecialEvents")
-    GUISetBkColor(0x000000)
+    GUISetBkColor($GUI_BackColor)
+    GUICtrlSetDefColor($GUI_FontColor)
 
     Local $hToolTip2 = _GUIToolTip_Create(0)
     _GUIToolTip_SetMaxTipWidth($hToolTip2, 400)
@@ -246,30 +322,51 @@ Func _StartGUI()
     _GUIToolTip_SetTipTextColor($hToolTip2, 0xe0e0e0)
     _GUIToolTip_SetMargin($hToolTip2, 4, 2, 4, 2)
 
-    ;$idPart2 = GUICtrlCreateLabel("Special Handling  ▼", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6, 164 * $iDPI1, -1)
-    $idPart2 = GUICtrlCreateLabel(" Other Settings  ▼ ", 508 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6 - 6, -1, $FontHeight + 12, $SS_CENTER + $SS_CENTERIMAGE)
-    GUICtrlSetOnEvent(-1, "idSpecialHandlingTest")
+    Local $iStatusTextAlign
+    If $iDPI1 = 1 Then $iStatusTextAlign = - 2
+    If $iDPI1 = 1.25 Then $iStatusTextAlign = - 1
+    If $iDPI1 = 1.5 Then $iStatusTextAlign = - 1
+    If $iDPI1 <> 1 And $iDPI1 <> 1.25 And $iDPI1 <> 1.5 Then $iStatusTextAlign = 3
+
+    $idStatusBarDiv = Round($aClientSize[0] / 4)
+
+    GUICtrlSetState(-1, $GUI_HIDE)
+
+    $idPart1 = GUICtrlCreateLabel("Engine Running:", 20, $aClientSize[1] - $iMenubarHeight + $iStatusTextAlign, 164 * $iDPI1, $iMenubarHeight, $SS_CENTERIMAGE)
     GUICtrlSetBkColor(-1, $GUI_BKCOLOR_TRANSPARENT)
-    GUICtrlSetColor(-1, 0xffffff)
-    ;If Not @Compiled Then GUICtrlSetState(-1, $GUI_DISABLE)
-    $idPart1 = GUICtrlCreateLabel(" ", 20, ($iH * $iDPI1) - $FontHeight - 6 - 6, 164 * $iDPI1, $FontHeight + 12, $SS_CENTERIMAGE)
+
+
+    $idPart2 = GUICtrlCreateLabel("Task Installed: " & $TaskInstalled, $idStatusBarDiv + 20, $aClientSize[1] - $iMenubarHeight + $iStatusTextAlign, 164 * $iDPI1, $iMenubarHeight, $SS_CENTERIMAGE)
     GUICtrlSetBkColor(-1, $GUI_BKCOLOR_TRANSPARENT)
-    GUICtrlSetColor(-1, 0xffffff)
-    ;If Not @Compiled Then GUICtrlSetState(-1, $GUI_DISABLE)
-    $idPart0 = GUICtrlCreateLabel("Task Installed: " & $TaskInstalled, 180 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6 - 6, 164 * $iDPI1, $FontHeight + 12, $SS_CENTERIMAGE)
+
+
+    $idPart3 = GUICtrlCreateLabel("Elevated:", ($idStatusBarDiv * 2) + 20, $aClientSize[1] - $iMenubarHeight + $iStatusTextAlign, 164 * $iDPI1, $iMenubarHeight, $SS_CENTERIMAGE)
     GUICtrlSetBkColor(-1, $GUI_BKCOLOR_TRANSPARENT)
-    GUICtrlSetColor(-1, 0xffffff)
-    ;If Not @Compiled Then GUICtrlSetState(-1, $GUI_DISABLE)
-    ;$idStatusInput = GUICtrlCreateLabel("Startup Task  ▼", 344 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6, 164 * $iDPI1, -1)
-    $idStatusInput = GUICtrlCreateLabel(" Startup Task  ▼ ", 344 * $iDPI1, ($iH * $iDPI1) - $FontHeight - 6 - 6, -1, $FontHeight + 12, $SS_CENTER + $SS_CENTERIMAGE)
-    GUICtrlSetOnEvent($idStatusInput, "idStatusInputTest")
+
+    $idPart4 = GUICtrlCreateLabel(" Other Settings  ▼ ", 508 * $iDPI1, $aClientSize[1] - $iMenubarHeight + $iStatusTextAlign, 164 * $iDPI1, $iMenubarHeight, $SS_CENTER + $SS_CENTERIMAGE)
     GUICtrlSetBkColor(-1, $GUI_BKCOLOR_TRANSPARENT)
-    GUICtrlSetColor(-1, 0xffffff)
-    ;If Not @Compiled Then GUICtrlSetState(-1, $GUI_DISABLE)
+
+    GUICtrlSetState(-1, $GUI_HIDE)
+
     ;EndIf
 
-    $idStatusBar = GUICtrlCreateLabel(" ", 0, ($iH * $iDPI1) - $FontHeight - 6 - 6, $iW * $iDPI1, $FontHeight + 20)
-    GUICtrlSetBkColor(-1, 0x121212)
+    $idStatusBarDiv1 = GUICtrlCreateLabel(" ", $idStatusBarDiv, $aClientSize[1] - $iMenubarHeight - 1, 1, $iMenubarHeight + 2)
+    GUICtrlSetBkColor(-1, $GUI_StatusLineColor)
+    GUICtrlSetState(-1, $GUI_DISABLE)
+
+    $idStatusBarDiv2 = GUICtrlCreateLabel(" ", $idStatusBarDiv * 2, $aClientSize[1] - $iMenubarHeight - 1, 1, $iMenubarHeight + 2)
+    GUICtrlSetBkColor(-1, $GUI_StatusLineColor)
+    GUICtrlSetState(-1, $GUI_DISABLE)
+
+    $idStatusBarDiv3 = GUICtrlCreateLabel(" ", $idStatusBarDiv * 3, $aClientSize[1] - $iMenubarHeight - 1, 1, $iMenubarHeight + 2)
+    GUICtrlSetBkColor(-1, $GUI_StatusLineColor)
+    GUICtrlSetState(-1, $GUI_DISABLE)
+
+    $idStatusBarLine = GUICtrlCreateLabel(" ", 0, $aClientSize[1] - $iMenubarHeight - 1, $iW * $iDPI1, 1)
+    GUICtrlSetBkColor(-1, $GUI_StatusLineColor)
+    GUICtrlSetState(-1, $GUI_DISABLE)
+    $idStatusBar = GUICtrlCreateLabel(" ", 0, $aClientSize[1] - $iMenubarHeight, $iW * $iDPI1, $iMenubarHeight)
+    GUICtrlSetBkColor(-1, $GUI_StatusBackColor)
     GUICtrlSetState(-1, $GUI_DISABLE)
 
     _IsEngineProcRunning()
@@ -278,8 +375,7 @@ Func _StartGUI()
     ;100 * $iDPI1Big = $aStringSizeBig[2] + 50
 
     $RuleListLabel = GUICtrlCreateLabel("Rules List:", 20, 20, -1, -1)
-    GUICtrlSetBkColor(-1, 0x000000)
-    GUICtrlSetColor(-1, 0xffffff)
+    
 
     $aPos = ControlGetPos($hGUI, "", $RuleListLabel)
 
@@ -291,13 +387,13 @@ Func _StartGUI()
     GUICtrlSetOnEvent(-1, "idComboRuleList")
     GUICtrlSetState(-1, $GUI_HIDE)
 
-    _GUICtrlComboBoxEx_SetColor($RuleListCombo, 0x202020, 0xffffff)
+    _GUICtrlComboBoxEx_SetColor($RuleListCombo, 0x202020, $GUI_FontColor)
     ;GUICtrlSetOnEvent(-1, "_RuleList")
     GUICtrlSetResizing(-1, $GUI_DOCKALL)
     ;$hRuleListCombo = GUICtrlGetHandle($RuleListCombo)
 
     ;Global $idInput = GUICtrlCreateInput("Select a rule", 20, 40, 100 * $iDPI1Big, $FontHeight, $ES_READONLY, 0)
-    $idInput = _RGUI_RoundInput("Select a rule", 0xFFFFFF, 20, $RuleListLabelPosV, 260 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
+    $idInput = _RGUI_RoundInput("Select a rule", $GUI_FontColor, 20, $RuleListLabelPosV, 260 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1, $ES_READONLY)
     ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
@@ -319,20 +415,33 @@ Func _StartGUI()
     $aDropDownSize = _StringSize(ChrW(0xE70D), 10, 600, 0, "Segoe MDL2 Assets")
     $iDropDownSize = $aDropDownSize[1] + 4
 
+    ; make sure button colors are visible with different background colors
+    Local $iButtonColor2, $iButtonColor3
+    Local $iButtonColor = Int($GUI_BackColor)
+    If Not $iButtonColor Then
+        $iButtonColor2 = 0x202020
+        $iButtonColor3 = 0x606060
+    Else
+        If $iButtonColor Then
+            $iButtonColor2 = $iButtonColor * 2
+            $iButtonColor3 = $iButtonColor * 3
+        EndIf
+    EndIf
+
     ;GuiFlatButton_SetDefaultColors(0x000000, 0xFFFFFF, 0x000000)
     ;set default colors of future buttons
     Local $aColorsEx = _
-        [0x000000, 0xFFFFFF, 0x000000, _	; normal 	: Background, Text, Border
-        0x000000, 0xFFFFFF, 0x000000, _	; focus 	: Background, Text, Border
-        0x000000, 0xFFFFFF, 0x606060, _	; hover 	: Background, Text, Border
-        0x202020, 0xFFFFFF, 0x202020]		; selected 	: Background, Text, Border
+        [$GUI_BackColor, $GUI_FontColor, $GUI_BackColor, _	; normal 	: Background, Text, Border
+        $GUI_BackColor, $GUI_FontColor, $GUI_BackColor, _	; focus 	: Background, Text, Border
+        $GUI_BackColor, $GUI_FontColor, -1, _	; hover 	: Background, Text, Border
+        -1, $GUI_FontColor, -1]		; selected 	: Background, Text, Border
     ;GuiFlatButton_SetDefaultColorsEx($aColorsEx)
 
-    $hBtn = GuiFlatButton_Create(ChrW(0xE70D), $RuleListComboPosH + 4, $RuleListLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    $hBtn = GuiFlatButton_Create(ChrW(0xE70D), $RuleListComboPosH + 4, $RuleListLabelPosV + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
     GuiFlatButton_SetColorsEx(-1, $aColorsEx)
     GUICtrlSetOnEvent(-1, "hBtn")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
-    GUICtrlSetColor(-1, 0xffffff)
+    
 
     $aPos = ControlGetPos($hGUI, "", $hBtn)
 
@@ -340,11 +449,11 @@ Func _StartGUI()
     $hBtnPosV = $aPos[1] + $aPos[3]
     $hBtnPosH = $aPos[0] + $aPos[2]
 
-    $AddRuleButton = GuiFlatButton_Create(ChrW(0xE710), $hBtnPosH + 10, $RuleListLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    $AddRuleButton = GuiFlatButton_Create(ChrW(0xE710), $hBtnPosH + 10, $RuleListLabelPosV + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
     GuiFlatButton_SetColorsEx(-1, $aColorsEx)
     GUICtrlSetOnEvent(-1, "hBtnAddRule")
     GUICtrlSetFont(-1, 9, 200, -1, "Segoe MDL2 Assets")
-    GUICtrlSetColor(-1, 0xffffff)
+    
 
     _GUIToolTip_AddTool($hToolTip2, $hGUI, "Add Custom Rule", GUICtrlGetHandle($AddRuleButton))
 
@@ -354,12 +463,12 @@ Func _StartGUI()
     $AddRuleButtonPosV = $aPos[1] + $aPos[3]
     $AddRuleButtonPosH = $aPos[0] + $aPos[2]
 
-    ;$AddRuleButton = GUICtrlCreateLabel(ChrW(0xE710), $hBtnPosH + 10, 42 + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
-    $SaveButton = GuiFlatButton_Create(ChrW(0xE105), $AddRuleButtonPosH + 10, $RuleListLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    ;$AddRuleButton = GUICtrlCreateLabel(ChrW(0xE710), $hBtnPosH + 10, 42 + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
+    $SaveButton = GuiFlatButton_Create(ChrW(0xE105), $AddRuleButtonPosH + 10, $RuleListLabelPosV + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
     GuiFlatButton_SetColorsEx(-1, $aColorsEx)
     GUICtrlSetOnEvent(-1, "_WriteIniSection")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe Fluent Icons")
-    GUICtrlSetColor(-1, 0xffffff)
+    
     GUICtrlSetState($SaveButton, $GUI_DISABLE)
 
     _GUIToolTip_AddTool($hToolTip2, $hGUI, "Save Changes", GUICtrlGetHandle($SaveButton))
@@ -369,11 +478,11 @@ Func _StartGUI()
     $SaveButtonPosV = $aPos[1] + $aPos[3]
     $SaveButtonPosH = $aPos[0] + $aPos[2]
 
-    $DeleteButton = GuiFlatButton_Create(ChrW(0xE107), $SaveButtonPosH + 10, $RuleListLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    $DeleteButton = GuiFlatButton_Create(ChrW(0xE107), $SaveButtonPosH + 10, $RuleListLabelPosV + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
     GuiFlatButton_SetColorsEx(-1, $aColorsEx)
     GUICtrlSetOnEvent(-1, "hBtnDeleteRule")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe Fluent Icons")
-    GUICtrlSetColor(-1, 0xffffff)
+    
     GuiFlatButton_SetState($DeleteButton, $GUI_DISABLE)
 
     _GUIToolTip_AddTool($hToolTip2, $hGUI, "Delete Custom Rule", GUICtrlGetHandle($DeleteButton))
@@ -383,16 +492,16 @@ Func _StartGUI()
     $DeleteButtonPosV = $aPos[1] + $aPos[3]
     $DeleteButtonPosH = $aPos[0] + $aPos[2]
 
-    $ReloadButton = GuiFlatButton_Create(ChrW(0xE149), $DeleteButtonPosH + 10, $RuleListLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    $ReloadButton = GuiFlatButton_Create(ChrW(0xE149), $DeleteButtonPosH + 10, $RuleListLabelPosV + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
     GuiFlatButton_SetColorsEx(-1, $aColorsEx)
     GUICtrlSetOnEvent(-1, "hBtnReloadRules")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe Fluent Icons")
-    GUICtrlSetColor(-1, 0xffffff)
+    
 
     _GUIToolTip_AddTool($hToolTip2, $hGUI, "Reload & Refresh Rules", GUICtrlGetHandle($ReloadButton))
 
     $TargetLabel = GUICtrlCreateLabel("Target:", 20, $RuleListComboPosV + 20, -1, -1)
-    GUICtrlSetColor(-1, 0xffffff)
+    
     $aPos = ControlGetPos($hGUI, "", $TargetLabel)
 
 
@@ -400,7 +509,7 @@ Func _StartGUI()
 
 
     ;$TargetInput = GUICtrlCreateInput("", 20, $TargetLabelPosV, 100 * $iDPI1Big, $FontHeight, -1, 0)
-    $TargetInput = _RGUI_RoundInput("", 0xFFFFFF, 20, $TargetLabelPosV, 260 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1)
+    $TargetInput = _RGUI_RoundInput("", $GUI_FontColor, 20, $TargetLabelPosV, 260 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1)
     GUICtrlSetResizing(-1, $GUI_DOCKALL)
     ;GUICtrlSetBkColor(-1, 0x202020)
 
@@ -412,7 +521,7 @@ Func _StartGUI()
 
     ;#cs
     $RuleTypeLabel = GUICtrlCreateLabel("Rule Type:", $TargetInputPosH + 30, $RuleListComboPosV + 20, -1, -1)
-    GUICtrlSetColor(-1, 0xffffff)
+    
     $aPos = ControlGetPos($hGUI, "", $RuleTypeLabel)
 
 
@@ -422,13 +531,13 @@ Func _StartGUI()
     ;100 * $iDPI1 = $aStringSize[2] + 50
 
     $RuleTypeCombo = GUICtrlCreateCombo("", $TargetInputPosH + 30, $RuleTypeLabelPosV, 100 * $iDPI1, $FontHeight, $CBS_DROPDOWNLIST)
-    _GUICtrlComboBoxEx_SetColor(-1, 0x202020, 0xffffff)
+    _GUICtrlComboBoxEx_SetColor(-1, 0x202020, $GUI_FontColor)
     GUICtrlSetData($RuleTypeCombo, "Class|Process")
     GUICtrlSetOnEvent(-1, "idComboRuleType")
     GUICtrlSetState(-1, $GUI_HIDE)
 
     ;$idInputRuleType = GUICtrlCreateInput("", $TargetInputPosH + 20, $RuleTypeLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $idInputRuleType = _RGUI_RoundInput("", 0xFFFFFF, $TargetInputPosH + 30, $RuleTypeLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
+    $idInputRuleType = _RGUI_RoundInput("", $GUI_FontColor, $TargetInputPosH + 30, $RuleTypeLabelPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1, $ES_READONLY)
     ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
@@ -439,10 +548,10 @@ Func _StartGUI()
     $RuleTypeComboPosH = $aPos[0] + $aPos[2]
     ;#ce
 
-    ;$hBtnRuleType = GUICtrlCreateLabel(ChrW(0xE70D), $RuleTypeComboPosH + 4, $RuleTypeLabelPosV + 4, $iDropDownSize, $iDropDownSize, $SS_CENTER)
-    $hBtnRuleType = GuiFlatButton_Create(ChrW(0xE70D), $RuleTypeComboPosH + 4, $RuleTypeLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    ;$hBtnRuleType = GUICtrlCreateLabel(ChrW(0xE70D), $RuleTypeComboPosH + 4, $RuleTypeLabelPosV + 4, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
+    $hBtnRuleType = GuiFlatButton_Create(ChrW(0xE70D), $RuleTypeComboPosH + 4, $RuleTypeLabelPosV + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
     GuiFlatButton_SetColorsEx(-1, $aColorsEx)
-    GUICtrlSetColor(-1, 0xffffff)
+    
     GUICtrlSetOnEvent(-1, "hBtnRuleType")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
 
@@ -454,7 +563,7 @@ Func _StartGUI()
 
     ;
     $RuleEnabledLabel = GUICtrlCreateLabel("Enabled:", $hBtnRuleTypePosH + 20, $RuleListComboPosV + 20, -1, -1)
-    GUICtrlSetColor(-1, 0xffffff)
+    
     $aPos = ControlGetPos($hGUI, "", $RuleEnabledLabel)
 
 
@@ -464,13 +573,13 @@ Func _StartGUI()
     ;100 * $iDPI1 = $aStringSize[2] + 50
 
     $RuleEnabledCombo = GUICtrlCreateCombo("", $hBtnRuleTypePosH + 20, $RuleTypeLabelPosV, 100 * $iDPI1, $FontHeight, $CBS_DROPDOWNLIST)
-    _GUICtrlComboBoxEx_SetColor($RuleEnabledCombo, 0x202020, 0xffffff)
+    _GUICtrlComboBoxEx_SetColor($RuleEnabledCombo, 0x202020, $GUI_FontColor)
     GUICtrlSetData($RuleEnabledCombo, "True|False")
     GUICtrlSetOnEvent(-1, "idComboRuleEnabled")
     GUICtrlSetState(-1, $GUI_HIDE)
 
     ;$idInputRuleType = GUICtrlCreateInput("", $TargetInputPosH + 20, $RuleTypeLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $idInputRuleEnabled = _RGUI_RoundInput("", 0xFFFFFF, $hBtnRuleTypePosH + 20, $RuleTypeLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
+    $idInputRuleEnabled = _RGUI_RoundInput("", $GUI_FontColor, $hBtnRuleTypePosH + 20, $RuleTypeLabelPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1, $ES_READONLY)
     ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
@@ -481,16 +590,16 @@ Func _StartGUI()
     $RuleEnabledComboPosH = $aPos[0] + $aPos[2]
     ;#ce
 
-    ;$hBtnRuleType = GUICtrlCreateLabel(ChrW(0xE70D), $RuleTypeComboPosH + 4, $RuleTypeLabelPosV + 4, $iDropDownSize, $iDropDownSize, $SS_CENTER)
-    $hBtnRuleEnabled = GuiFlatButton_Create(ChrW(0xE70D), $RuleEnabledComboPosH + 4, $RuleTypeLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    ;$hBtnRuleType = GUICtrlCreateLabel(ChrW(0xE70D), $RuleTypeComboPosH + 4, $RuleTypeLabelPosV + 4, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
+    $hBtnRuleEnabled = GuiFlatButton_Create(ChrW(0xE70D), $RuleEnabledComboPosH + 4, $RuleTypeLabelPosV + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
     GuiFlatButton_SetColorsEx(-1, $aColorsEx)
-    GUICtrlSetColor(-1, 0xffffff)
+    
     GUICtrlSetOnEvent(-1, "hBtnRuleEnabled")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
     ;
 
     $DarkTitleLabel = GUICtrlCreateLabel("Dark Titlebar:", 20, $TargetInputPosV + 20 + 20 + 16, -1, -1)
-    GUICtrlSetColor(-1, 0xffffff)
+    
     $aPos = ControlGetPos($hGUI, "", $DarkTitleLabel)
 
 
@@ -498,7 +607,7 @@ Func _StartGUI()
     $DarkTitleLabelPosH = $aPos[0]
 
     $DarkTitleCombo = GUICtrlCreateCombo("", 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, BitOR($CBS_DROPDOWNLIST, $WS_HSCROLL, $WS_VSCROLL))
-    _GUICtrlComboBoxEx_SetColor(-1, 0x202020, 0xffffff)
+    _GUICtrlComboBoxEx_SetColor(-1, 0x202020, $GUI_FontColor)
     ;GUICtrlSetData($DarkTitleCombo, "True|False|Global")
     GUICtrlSetOnEvent(-1, "idComboDarkTitle")
     GUICtrlSetState(-1, $GUI_HIDE)
@@ -509,15 +618,15 @@ Func _StartGUI()
     $DarkTitleComboPosV = $aPos[1] + $aPos[3]
     $DarkTitleComboPosH = $aPos[0] + $aPos[2]
 
-    ;$hBtnDarkTitle = GUICtrlCreateLabel(ChrW(0xE70D), $DarkTitleComboPosH + 4, $DarkTitleLabelPosV + 4, $iDropDownSize, $iDropDownSize, $SS_CENTER)
-    $hBtnDarkTitle = GuiFlatButton_Create(ChrW(0xE70D), $DarkTitleComboPosH + 4, $DarkTitleLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    ;$hBtnDarkTitle = GUICtrlCreateLabel(ChrW(0xE70D), $DarkTitleComboPosH + 4, $DarkTitleLabelPosV + 4, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
+    $hBtnDarkTitle = GuiFlatButton_Create(ChrW(0xE70D), $DarkTitleComboPosH + 4, $DarkTitleLabelPosV + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
     GuiFlatButton_SetColorsEx(-1, $aColorsEx)
     GUICtrlSetOnEvent(-1, "hBtnDarkTitle")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
-    GUICtrlSetColor(-1, 0xffffff)
+    
 
     ;$idInputDarkTitle = GUICtrlCreateInput("", 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $idInputDarkTitle = _RGUI_RoundInput("", 0xFFFFFF, 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
+    $idInputDarkTitle = _RGUI_RoundInput("", $GUI_FontColor, 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1, $ES_READONLY)
     ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
@@ -527,13 +636,13 @@ Func _StartGUI()
     $idInputDarkTitlePosH = $aPos[0] + $aPos[2]
 
     $TitleBarBackdropLabel = GUICtrlCreateLabel("Backdrop Material:", 20, $idInputDarkTitlePosV + 20, -1, -1)
-    GUICtrlSetColor(-1, 0xffffff)
+    
     $aPos = ControlGetPos($hGUI, "", $TitleBarBackdropLabel)
 
     $TitleBarBackdropLabelPosV = $aPos[1] + $aPos[3]
 
     $TitleBarBackdropCombo = GUICtrlCreateCombo("", 20, $TitleBarBackdropLabelPosV, 100 * $iDPI1, $FontHeight, BitOR($CBS_DROPDOWNLIST, $WS_HSCROLL, $WS_VSCROLL))
-    _GUICtrlComboBoxEx_SetColor(-1, 0x202020, 0xffffff)
+    _GUICtrlComboBoxEx_SetColor(-1, 0x202020, $GUI_FontColor)
     ;GUICtrlSetData($TitleBarBackdropCombo, "Auto|None|Mica|Acrylic|Mica Alt|Global")
     GUICtrlSetOnEvent(-1, "idComboTitleBarBackdrop")
     GUICtrlSetState(-1, $GUI_HIDE)
@@ -544,7 +653,7 @@ Func _StartGUI()
     $TitleBarBackdropComboPosH = $aPos[0] + $aPos[2]
 
     ;$idInputTitleBarBackdrop = GUICtrlCreateInput("", 20, $TitleBarBackdropLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $idInputTitleBarBackdrop = _RGUI_RoundInput("", 0xFFFFFF, 20, $TitleBarBackdropLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
+    $idInputTitleBarBackdrop = _RGUI_RoundInput("", $GUI_FontColor, 20, $TitleBarBackdropLabelPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1, $ES_READONLY)
     ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
@@ -554,20 +663,20 @@ Func _StartGUI()
     $idInputTitleBarBackdropPosH = $aPos[0] + $aPos[2]
     $idInputTitleBarBackdropPosV2 = $aPos[1]
 
-    $hBtnTitleBarBackdrop = GuiFlatButton_Create(ChrW(0xE70D), $TitleBarBackdropComboPosH + 4, $idInputTitleBarBackdropPosV2 + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    $hBtnTitleBarBackdrop = GuiFlatButton_Create(ChrW(0xE70D), $TitleBarBackdropComboPosH + 4, $idInputTitleBarBackdropPosV2 + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
     GuiFlatButton_SetColorsEx(-1, $aColorsEx)
-    GUICtrlSetColor(-1, 0xffffff)
+    
     GUICtrlSetOnEvent(-1, "hBtnTitleBarBackdrop")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
 
     $CornerPreferenceLabel = GUICtrlCreateLabel("Corner Preference:", 20, $idInputTitleBarBackdropPosV + 20, -1, -1)
-    GUICtrlSetColor(-1, 0xffffff)
+    
     $aPos = ControlGetPos($hGUI, "", $CornerPreferenceLabel)
 
     $CornerPreferenceLabelPosV = $aPos[1] + $aPos[3]
 
     $CornerPreferenceCombo = GUICtrlCreateCombo("", 20, $CornerPreferenceLabelPosV, 100 * $iDPI1, $FontHeight, BitOR($CBS_DROPDOWNLIST, $WS_HSCROLL, $WS_VSCROLL))
-    _GUICtrlComboBoxEx_SetColor(-1, 0x202020, 0xffffff)
+    _GUICtrlComboBoxEx_SetColor(-1, 0x202020, $GUI_FontColor)
     ;GUICtrlSetData($CornerPreferenceCombo, "Default|Square|Round|Round Small|Global")
     GUICtrlSetOnEvent(-1, "idComboCornerPreference")
     GUICtrlSetState(-1, $GUI_HIDE)
@@ -577,14 +686,14 @@ Func _StartGUI()
     $CornerPreferenceComboPosV = $aPos[1] + $aPos[3]
     $CornerPreferenceComboPosH = $aPos[0] + $aPos[2]
 
-    $hBtnCornerPreference = GuiFlatButton_Create(ChrW(0xE70D), $CornerPreferenceComboPosH + 4, $CornerPreferenceLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    $hBtnCornerPreference = GuiFlatButton_Create(ChrW(0xE70D), $CornerPreferenceComboPosH + 4, $CornerPreferenceLabelPosV + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
     GuiFlatButton_SetColorsEx(-1, $aColorsEx)
-    GUICtrlSetColor(-1, 0xffffff)
+    
     GUICtrlSetOnEvent(-1, "hBtnCornerPreference")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
 
     ;$idInputCornerPreference = GUICtrlCreateInput("", 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $idInputCornerPreference = _RGUI_RoundInput("", 0xFFFFFF, 20, $CornerPreferenceLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0x202020, 8, 1, $ES_READONLY)
+    $idInputCornerPreference = _RGUI_RoundInput("", $GUI_FontColor, 20, $CornerPreferenceLabelPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1, $ES_READONLY)
     ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
@@ -594,14 +703,14 @@ Func _StartGUI()
     $idInputCornerPreferencePosH = $aPos[0] + $aPos[2]
 
     $BorderColorLabel = GUICtrlCreateLabel("Border Color:", $idInputDarkTitlePosH + $FontHeight + 40, $TargetInputPosV + 20 + 20 + 16, -1, -1)
-    GUICtrlSetColor(-1, 0xffffff)
+    
     $aPos = ControlGetPos($hGUI, "", $BorderColorLabel)
 
     $BorderColorLabelPosV = $aPos[1] + $aPos[3]
     $BorderColorLabelPosV2 = $aPos[1]
 
     ;$BorderColorInput = GUICtrlCreateInput("", 20, $BorderColorLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $BorderColorInput = _RGUI_RoundInput("", 0xFFFFFF, $idInputDarkTitlePosH + $FontHeight + 40, $BorderColorLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1)
+    $BorderColorInput = _RGUI_RoundInput("", $GUI_FontColor, $idInputDarkTitlePosH + $FontHeight + 40, $BorderColorLabelPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1)
     GUICtrlSetResizing(-1, $GUI_DOCKALL)
     ;GUICtrlSetBkColor(-1, 0x202020)
 
@@ -611,16 +720,10 @@ Func _StartGUI()
     $BorderColorInputPosH = $aPos[0] + $aPos[2]
     $BorderColorInputPosV2 = $aPos[1]
 
-    Local $aColorsEx2 = _
-        [0x000000, 0xFFFFFF, 0x202020, _	; normal 	: Background, Text, Border
-        0x000000, 0xFFFFFF, 0x202020, _	; focus 	: Background, Text, Border
-        0x000000, 0xFFFFFF, 0x606060, _	; hover 	: Background, Text, Border
-        0x202020, 0xFFFFFF, 0x202020]		; selected 	: Background, Text, Border
-
     ;$colorlabelfill = GUICtrlCreateLabel(" ", $BorderColorInputPosH + 14, $BorderColorInputPosV2, $FontHeight, $FontHeight, $WS_BORDER)
-    $colorlabelfill = GuiFlatButton_Create(" ", $BorderColorInputPosH + 14, $BorderColorInputPosV2, $FontHeight, $FontHeight)
-    GuiFlatButton_SetBkColor(-1, 0x000000)
-    ;GuiFlatButton_SetColorsEx(-1, $aColorsEx2)
+    $colorlabelfill = GuiFlatButton_Create(" ", $BorderColorInputPosH + 14, $BorderColorInputPosV2, $FontHeight - 1, $FontHeight - 1)
+    GuiFlatButton_SetBkColor(-1, $GUI_BackColor)
+
     GUICtrlSetOnEvent(-1, "ColorPicker")
     ;GUICtrlSetBkColor($colorlabelfill, 0xFF0000)
 
@@ -631,23 +734,23 @@ Func _StartGUI()
     $colorlabelfillPosV = $aPos[1] + $aPos[3]
     $colorlabelfillPosH = $aPos[0] + $aPos[2]
 
-    $hBtnNoBorder = GuiFlatButton_Create(ChrW(0xED62), $BorderColorInputPosH + 14, $BorderColorLabelPosV2, $FontHeight, $FontHeight, $SS_CENTER)
+    $hBtnNoBorder = GuiFlatButton_Create(ChrW(0xED62), $BorderColorInputPosH + 14, $BorderColorLabelPosV2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
     GuiFlatButton_SetColorsEx(-1, $aColorsEx)
-    GUICtrlSetColor(-1, 0xffffff)
+    
     GUICtrlSetOnEvent(-1, "hBtnNoBorder")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe Fluent Icons")
 
     _GUIToolTip_AddTool($hToolTip2, $hGUI, "No Border", GUICtrlGetHandle($hBtnNoBorder))
 
     $TitlebarColorLabel = GUICtrlCreateLabel("Titlebar Color:", $idInputDarkTitlePosH + $FontHeight + 40, $BorderColorInputPosV + 20, -1, -1)
-    GUICtrlSetColor(-1, 0xffffff)
+    
     $aPos = ControlGetPos($hGUI, "", $TitlebarColorLabel)
 
     $TitlebarColorLabelPosV = $aPos[1] + $aPos[3]
     $TitlebarColorLabelPosV2 = $aPos[1]
 
     ;$TitlebarColorInput = GUICtrlCreateInput("", 20, $TitlebarColorLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $TitlebarColorInput = _RGUI_RoundInput("", 0xFFFFFF, $idInputDarkTitlePosH + $FontHeight + 40, $TitlebarColorLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1)
+    $TitlebarColorInput = _RGUI_RoundInput("", $GUI_FontColor, $idInputDarkTitlePosH + $FontHeight + 40, $TitlebarColorLabelPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1)
     GUICtrlSetResizing(-1, $GUI_DOCKALL)
     ;GUICtrlSetBkColor(-1, 0x202020)
 
@@ -659,21 +762,21 @@ Func _StartGUI()
     $TitlebarColorInputPosV2 = $aPos[1]
 
     ;$TitlebarColorLabel = GUICtrlCreateLabel(" ", $TitlebarColorInputPosH + 14, $TitlebarColorInputPosV2, $FontHeight, $FontHeight, $WS_BORDER)
-    $TitlebarColorLabel = GuiFlatButton_Create(" ", $TitlebarColorInputPosH + 14, $TitlebarColorInputPosV2, $FontHeight, $FontHeight)
-    GuiFlatButton_SetBkColor(-1, 0x000000)
-    ;GuiFlatButton_SetColorsEx(-1, $aColorsEx2)
+    $TitlebarColorLabel = GuiFlatButton_Create(" ", $TitlebarColorInputPosH + 14, $TitlebarColorInputPosV2, $FontHeight - 1, $FontHeight - 1)
+    GuiFlatButton_SetBkColor(-1, $GUI_BackColor)
+
     _GUIToolTip_AddTool($hToolTip2, $hGUI, "Change Color", GUICtrlGetHandle($TitlebarColorLabel))
     GUICtrlSetOnEvent(-1, "ColorPickerTitlebar")
 
     $TitlebarTextColorLabel = GUICtrlCreateLabel("Titlebar Text Color:", $idInputDarkTitlePosH + $FontHeight + 40, $TitlebarColorInputPosV + 20, -1, -1)
-    GUICtrlSetColor(-1, 0xffffff)
+    
     $aPos = ControlGetPos($hGUI, "", $TitlebarTextColorLabel)
 
     $TitlebarTextColorLabelPosV = $aPos[1] + $aPos[3]
     $TitlebarTextColorLabelPosV2 = $aPos[1]
 
     ;$TitlebarTextColorInput = GUICtrlCreateInput("", 20, $TitlebarTextColorLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $TitlebarTextColorInput = _RGUI_RoundInput("", 0xFFFFFF, $idInputDarkTitlePosH + $FontHeight + 40, $TitlebarTextColorLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1)
+    $TitlebarTextColorInput = _RGUI_RoundInput("", $GUI_FontColor, $idInputDarkTitlePosH + $FontHeight + 40, $TitlebarTextColorLabelPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1)
     GUICtrlSetResizing(-1, $GUI_DOCKALL)
     ;GUICtrlSetBkColor(-1, 0x202020)
 
@@ -684,15 +787,18 @@ Func _StartGUI()
     $TitlebarTextColorInputPosV2 = $aPos[1]
 
     ;$TitlebarTextColorLabel = GUICtrlCreateLabel(" ", $TitlebarColorInputPosH + 14, $TitlebarTextColorInputPosV2, $FontHeight, $FontHeight, $WS_BORDER)
-    $TitlebarTextColorLabel = GuiFlatButton_Create(" ", $TitlebarColorInputPosH + 14, $TitlebarTextColorInputPosV2, $FontHeight, $FontHeight)
-    GuiFlatButton_SetBkColor(-1, 0x000000)
-    ;GuiFlatButton_SetColorsEx(-1, $aColorsEx2)
+    $TitlebarTextColorLabel = GuiFlatButton_Create(" ", $TitlebarColorInputPosH + 14, $TitlebarTextColorInputPosV2, $FontHeight - 1, $FontHeight - 1)
+    GuiFlatButton_SetBkColor(-1, $GUI_BackColor)
+
     _GUIToolTip_AddTool($hToolTip2, $hGUI, "Change Color", GUICtrlGetHandle($TitlebarTextColorLabel))
     GUICtrlSetOnEvent(-1, "ColorPickerTitlebarText")
 
+    $measureadvwidth = $DarkTitleLabelPosH + $colorlabelfillPosH
+    $measureadvheight = $TitlebarTextColorInputPosV - $BorderColorLabelPosV2
+
     $ExtendFrameLabel = GUICtrlCreateLabel("Extend Frame To Client:", $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $BorderColorLabelPosV2, -1, -1)
     $aPos = ControlGetPos($hGUI, "", $ExtendFrameLabel)
-    GUICtrlSetColor(-1, 0xffffff)
+    
 
     $ExtendFrameLabelPosV = $aPos[1] + $aPos[3]
     $ExtendFrameLabelPosH2 = $aPos[0]
@@ -711,6 +817,8 @@ Func _StartGUI()
         $InfoButton = GUICtrlCreateLabel(ChrW(0xE946), $ExtendFrameLabelPosH2 + $AdvancedWidth, $BorderColorLabelPosV2 - 30, -1, -1, $SS_CENTER)
     EndIf
 
+    ;GUICtrlSetBkColor($InfoButton, 0x000000)
+
     ;$InfoButton = GUICtrlCreateLabel(ChrW(0xE946), $ExtendFrameLabelPosH2 + $AdvancedWidth, $BorderColorLabelPosV2 + 2, -1, -1, $SS_CENTER)
     ;GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
     Local $ToolMsg
@@ -720,14 +828,8 @@ Func _StartGUI()
     $ToolMsg &= "You can use the Rectify11 Black Mica theme to force a black background" & @CRLF
     $ToolMsg &= "on most Win32 apps."
     _GUIToolTip_AddTool($hToolTip2, $hGUI, $ToolMsg, GUICtrlGetHandle($InfoButton))
-    GUICtrlSetColor(-1, 0xffffff)
+    
     GUISetFont($FontSize, $FW_NORMAL, -1, $MainFont)
-
-    $measureadvwidth = $DarkTitleLabelPosH + $colorlabelfillPosH
-    $measureadvheight = $TitlebarTextColorInputPosV - $BorderColorLabelPosV2
-
-    ;$idGroup = _RGUI_RoundGroup("Advanced", 0xffffff, $ExtendFrameLabelPosH2 - 20, $BorderColorLabelPosV2 + 8 - 30, $measureadvwidth, (200 * $iDPI1) + 2, 0x404040, 0x000000, 8, 6)
-    $idGroup = _RGUI_RoundGroup("Advanced", 0xffffff, $ExtendFrameLabelPosH2 - 20, $BorderColorLabelPosV2 + 8 - 30, $measureadvwidth, $measureadvheight + 50, 0x404040, 0x000000, 8, 6)
 
     $idGroupPosV = $aPos[1] + $aPos[3]
     $idGroupPosH = $aPos[0] + $aPos[2]
@@ -736,7 +838,7 @@ Func _StartGUI()
     ;ConsoleWrite("$idGroupPosH " & $idGroupPosH & @CRLF)
 
     $ExtendFrameCombo = GUICtrlCreateCombo("", $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $ExtendFrameLabelPosV, 100 * $iDPI1, $FontHeight, BitOR($CBS_DROPDOWNLIST, $WS_HSCROLL, $WS_VSCROLL))
-    _GUICtrlComboBoxEx_SetColor(-1, 0x202020, 0xffffff)
+    _GUICtrlComboBoxEx_SetColor(-1, 0x202020, $GUI_FontColor)
     ;GUICtrlSetData($ExtendFrameCombo, "True|False|Global")
     GUICtrlSetOnEvent(-1, "idComboExtendFrame")
     GUICtrlSetState(-1, $GUI_HIDE)
@@ -747,7 +849,7 @@ Func _StartGUI()
     $ExtendFrameComboPosH = $aPos[0] + $aPos[2]
 
     ;$idInputDarkTitle = GUICtrlCreateInput("", 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $idInputExtendFrame = _RGUI_RoundInput("", 0xFFFFFF, $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $ExtendFrameLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
+    $idInputExtendFrame = _RGUI_RoundInput("", $GUI_FontColor, $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $ExtendFrameLabelPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1, $ES_READONLY)
     ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
@@ -756,20 +858,20 @@ Func _StartGUI()
     $idInputExtendFramePosV = $aPos[1] + $aPos[3]
     $idInputExtendFramePosH = $aPos[0] + $aPos[2]
 
-    $hBtnExtendFrame = GuiFlatButton_Create(ChrW(0xE70D), $ExtendFrameComboPosH + 4, $ExtendFrameLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    $hBtnExtendFrame = GuiFlatButton_Create(ChrW(0xE70D), $ExtendFrameComboPosH + 4, $ExtendFrameLabelPosV + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
     GuiFlatButton_SetColorsEx(-1, $aColorsEx)
-    GUICtrlSetColor(-1, 0xffffff)
+    
     GUICtrlSetOnEvent(-1, "hBtnExtendFrame")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
 
     $BlurBehindLabel = GUICtrlCreateLabel("Enable Blur Behind:", $idInputExtendFramePosH + $FontHeight + 40, $BorderColorLabelPosV2, -1, -1)
     $aPos = ControlGetPos($hGUI, "", $BlurBehindLabel)
-    GUICtrlSetColor(-1, 0xffffff)
+    
 
     $BlurBehindLabelPosV = $aPos[1] + $aPos[3]
 
     $BlurBehindCombo = GUICtrlCreateCombo("", $idInputExtendFramePosH + $FontHeight + 40, $BlurBehindLabelPosV, 100 * $iDPI1, $FontHeight, BitOR($CBS_DROPDOWNLIST, $WS_HSCROLL, $WS_VSCROLL))
-    _GUICtrlComboBoxEx_SetColor(-1, 0x202020, 0xffffff)
+    _GUICtrlComboBoxEx_SetColor(-1, 0x202020, $GUI_FontColor)
     ;GUICtrlSetData($BlurBehindCombo, "True|False|Global")
     GUICtrlSetOnEvent(-1, "idComboBlurBehind")
     GUICtrlSetState(-1, $GUI_HIDE)
@@ -779,14 +881,14 @@ Func _StartGUI()
     $BlurBehindComboPosV = $aPos[1] + $aPos[3]
     $BlurBehindComboPosH = $aPos[0] + $aPos[2]
 
-    $hBtnBlurBehind = GuiFlatButton_Create(ChrW(0xE70D), $BlurBehindComboPosH + 4, $BlurBehindLabelPosV + 2, $iDropDownSize, $iDropDownSize, $SS_CENTER)
+    $hBtnBlurBehind = GuiFlatButton_Create(ChrW(0xE70D), $BlurBehindComboPosH + 4, $BlurBehindLabelPosV + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
     GuiFlatButton_SetColorsEx(-1, $aColorsEx)
-    GUICtrlSetColor(-1, 0xffffff)
+    
     GUICtrlSetOnEvent(-1, "hBtnBlurBehind")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
 
     ;$idInputDarkTitle = GUICtrlCreateInput("", 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $idInputBlurBehind = _RGUI_RoundInput("", 0xFFFFFF, $idInputExtendFramePosH + $FontHeight + 40, $BlurBehindLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1, $ES_READONLY)
+    $idInputBlurBehind = _RGUI_RoundInput("", $GUI_FontColor, $idInputExtendFramePosH + $FontHeight + 40, $BlurBehindLabelPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1, $ES_READONLY)
     ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
@@ -796,13 +898,13 @@ Func _StartGUI()
     $idInputBlurBehindPosH = $aPos[0] + $aPos[2]
 
     $BlurTintColorLabel = GUICtrlCreateLabel("Blur Tint Color (Active):", $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $TitlebarColorLabelPosV2, -1, -1)
-    GUICtrlSetColor(-1, 0xffffff)
+    
     $aPos = ControlGetPos($hGUI, "", $BlurTintColorLabel)
 
     $BlurTintColorLabelPosV = $aPos[1] + $aPos[3]
 
     ;$TitlebarTextColorInput = GUICtrlCreateInput("", 20, $TitlebarTextColorLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $BlurTintColorInput = _RGUI_RoundInput("", 0xFFFFFF, $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $BlurTintColorLabelPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1)
+    $BlurTintColorInput = _RGUI_RoundInput("", $GUI_FontColor, $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $BlurTintColorLabelPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1)
     GUICtrlSetResizing(-1, $GUI_DOCKALL)
     ;GUICtrlSetBkColor(-1, 0x202020)
 
@@ -813,22 +915,22 @@ Func _StartGUI()
     $BlurTintColorInputPosV2 = $aPos[1]
 
     ;$BlurTintColorPickLabel = GUICtrlCreateLabel(" ", $BlurTintColorInputPosH + 14, $BlurTintColorInputPosV2, $FontHeight, $FontHeight, $WS_BORDER)
-    $BlurTintColorPickLabel = GuiFlatButton_Create(" ", $BlurTintColorInputPosH + 14, $BlurTintColorInputPosV2, $FontHeight, $FontHeight)
-    GuiFlatButton_SetBkColor(-1, 0x000000)
-    ;GuiFlatButton_SetColorsEx(-1, $aColorsEx2)
+    $BlurTintColorPickLabel = GuiFlatButton_Create(" ", $BlurTintColorInputPosH + 14, $BlurTintColorInputPosV2, $FontHeight - 1, $FontHeight - 1)
+    GuiFlatButton_SetBkColor(-1, $GUI_BackColor)
+
     _GUIToolTip_AddTool($hToolTip2, $hGUI, "Change Color", GUICtrlGetHandle($BlurTintColorPickLabel))
     GUICtrlSetOnEvent(-1, "ColorPickerBlurTintColor")
 
     ;
 
     $BlurTintColorLabelInact = GUICtrlCreateLabel("Blur Tint Color (Inactive):", $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $TitlebarTextColorLabelPosV2, -1, -1)
-    GUICtrlSetColor(-1, 0xffffff)
+    
     $aPos = ControlGetPos($hGUI, "", $BlurTintColorLabelInact)
 
     $BlurTintColorLabelInactPosV = $aPos[1] + $aPos[3]
 
     ;$TitlebarTextColorInput = GUICtrlCreateInput("", 20, $TitlebarTextColorLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $BlurTintColorInputInact = _RGUI_RoundInput("", 0xFFFFFF, $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $BlurTintColorLabelInactPosV, 100 * $iDPI1, $FontHeight, 0x202020, 0X202020, 8, 1)
+    $BlurTintColorInputInact = _RGUI_RoundInput("", $GUI_FontColor, $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $BlurTintColorLabelInactPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1)
     GUICtrlSetResizing(-1, $GUI_DOCKALL)
     ;GUICtrlSetBkColor(-1, 0x202020)
 
@@ -839,16 +941,14 @@ Func _StartGUI()
     $BlurTintColorInputInactPosV2 = $aPos[1]
 
     ;$BlurTintColorPickLabel = GUICtrlCreateLabel(" ", $BlurTintColorInputPosH + 14, $BlurTintColorInputPosV2, $FontHeight, $FontHeight, $WS_BORDER)
-    $BlurTintColorPickLabelInact = GuiFlatButton_Create(" ", $BlurTintColorInputInactPosH + 14, $BlurTintColorInputInactPosV2, $FontHeight, $FontHeight)
-    GuiFlatButton_SetBkColor(-1, 0x000000)
-    ;GuiFlatButton_SetColorsEx(-1, $aColorsEx2)
+    $BlurTintColorPickLabelInact = GuiFlatButton_Create(" ", $BlurTintColorInputInactPosH + 14, $BlurTintColorInputInactPosV2, $FontHeight - 1, $FontHeight - 1)
+    GuiFlatButton_SetBkColor(-1, $GUI_BackColor)
+
     _GUIToolTip_AddTool($hToolTip2, $hGUI, "Change Color", GUICtrlGetHandle($BlurTintColorPickLabelInact))
     GUICtrlSetOnEvent(-1, "ColorPickerBlurTintColorInact")
 
-    ;
-
     $BlurColorIntensityLabel = GUICtrlCreateLabel("Color Opacity (Active):", $idInputExtendFramePosH + $FontHeight + 40, $TitlebarColorLabelPosV2, -1, -1)
-    GUICtrlSetColor(-1, 0xffffff)
+    
     $aPos = ControlGetPos($hGUI, "", $BlurColorIntensityLabel)
 
     $BlurColorIntensityLabelPosV = $aPos[1] + $aPos[3]
@@ -857,7 +957,7 @@ Func _StartGUI()
     ;GUICtrlSetOnEvent(-1, "SliderFunction")
     $hWndTT = _GUICtrlSlider_GetToolTips($BlurColorIntensitySlider)
     _GUICtrlSlider_SetToolTips($BlurColorIntensitySlider, $hWndTT)
-    GUICtrlSetBkColor($BlurColorIntensitySlider, 0x00000000)
+    GUICtrlSetBkColor($BlurColorIntensitySlider, $GUI_BackColor)
     GUICtrlSetLimit(-1, 100, 0)
     GUICtrlSetData($BlurColorIntensitySlider, 50)
 
@@ -867,10 +967,8 @@ Func _StartGUI()
     $BlurColorIntensitySliderPosH = $aPos[0] + $aPos[2]
     $BlurColorIntensitySliderV2 = $aPos[1]
 
-    ;
-
     $BlurColorIntensityLabelInact = GUICtrlCreateLabel("Color Opacity (Inactive):", $idInputExtendFramePosH + $FontHeight + 40, $TitlebarTextColorLabelPosV2, -1, -1)
-    GUICtrlSetColor(-1, 0xffffff)
+    
     $aPos = ControlGetPos($hGUI, "", $BlurColorIntensityLabelInact)
 
     $BlurColorIntensityLabelInactPosV = $aPos[1] + $aPos[3]
@@ -879,33 +977,38 @@ Func _StartGUI()
     ;GUICtrlSetOnEvent(-1, "SliderFunction")
     $hWndTT = _GUICtrlSlider_GetToolTips($BlurColorIntensitySliderInact)
     _GUICtrlSlider_SetToolTips($BlurColorIntensitySliderInact, $hWndTT)
-    GUICtrlSetBkColor($BlurColorIntensitySliderInact, 0x00000000)
+    GUICtrlSetBkColor($BlurColorIntensitySliderInact, $GUI_BackColor)
     GUICtrlSetLimit(-1, 100, 0)
     GUICtrlSetData($BlurColorIntensitySliderInact, 50)
 
-    ;
+    If $iDPI1 = 1 Then
+        $AdvancedButton = GUICtrlCreateLabel("Advanced", $ExtendFrameLabelPosH2 - 8, $BorderColorLabelPosV2 - 30, -1, -1, $SS_CENTER)
+    ElseIf $iDPI1 = 1.25 Then
+        $AdvancedButton = GUICtrlCreateLabel("Advanced", $ExtendFrameLabelPosH2 - 8, $BorderColorLabelPosV2 - 30 - 2, -1, -1, $SS_CENTER)
+    ElseIf $iDPI1 = 1.5 Then
+        $AdvancedButton = GUICtrlCreateLabel("Advanced", $ExtendFrameLabelPosH2 - 8, $BorderColorLabelPosV2 - 30 - 3, -1, -1, $SS_CENTER)
+    Else
+        $AdvancedButton = GUICtrlCreateLabel("Advanced", $ExtendFrameLabelPosH2 - 8, $BorderColorLabelPosV2 - 30 - 2, -1, -1, $SS_CENTER)
+    EndIf
 
-    ;ConsoleWrite("$BlurColorIntensitySliderPosH " & $BlurColorIntensitySliderPosH & @CRLF)
+    Local $idAdvancedLabel2 = GUICtrlCreateLabel(" ", $ExtendFrameLabelPosH2 - 20 + 1, $BorderColorLabelPosV2 + 8 - 30 + 1, $measureadvwidth - 2, $measureadvheight + 50 - 2)
+    GUICtrlSetBkColor(-1, $GUI_BackColor)
+    GUICtrlSetState(-1, $GUI_DISABLE)
 
-    ;$idGroup = _RGUI_RoundGroup("Advanced", 0xffffff, $BorderColorInputPosH + $FontHeight + 40, $BorderColorInputPosV2, $TitlebarColorInputPosH2 + $TitlebarColorInputPosH2 + 40 + $FontHeight + $FontHeight + $FontHeight + $FontHeight + $FontHeight, 220, 0x404040, 0x000000, 8, 6)
-
-    GUICtrlCreateGroup("", -99, -99, 1, 1) ;close group
+    Local $idAdvancedLabel = GUICtrlCreateLabel(" ", $ExtendFrameLabelPosH2 - 20, $BorderColorLabelPosV2 + 8 - 30, $measureadvwidth, $measureadvheight + 50)
+    GUICtrlSetBkColor(-1, $GUI_AdvancedLineColor)
+    GUICtrlSetState(-1, $GUI_DISABLE)
 
     _WinAPI_DwmSetWindowAttribute__($hGUI, 20, 1)
-    ;_WinAPI_DwmSetWindowAttribute__($hGUI, 38, 4)
+    _WinAPI_DwmSetWindowAttribute__($hGUI, 38, 4)
     _WinAPI_DwmExtendFrameIntoClientArea($hGUI, _WinAPI_CreateMargins(-1, -1, -1, -1))
 
     GUICtrlSendMsg( $DarkTitleCombo, $WM_CHANGEUISTATE, 65537, 0 )
-    ;GuiDarkmodeApply($hGUI)
-
-    ;Local $idInput = _RGUI_RoundInput("", 0xFFFFFF, 20, 38, 100 * $iDPI1Big, $FontHeight, 0x202020, 0X202020, 10, 4, $ES_READONLY)
-
-    ;_WinAPI_SetWindowTheme(GUICtrlGetHandle($DarkTitleCombo), "", "")
 
     GUIRegisterMsg($WM_COMMAND, "ED_WM_COMMAND")
 
     ControlFocus($hGUI, "", $RuleListCombo)
-  
+
     If @Compiled Then
         GUISetIcon(@ScriptFullPath, 201)
     ElseIf Not @Compiled Then
@@ -914,8 +1017,17 @@ Func _StartGUI()
 
     GUIRegisterMsg($WM_NCHITTEST, "_MY_NCHITTEST")
     DarkMode($hGUI, True)
-    If $bHideGUI Then GUISetState(@SW_HIDE, $hGUI)
+    GUIRegisterMsg($WM_NCPAINT, "WM_NCPAINT")
+    GUIRegisterMsg($WM_ACTIVATE, "WM_ACTIVATE_Handler")
+
+    ;If $bHideGUI Then GUISetState(@SW_HIDE, $hGUI)
+    If $bHideGUI Then WinSetTrans($hGUI, "", 0)
+    If $bHideGUI Then GUISetState(@SW_SHOW, $hGUI)
+    If $bHideGUI Then WinSetState($hGUI, "", @SW_HIDE)
+    If $bHideGUI Then WinSetTrans($hGUI, "", 255)
+    ;If $bHideGUI Then WinSetState($hGUI, "", @SW_HIDE)
     If Not $bHideGUI Then GUISetState(@SW_SHOW, $hGUI)
+    ;If Not $bHideGUI Then WinSetState($hGUI, "", @SW_SHOW)
 
     $idGUI = TrayCreateItem("Immersive UX")
     TrayItemSetOnEvent($idGUI, "idGUI")
@@ -936,32 +1048,6 @@ Func _StartGUI()
     ; Just idle around
     While 1
         Sleep(100)
-
-        $aCInfo = GUIGetCursorInfo($hGUI)
-        If $aCInfo[4] = $idStatusInput Then
-            If $fOver = False Then
-                GUICtrlSetBkColor($idStatusInput, 0x242424)
-                $fOver = True
-            EndIf
-        Else
-            If $fOver = True Then
-                GUICtrlSetBkColor($idStatusInput, $GUI_BKCOLOR_TRANSPARENT)
-                $fOver = False
-            EndIf
-        EndIf
-
-        $aCInfo2 = GUIGetCursorInfo($hGUI)
-        If $aCInfo2[4] = $idPart2 Then
-            If $fOver2 = False Then
-                GUICtrlSetBkColor($idPart2, 0x242424)
-                $fOver2 = True
-            EndIf
-        Else
-            If $fOver2 = True Then
-                GUICtrlSetBkColor($idPart2, $GUI_BKCOLOR_TRANSPARENT)
-                $fOver2 = False
-            EndIf
-        EndIf
     WEnd
 
 EndFunc
@@ -969,7 +1055,7 @@ EndFunc
 Func SpecialEvents()
     Select
         Case @GUI_CtrlId = $GUI_EVENT_CLOSE
-            GUISetState(@SW_HIDE, $hGUI)
+            WinSetState($hGUI, "", @SW_HIDE)
     EndSelect
 EndFunc
 
@@ -1068,7 +1154,7 @@ Func _UpdateColorBoxes()
     ;If $color1 <> $DWMWA_COLOR_NONE Then GUICtrlSetBkColor($colorlabelfill, $color1)
     If $color1 <> "0xFFFFFFFE" Then GuiFlatButton_SetBkColor($colorlabelfill, $color1)
     ;If $color1 = $DWMWA_COLOR_NONE Then GUICtrlSetBkColor($colorlabelfill, 0x000000)
-    If $color1 = "0xFFFFFFFE" Then GuiFlatButton_SetBkColor($colorlabelfill, 0x000000)
+    If $color1 = "0xFFFFFFFE" Then GuiFlatButton_SetBkColor($colorlabelfill, $GUI_BackColor)
 	Local $color2 = GUICtrlRead($TitlebarColorInput)
 	;GUICtrlSetBkColor($TitlebarColorLabel, $color2)
     GuiFlatButton_SetBkColor($TitlebarColorLabel, $color2)
@@ -1083,196 +1169,6 @@ Func _UpdateColorBoxes()
     GuiFlatButton_SetBkColor($BlurTintColorPickLabelInact, $color5)
 EndFunc
 
-Func idSpecialHandlingTest()
-    GUICtrlSetBkColor($idPart2, 0x000000)
-    ; need to redo sizes here in case window moved
-    $aWinPos = WinGetPos($hGUI)
-	$MenuResult1 = _GUICtrlMenu_TrackPopupMenu($hSpecialMenu, $hGUI, (508 * $iDPI1) + $aWinPos[0], $aWinPos[1] + $aWinPos[3] - 6, 1, 1, 2)
-	Switch $MenuResult1
-		Case 0
-			; nothing
-		Case 1
-			; patch vscode
-            $sMsg = "This will patch all VSCode and VSCodium installs on the system." & @CRLF & @CRLF
-            $sMsg &= "You will likely have to do this after every VSCode and VSCodium update." & @CRLF & @CRLF
-            $sMsg &= 'NOTE: VSCode and VSCodium will show a message stating that your "...installation appears to be corrupt".' & @CRLF
-            $sMsg &= "This message is harmless. Click on the cogwheel and select Don't Show Again." & @CRLF
-            $sMsg &= " " & @CRLF
-            $sMsg &= "Do you want to continue?" & @CRLF
-            $iRetValue = _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 4, $sProdName, $sMsg)
-
-            If $iRetValue = 1 Then
-                _VSCode_mod()
-                $sMsg = "VSCode/VScodium patches have been applied." & @CRLF & @CRLF
-                $sMsg &= "You will need to close and reopen any running instances of" & @CRLF
-                $sMsg &= "VSCode/VSCodium to reflect the changes." & @CRLF
-                _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
-            ElseIf $iRetValue = 2 Then
-                Return
-            EndIf
-		Case 2
-			; unpatch vscode
-            _VSCode_mod_uninstall()
-            $sMsg = "VSCode/VScodium patches have been removed." & @CRLF & @CRLF
-            $sMsg &= "You will need to close and reopen any running instances of" & @CRLF
-            $sMsg &= "VSCode/VSCodium to reflect the changes." & @CRLF
-            _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
-		Case 3
-			; patch terminal
-            $sMsg = "This will patch Windows Terminal to apply backdrop materials." & @CRLF & @CRLF
-            $sMsg &= "This works by adding a Mica theme to the Terminal settings file." & @CRLF
-            $sMsg &= " " & @CRLF
-            $sMsg &= "Do you want to continue?" & @CRLF
-            $iRetValue = _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 4, $sProdName, $sMsg)
-
-            If $iRetValue = 1 Then
-                _Terminal_patch()
-                $sMsg = "The ImmersiveUX theme has been added to your Windows Terminal settings." & @CRLF & @CRLF
-                $sMsg &= "Changes should be reflected immediately in any running instances" & @CRLF
-                $sMsg &= "of Windows Terminal." & @CRLF
-                _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
-            ElseIf $iRetValue = 2 Then
-                Return
-            EndIf
-		Case 4
-			; unpatch terminal
-            _Terminal_patch_remove()
-            $sMsg = "Your original Windows Terminal settings have been restored." & @CRLF & @CRLF
-            $sMsg &= "Changes should be reflected immediately in any running instances" & @CRLF
-            $sMsg &= "of Windows Terminal." & @CRLF
-            _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
-        Case 5
-            ; active window only
-            $iBorderColorOptions = Int(IniRead($sIniPath, "Configuration", "BorderColorOptions", "0"))
-            If $iBorderColorOptions = 0 Then
-                Return
-            ElseIf $iBorderColorOptions <> 0 Then
-                ; set value
-                IniWrite($sIniPath, "Configuration", "BorderColorOptions", "0")
-                _GUICtrlMenu_CheckRadioItem($hSubItems3, 0, 2, 0)
-                _RestartTask()
-            EndIf
-        Case 6
-            ; active and inactive windows
-            $iBorderColorOptions = Int(IniRead($sIniPath, "Configuration", "BorderColorOptions", "0"))
-            If $iBorderColorOptions = 1 Then
-                Return
-            ElseIf $iBorderColorOptions <> 1 Then
-                ; set value
-                IniWrite($sIniPath, "Configuration", "BorderColorOptions", "1")
-                _GUICtrlMenu_CheckRadioItem($hSubItems3, 0, 2, 1)
-                _RestartTask()
-            EndIf
-        Case 7
-            ; LED strobe border effects
-            $iBorderColorOptions = Int(IniRead($sIniPath, "Configuration", "BorderColorOptions", "0"))
-            If $iBorderColorOptions = 2 Then
-                Return
-            ElseIf $iBorderColorOptions <> 2 Then
-                IniWrite($sIniPath, "Configuration", "BorderColorOptions", "2")
-                _GUICtrlMenu_CheckRadioItem($hSubItems3, 0, 2, 2)
-                _RestartTask()
-            EndIf
-	EndSwitch
-EndFunc
-
-Func idStatusInputTest()
-    GUICtrlSetBkColor($idStatusInput, 0x000000)
-    If Not @Compiled Then
-        ;MsgBox(0, "Immersive UX", "Task Scheduler functionality is only available for compiled binaries.")
-        Local $sMsg = "Task Scheduler functionality is only available for compiled binaries." & @CRLF
-        _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
-        Return
-    EndIf
-
-    ; update task status info
-    _updateTaskMenu()
-    ; need to redo sizes here in case window moved
-    $aWinPos = WinGetPos($hGUI)
-	$MenuResult1 = _GUICtrlMenu_TrackPopupMenu($hTaskMenu, $hGUI, (344 * $iDPI1) + $aWinPos[0], $aWinPos[1] + $aWinPos[3] - 6, 1, 1, 2)
-	Switch $MenuResult1
-		Case 0
-			; nothing
-		Case 1
-			; Install Task (Admin)
-            If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
-            If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
-            Sleep(200)
-            _InstallTask()
-            Sleep(500)
-            ; start task
-            ShellExecute(@ScriptDir & "\" & $sEngName & ".exe", "starttask", @ScriptDir, $SHEX_OPEN, @SW_HIDE)
-            Sleep(500)
-            _TaskStatusUpdate()
-            _IsEngineProcRunning()
-		Case 2
-			; Install Task
-            If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
-            If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
-            Sleep(200)
-            _InstallTask()
-            Sleep(500)
-            ; start task
-            ShellExecute(@ScriptDir & "\" & $sEngName & ".exe", "starttask", @ScriptDir, $SHEX_OPEN, @SW_HIDE)
-            Sleep(500)
-            _TaskStatusUpdate()
-            _IsEngineProcRunning()
-		Case 3
-            ; Uninstall Task
-            If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
-            If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
-            Sleep(200)
-            _UninstallTask()
-            Sleep(500)
-            _TaskStatusUpdate()
-            _IsEngineProcRunning()
-        Case 4
-			; Restart Task
-            _RestartTask()
-            Sleep(500)
-            _IsEngineProcRunning()
-	EndSwitch
-EndFunc
-
-Func _updateTaskMenu()
-    ; update state of each item in the task menu
-    $TaskIntegrity = "No"
-    $TaskInstalled = _IsTaskInstalled()
-    ;Global $TaskRunning = "No"
-    $TaskRunning = _IsTaskRunning()
-    If Not $TaskRunning Then $TaskRunning = "No"
-    ; only try to get task integrity level if it exists
-    If $TaskInstalled = "Yes" Then
-        $TaskIntegrity = _GetTaskIntegrityLevel()
-    EndIf
-    If Not $TaskIntegrity Then $TaskIntegrity = "No"
-
-    If Not IsAdmin() Then _GUICtrlMenu_SetItemEnabled($hTaskMenu, 1, False, False)
-    If $TaskRunning = "Yes" Then _GUICtrlMenu_SetItemEnabled($hTaskMenu, 4, True, False)
-    If $TaskRunning = "No" Then _GUICtrlMenu_SetItemEnabled($hTaskMenu, 4, False, False)
-    If $TaskInstalled = "Yes" Then
-        _GUICtrlMenu_SetItemEnabled($hTaskMenu, 3, True, False)
-        _GUICtrlMenu_SetItemEnabled($hTaskMenu, 2, False, False)
-    EndIf
-    If $TaskInstalled = "No" Then
-        _GUICtrlMenu_SetItemEnabled($hTaskMenu, 3, False, False)
-        _GUICtrlMenu_SetItemEnabled($hTaskMenu, 2, True, False)
-        If IsAdmin() Then
-            _GUICtrlMenu_SetItemEnabled($hTaskMenu, 2, False, False)
-            _GUICtrlMenu_SetItemEnabled($hTaskMenu, 1, True, False)
-        EndIf
-    EndIf
-    ; allow upgrading a task to highest privileges
-    If $TaskInstalled = "Yes" And $TaskIntegrity = "No" Then
-        If IsAdmin() Then _GUICtrlMenu_SetItemEnabled($hTaskMenu, 1, True, False)
-    ElseIf $TaskInstalled = "Yes" And $TaskIntegrity = "Yes" Then
-        If IsAdmin() Then _GUICtrlMenu_SetItemEnabled($hTaskMenu, 1, False, False)
-    EndIf
-    If Not IsAdmin() And $TaskInstalled = "Yes" And $TaskIntegrity = "Yes" Then
-        _GUICtrlMenu_SetItemEnabled($hTaskMenu, 3, False, False)
-    EndIf
-EndFunc
-
 Func ED_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
     #forceref $hWnd, $iMsg
     Local $iCode = BitShift($wParam, 16)
@@ -1282,64 +1178,48 @@ Func ED_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
                 Case $EN_SETFOCUS
                     _GUICtrlComboBox_ShowDropDown($RuleListCombo, True)
                     ControlFocus($hGUI, "", $RuleListCombo)
-                Case $EN_KILLFOCUS
-                    ;GUICtrlSetData($hLabel, "Edit does not have focus")
             EndSwitch
         Case GUICtrlGetHandle($idInputRuleType)
             Switch $iCode
                 Case $EN_SETFOCUS
                     _GUICtrlComboBox_ShowDropDown($RuleTypeCombo, True)
                     ControlFocus($hGUI, "", $RuleTypeCombo)
-                Case $EN_KILLFOCUS
-                    ;GUICtrlSetData($hLabel, "Edit does not have focus")
             EndSwitch
         Case GUICtrlGetHandle($idInputDarkTitle)
             Switch $iCode
                 Case $EN_SETFOCUS
                     _GUICtrlComboBox_ShowDropDown($DarkTitleCombo, True)
                     ControlFocus($hGUI, "", $DarkTitleCombo)
-                Case $EN_KILLFOCUS
-                    ;GUICtrlSetData($hLabel, "Edit does not have focus")
             EndSwitch
         Case GUICtrlGetHandle($idInputTitleBarBackdrop)
             Switch $iCode
                 Case $EN_SETFOCUS
                     _GUICtrlComboBox_ShowDropDown($TitleBarBackdropCombo, True)
                     ControlFocus($hGUI, "", $TitleBarBackdropCombo)
-                Case $EN_KILLFOCUS
-                    ;GUICtrlSetData($hLabel, "Edit does not have focus")
             EndSwitch
         Case GUICtrlGetHandle($idInputCornerPreference)
             Switch $iCode
                 Case $EN_SETFOCUS
                     _GUICtrlComboBox_ShowDropDown($CornerPreferenceCombo, True)
                     ControlFocus($hGUI, "", $CornerPreferenceCombo)
-                Case $EN_KILLFOCUS
-                    ;GUICtrlSetData($hLabel, "Edit does not have focus")
             EndSwitch
         Case GUICtrlGetHandle($idInputExtendFrame)
             Switch $iCode
                 Case $EN_SETFOCUS
                     _GUICtrlComboBox_ShowDropDown($ExtendFrameCombo, True)
                     ControlFocus($hGUI, "", $ExtendFrameCombo)
-                Case $EN_KILLFOCUS
-                    ;GUICtrlSetData($hLabel, "Edit does not have focus")
             EndSwitch
          Case GUICtrlGetHandle($idInputBlurBehind)
             Switch $iCode
                 Case $EN_SETFOCUS
                     _GUICtrlComboBox_ShowDropDown($BlurBehindCombo, True)
                     ControlFocus($hGUI, "", $BlurBehindCombo)
-                Case $EN_KILLFOCUS
-                    ;GUICtrlSetData($hLabel, "Edit does not have focus")
             EndSwitch
         Case GUICtrlGetHandle($idInputRuleEnabled)
             Switch $iCode
                 Case $EN_SETFOCUS
                     _GUICtrlComboBox_ShowDropDown($RuleEnabledCombo, True)
                     ControlFocus($hGUI, "", $RuleEnabledCombo)
-                Case $EN_KILLFOCUS
-                    ;GUICtrlSetData($hLabel, "Edit does not have focus")
             EndSwitch
     EndSwitch
 
@@ -1479,23 +1359,23 @@ Func hBtnAddRule()
 	_GUICtrlComboBox_SetCurSel($ExtendFrameCombo, -1)
     GUICtrlSetData($BlurTintColorInput, "")
     ;GUICtrlSetBkColor($BlurTintColorPickLabel, 0x000000)
-    GuiFlatButton_SetBkColor($BlurTintColorPickLabel, 0x000000)
+    GuiFlatButton_SetBkColor($BlurTintColorPickLabel, $GUI_BackColor)
     GUICtrlSetData($BlurTintColorInputInact, "")
     ;GUICtrlSetBkColor($BlurTintColorPickLabelInact, 0x000000)
-    GuiFlatButton_SetBkColor($BlurTintColorPickLabelInact, 0x000000)
+    GuiFlatButton_SetBkColor($BlurTintColorPickLabelInact, $GUI_BackColor)
     GUICtrlSetData($idInputCornerPreference, "")
     _GUICtrlComboBox_SetCurSel($CornerPreferenceCombo, -1)
     GUICtrlSetData($idInputTitleBarBackdrop, "")
     _GUICtrlComboBox_SetCurSel($TitleBarBackdropCombo, -1)
     GUICtrlSetData($BorderColorInput, "")
     ;GUICtrlSetBkColor($colorlabelfill, 0x000000)
-    GuiFlatButton_SetBkColor($colorlabelfill, 0x000000)
+    GuiFlatButton_SetBkColor($colorlabelfill, $GUI_BackColor)
     GUICtrlSetData($TitlebarColorInput, "")
     ;GUICtrlSetBkColor($TitlebarColorLabel, 0x000000)
-    GuiFlatButton_SetBkColor($TitlebarColorLabel, 0x000000)
+    GuiFlatButton_SetBkColor($TitlebarColorLabel, $GUI_BackColor)
     GUICtrlSetData($TitlebarTextColorInput, "")
     ;GUICtrlSetBkColor($TitlebarTextColorLabel, 0x000000)
-    GuiFlatButton_SetBkColor($TitlebarTextColorLabel, 0x000000)
+    GuiFlatButton_SetBkColor($TitlebarTextColorLabel, $GUI_BackColor)
     GUICtrlSetData($idInputDarkTitle, "")
 	_GUICtrlComboBox_SetCurSel($DarkTitleCombo, -1)
     GUICtrlSetData($TargetInput, "")
@@ -1531,23 +1411,23 @@ Func hBtnAddRule_nofocus()
 	_GUICtrlComboBox_SetCurSel($ExtendFrameCombo, -1)
     GUICtrlSetData($BlurTintColorInput, "")
     ;GUICtrlSetBkColor($BlurTintColorPickLabel, 0x000000)
-    GuiFlatButton_SetBkColor($BlurTintColorPickLabel, 0x000000)
+    GuiFlatButton_SetBkColor($BlurTintColorPickLabel, $GUI_BackColor)
     GUICtrlSetData($BlurTintColorInputInact, "")
     ;GUICtrlSetBkColor($BlurTintColorPickLabelInact, 0x000000)
-    GuiFlatButton_SetBkColor($BlurTintColorPickLabelInact, 0x000000)
+    GuiFlatButton_SetBkColor($BlurTintColorPickLabelInact, $GUI_BackColor)
     GUICtrlSetData($idInputCornerPreference, "")
     _GUICtrlComboBox_SetCurSel($CornerPreferenceCombo, -1)
     GUICtrlSetData($idInputTitleBarBackdrop, "")
     _GUICtrlComboBox_SetCurSel($TitleBarBackdropCombo, -1)
     GUICtrlSetData($BorderColorInput, "")
     ;GUICtrlSetBkColor($colorlabelfill, 0x000000)
-    GuiFlatButton_SetBkColor($colorlabelfill, 0x000000)
+    GuiFlatButton_SetBkColor($colorlabelfill, $GUI_BackColor)
     GUICtrlSetData($TitlebarColorInput, "")
     ;GUICtrlSetBkColor($TitlebarColorLabel, 0x000000)
-    GuiFlatButton_SetBkColor($TitlebarColorLabel, 0x000000)
+    GuiFlatButton_SetBkColor($TitlebarColorLabel, $GUI_BackColor)
     GUICtrlSetData($TitlebarTextColorInput, "")
     ;GUICtrlSetBkColor($TitlebarTextColorLabel, 0x000000)
-    GuiFlatButton_SetBkColor($TitlebarTextColorLabel, 0x000000)
+    GuiFlatButton_SetBkColor($TitlebarTextColorLabel, $GUI_BackColor)
     GUICtrlSetData($idInputDarkTitle, "")
 	_GUICtrlComboBox_SetCurSel($DarkTitleCombo, -1)
     GUICtrlSetData($TargetInput, "")
@@ -1570,23 +1450,23 @@ Func hBtnAddRule_nofocusGlobal()
 	_GUICtrlComboBox_SetCurSel($ExtendFrameCombo, -1)
     GUICtrlSetData($BlurTintColorInput, "")
     ;GUICtrlSetBkColor($BlurTintColorPickLabel, 0x000000)
-    GuiFlatButton_SetBkColor($BlurTintColorPickLabel, 0x000000)
+    GuiFlatButton_SetBkColor($BlurTintColorPickLabel, $GUI_BackColor)
     GUICtrlSetData($BlurTintColorInputInact, "")
     ;GUICtrlSetBkColor($BlurTintColorPickLabelInact, 0x000000)
-    GuiFlatButton_SetBkColor($BlurTintColorPickLabelInact, 0x000000)
+    GuiFlatButton_SetBkColor($BlurTintColorPickLabelInact, $GUI_BackColor)
     GUICtrlSetData($idInputCornerPreference, "")
     _GUICtrlComboBox_SetCurSel($CornerPreferenceCombo, -1)
     GUICtrlSetData($idInputTitleBarBackdrop, "")
     _GUICtrlComboBox_SetCurSel($TitleBarBackdropCombo, -1)
     GUICtrlSetData($BorderColorInput, "")
     ;GUICtrlSetBkColor($colorlabelfill, 0x000000)
-    GuiFlatButton_SetBkColor($colorlabelfill, 0x000000)
+    GuiFlatButton_SetBkColor($colorlabelfill, $GUI_BackColor)
     GUICtrlSetData($TitlebarColorInput, "")
     ;GUICtrlSetBkColor($TitlebarColorLabel, 0x000000)
-    GuiFlatButton_SetBkColor($TitlebarColorLabel, 0x000000)
+    GuiFlatButton_SetBkColor($TitlebarColorLabel, $GUI_BackColor)
     GUICtrlSetData($TitlebarTextColorInput, "")
     ;GUICtrlSetBkColor($TitlebarTextColorLabel, 0x000000)
-    GuiFlatButton_SetBkColor($TitlebarTextColorLabel, 0x000000)
+    GuiFlatButton_SetBkColor($TitlebarTextColorLabel, $GUI_BackColor)
     GUICtrlSetData($idInputDarkTitle, "")
 	_GUICtrlComboBox_SetCurSel($DarkTitleCombo, -1)
     GUICtrlSetData($TargetInput, "")
@@ -1849,6 +1729,64 @@ Func _GetIniDetails()
     $dGlobalBlurTintColorInactive = IniRead($sIniPath, "GlobalRules", "GlobalBlurTintColorInactive", "missing")
     $iGlobalColorIntensityInactive = IniRead($sIniPath, "GlobalRules", "GlobalColorIntensityInactive", "missing")
 
+    ; Custom GUI Colors
+    $GUI_BackColor = IniRead($sIniPath, "Settings", "GUI_BackColor", "missing")
+    If $GUI_BackColor = "missing" Then
+        IniWrite($sIniPath, "Settings", "GUI_BackColor", "0x000000")
+        $GUI_BackColor = "0x000000"
+    EndIf
+    If Not $GUI_BackColor Then $GUI_BackColor = "0x000000"
+
+    $GUI_FontColor = IniRead($sIniPath, "Settings", "GUI_FontColor", "missing")
+    If $GUI_FontColor = "missing" Then
+        IniWrite($sIniPath, "Settings", "GUI_FontColor", "0xE0E0E0")
+        $GUI_FontColor = "0xE0E0E0"
+    EndIf
+    If Not $GUI_FontColor Then $GUI_FontColor = "0xE0E0E0"
+
+    $GUI_InputBackColor = IniRead($sIniPath, "Settings", "GUI_InputBackColor", "missing")
+    If $GUI_InputBackColor = "missing" Then
+        IniWrite($sIniPath, "Settings", "GUI_InputBackColor", "0x202020")
+        $GUI_InputBackColor = "0x202020"
+    EndIf
+    If Not $GUI_InputBackColor Then $GUI_InputBackColor = "0x202020"
+
+    $GUI_StatusBackColor = IniRead($sIniPath, "Settings", "GUI_StatusBackColor", "missing")
+    If $GUI_StatusBackColor = "missing" Then
+        IniWrite($sIniPath, "Settings", "GUI_StatusBackColor", "0x080808")
+        $GUI_StatusBackColor = "0x080808"
+    EndIf
+    If Not $GUI_StatusBackColor Then $GUI_StatusBackColor = "0x080808"
+
+    $GUI_StatusLineColor = IniRead($sIniPath, "Settings", "GUI_StatusLineColor", "missing")
+    If $GUI_StatusLineColor = "missing" Then
+        IniWrite($sIniPath, "Settings", "GUI_StatusLineColor", "0x242424")
+        $GUI_StatusLineColor = "0x242424"
+    EndIf
+    If Not $GUI_StatusLineColor Then $GUI_StatusLineColor = "0x242424"
+
+    $GUI_MenubarBackColor = IniRead($sIniPath, "Settings", "GUI_MenubarBackColor", "missing")
+    If $GUI_MenubarBackColor = "missing" Then
+        IniWrite($sIniPath, "Settings", "GUI_MenubarBackColor", "0x080808")
+        $GUI_MenubarBackColor = "0x080808"
+    EndIf
+    If Not $GUI_MenubarBackColor Then $GUI_MenubarBackColor = "0x080808"
+
+    $GUI_MenubarLineColor = IniRead($sIniPath, "Settings", "GUI_MenubarLineColor", "missing")
+    If $GUI_MenubarLineColor = "missing" Then
+        IniWrite($sIniPath, "Settings", "GUI_MenubarLineColor", "0x242424")
+        $GUI_MenubarLineColor = "0x242424"
+    EndIf
+    If Not $GUI_MenubarLineColor Then $GUI_MenubarLineColor = "0x242424"
+
+    $GUI_AdvancedLineColor = IniRead($sIniPath, "Settings", "GUI_AdvancedLineColor", "missing")
+    If $GUI_AdvancedLineColor = "missing" Then
+        IniWrite($sIniPath, "Settings", "GUI_AdvancedLineColor", "0x242424")
+        $GUI_AdvancedLineColor = "0x242424"
+    EndIf
+    If Not $GUI_AdvancedLineColor Then $GUI_AdvancedLineColor = "0x242424"
+
+
     If $dGlobalBlurTintColorInactive = "missing" Then
         ; create backup of pre-1.5.0 config file
         Local $bCopyStatus = FileCopy($sIniPath, @ScriptDir & "\ImmersiveUX-pre-1.5-backup.ini")
@@ -1864,7 +1802,7 @@ Func _GetIniDetails()
     EndIf
 
     ; settings
-    $iBorderColorOptions = Int(IniRead($sIniPath, "Configuration", "BorderColorOptions", "0"))
+    $iBorderColorOptions = IniRead($sIniPath, "Configuration", "BorderColorOptions", "0")
 
     ; temporary fix for mistakenly allowing Global on dropdown, remove later
     If $bGlobalDarkTitleBar = "Global" Then
@@ -2000,8 +1938,6 @@ Func _RuleList()
         GUICtrlSetState($idInputRuleEnabled, $GUI_DISABLE)
         GUICtrlSetState($hBtnRuleEnabled, $GUI_DISABLE)
         GuiFlatButton_SetState($DeleteButton, $GUI_DISABLE)
-        ;GUICtrlSetBkColor($TargetInput, 0x101010)
-        ;GUICtrlSetBkColor($idInputRuleType, 0x101010)
         GUICtrlSetState($SaveButton, $GUI_ENABLE)
         _ResetCombosGlobal()
     Else
@@ -2013,8 +1949,6 @@ Func _RuleList()
         GUICtrlSetState($idInputRuleEnabled, $GUI_ENABLE)
         GUICtrlSetState($hBtnRuleEnabled, $GUI_ENABLE)
         GuiFlatButton_SetState($DeleteButton, $GUI_ENABLE)
-        ;GUICtrlSetBkColor($TargetInput, 0x202020)
-        ;GUICtrlSetBkColor($idInputRuleType, 0x202020)
         GUICtrlSetState($SaveButton, $GUI_ENABLE)
         _ResetCombos()
     EndIf
@@ -2028,7 +1962,7 @@ Func _RuleList()
         ;GUICtrlSetBkColor($colorlabelfill, $dGlobalBorderColor)
         ;GuiFlatButton_SetBkColor($colorlabelfill, $dGlobalBorderColor)
         If $dGlobalBorderColor <> "0xFFFFFFFE" Then GuiFlatButton_SetBkColor($colorlabelfill, $dGlobalBorderColor)
-        If $dGlobalBorderColor = "0xFFFFFFFE" Then GuiFlatButton_SetBkColor($colorlabelfill, 0x000000)
+        If $dGlobalBorderColor = "0xFFFFFFFE" Then GuiFlatButton_SetBkColor($colorlabelfill, $GUI_BackColor)
         GUICtrlSetData($TitlebarColorInput, $dGlobalTitleBarColor)
         ;GUICtrlSetBkColor($TitlebarColorLabel, $dGlobalTitleBarColor)
         GuiFlatButton_SetBkColor($TitlebarColorLabel, $dGlobalTitleBarColor)
@@ -2121,7 +2055,7 @@ Func _RuleList()
 			GUICtrlSetData($BorderColorInput, $aCustomRules[$i][3])
             ;GUICtrlSetBkColor($colorlabelfill, $aCustomRules[$i][3])
             If $aCustomRules[$i][3] <> "0xFFFFFFFE" Then GuiFlatButton_SetBkColor($colorlabelfill, $aCustomRules[$i][3])
-            If $aCustomRules[$i][3] = "0xFFFFFFFE" Then GuiFlatButton_SetBkColor($colorlabelfill, 0x000000)
+            If $aCustomRules[$i][3] = "0xFFFFFFFE" Then GuiFlatButton_SetBkColor($colorlabelfill, $GUI_BackColor)
             ;GuiFlatButton_SetBkColor($colorlabelfill, $aCustomRules[$i][3])
             GUICtrlSetData($TitlebarColorInput, $aCustomRules[$i][4])
             ;GUICtrlSetBkColor($TitlebarColorLabel, $aCustomRules[$i][4])
@@ -2465,9 +2399,9 @@ Func _TaskStatusUpdate()
 
     _IsEngineProcRunning()
 
-    GUICtrlSetData($idPart0, "Task Installed: " & $TaskInstalled)
+    GUICtrlSetData($idPart2, "Task Installed: " & $TaskInstalled)
     ;GUICtrlSetData($idPart1, "Task Running: " & $TaskRunning)
-    ;GUICtrlSetData($idPart2, "Task Elevated: " & $TaskIntegrity)
+    ;GUICtrlSetData($idPart4, "Task Elevated: " & $TaskIntegrity)
 EndFunc
 
 Func _TaskStatusUpdate_adlib()
@@ -2484,7 +2418,7 @@ Func _TaskStatusUpdate_adlib()
 
     _IsEngineProcRunning()
 
-    GUICtrlSetData($idPart0, "Task Installed: " & $TaskInstalled)
+    GUICtrlSetData($idPart2, "Task Installed: " & $TaskInstalled)
 
     AdlibUnRegister("_TaskStatusUpdate_adlib")
 EndFunc
@@ -2502,14 +2436,15 @@ Func _TaskStatusUpdate_adlib20()
     If Not $TaskIntegrity Then $TaskIntegrity = "No"
 
     _IsEngineProcRunning()
+    _UpdateTaskMenu()
 
-    GUICtrlSetData($idPart0, "Task Installed: " & $TaskInstalled)
+    GUICtrlSetData($idPart2, "Task Installed: " & $TaskInstalled)
 EndFunc
 
 Func _IsEngineProcRunning()
     Local $iPID
     Local $bElevated = _ToBoolean(IniRead($sIniPath, "StartupInfoOnly", "Elevated", "False"))
-    Local $sEngineStatus
+    Local $sEngineStatus, $sElevatedStatus
 
     If @Compiled Then
         $aProcessRunning = ProcessList($sEngName & ".exe")
@@ -2517,12 +2452,16 @@ Func _IsEngineProcRunning()
             ; engine is running
             If $bElevated Then
                 ; engine is running as admin
-                $sEngineStatus = "Engine Running: Admin"
+                $sEngineStatus = "Engine Running: Yes"
+                $sElevatedStatus = "Elevated: Yes"
                 GUICtrlSetData($idPart1, $sEngineStatus)
+                GUICtrlSetData($idPart3, $sElevatedStatus)
             ElseIf Not $bElevated Then
                 ; engine is running
                 $sEngineStatus = "Engine Running: Yes"
+                $sElevatedStatus = "Elevated: No"
                 GUICtrlSetData($idPart1, $sEngineStatus)
+                GUICtrlSetData($idPart3, $sElevatedStatus)
             EndIf
         ElseIf $aProcessRunning[0][0] = 0 Then
             $sEngineStatus = "Engine Running: No"
@@ -2536,16 +2475,22 @@ Func _IsEngineProcRunning()
             ; engine is running
             If $bElevated Then
                 ; engine is running as admin
-                $sEngineStatus = "Engine Running: Admin"
+                $sEngineStatus = "Engine Running: Yes"
+                $sElevatedStatus = "Elevated: Yes"
                 GUICtrlSetData($idPart1, $sEngineStatus)
+                GUICtrlSetData($idPart3, $sElevatedStatus)
             ElseIf Not $bElevated Then
                 ; engine is running
                 $sEngineStatus = "Engine Running: Yes"
+                $sElevatedStatus = "Elevated: No"
                 GUICtrlSetData($idPart1, $sEngineStatus)
+                GUICtrlSetData($idPart3, $sElevatedStatus)
             EndIf
         ElseIf $iPID = "" Then
             $sEngineStatus = "Engine Running: No"
+            $sElevatedStatus = "Elevated: No"
             GUICtrlSetData($idPart1, $sEngineStatus)
+            GUICtrlSetData($idPart3, $sElevatedStatus)
         EndIf
     EndIf
 EndFunc
@@ -2558,17 +2503,15 @@ EndFunc   ;==>_ToBoolean
 Func _GetHwndFromPID($PID)
 	$hWnd = 0
 	$winlist = WinList()
-	Do
-		For $i = 1 To $winlist[0][0]
-			If $winlist[$i][0] <> "" Then
-				$iPID2 = WinGetProcess($winlist[$i][1])
-				If $iPID2 = $PID Then
-					$hWnd = $winlist[$i][1]
-					ExitLoop
-				EndIf
+	For $i = 1 To $winlist[0][0]
+		If $winlist[$i][0] <> "" Then
+			$iPID2 = WinGetProcess($winlist[$i][1])
+			If $iPID2 = $PID Then
+				$hWnd = $winlist[$i][1]
+				ExitLoop
 			EndIf
-		Next
-	Until $hWnd <> 0
+		EndIf
+	Next
 	Return $hWnd
 EndFunc   ;==>_GetHwndFromPID
 
@@ -2577,7 +2520,7 @@ Func _MY_NCHITTEST($hWnd, $uMsg, $wParam, $lParam)
     Switch $hWnd
         Case $hGUI
             Local $aPos = WinGetPos($hWnd) ; Check if mouse is over top 50 pixels
-            If Abs(BitAND(BitShift($lParam, 16), 0xFFFF) - $aPos[1]) < 2000 Then Return $HTCAPTION
+            If Abs(BitAND(BitShift($lParam, 16), 0xFFFF) - $aPos[1]) > $iHitTestHeight Then Return $HTCAPTION
     EndSwitch
     Return $GUI_RUNDEFMSG
 EndFunc   ;==>_MY_NCHITTEST
@@ -3012,19 +2955,281 @@ Func _StringCompareVersions($s_Version1, $s_Version2 = "0.0.0.0")
 EndFunc ;==>_StringCompareVersions
 
 Func idGUI()
-    ; get GUI window state
-    Local $iState = WinGetState($hGUI)
-    If $iState <> $WIN_STATE_VISIBLE Then GUISetState(@SW_SHOW, $hGUI)
+    ; get GUI window state and show GUI window when clicking on tray icon
+    If Not BitAND(WinGetState($hGUI), $WIN_STATE_VISIBLE) Then _WinAPI_ShowWindow($hGUI, @SW_SHOW)
+    _WinAPI_SetForegroundWindow($hGUI)
 EndFunc
 
 Func _About()
-	MsgBox(0, "Immersive UX", "Version: " & $iVersion & @CRLF & "Created by: " & "WildByDesign")
+	;MsgBox(0, "Immersive UX", "Version: " & $iVersion & @CRLF & "Created by: " & "WildByDesign")
+    Local $sMsg = "Version:         " & $iVersion & @CRLF & @CRLF & "Created by:   " & "WildByDesign" & @CRLF
+    _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", " ", "Immersive UX", $sMsg, 1000)
 EndFunc
 
 Func _Exit()
     If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
     If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
-    If WinExists("Immersive UX Dark") Then WinClose("Immersive UX Dark")
 
     Exit
 EndFunc
+
+Func WM_NCPAINT($hWnd, $iMsg, $wParam, $lParam)
+    If $hWnd <> $hGUI Then Return $GUI_RUNDEFMSG
+    _WinAPI_DefWindowProc($hWnd, $iMsg, $wParam, $lParam)
+    _drawUAHMenuNCBottomLine($hWnd)
+    Return 0
+EndFunc   ;==>WM_NCPAINT
+
+Func _drawUAHMenuNCBottomLine($hWnd)
+    ;$aMenuBarInfo = _GUICtrlMenu_GetMenuBarInfo($hWnd, 0, 1)
+    ;_ArrayDisplay($aMenuBarInfo)
+    $rcClient = _WinAPI_GetClientRect($hWnd)
+    ;_WinAPI_DisplayStruct($rcClient, $tagRECT, "rcClinet before")
+
+    Local $aCall = DllCall("user32.dll", "int", "MapWindowPoints", _
+        "hwnd", $hWnd, _ ; hWndFrom
+        "hwnd", 0, _     ; hWndTo
+        "ptr", DllStructGetPtr($rcClient), _
+        "uint", 2)       ;number of points - 2 for RECT structure
+
+    If @error Then
+        ;MsgBox($MB_ICONERROR, "Error", @error)
+        Exit
+    EndIf
+    ;_WinAPI_DisplayStruct($rcClient, $tagRECT, "rcClinet after")
+
+    $rcWindow = _WinAPI_GetWindowRect($hWnd)
+
+    _WinAPI_OffsetRect($rcClient, -$rcWindow.left, -$rcWindow.top)
+
+    $rcAnnoyingLine = DllStructCreate($tagRECT)
+    $rcAnnoyingLine.left = $rcClient.left
+    $rcAnnoyingLine.top = $rcClient.top
+    $rcAnnoyingLine.right = $rcClient.right
+    $rcAnnoyingLine.bottom = $rcClient.bottom
+;~  _WinAPI_DisplayStruct($rcAnnoyingLine, $tagRECT)
+
+    $rcAnnoyingLine.bottom = $rcAnnoyingLine.top
+    $rcAnnoyingLine.top = $rcAnnoyingLine.top - 1
+;~  _WinAPI_DisplayStruct($rcAnnoyingLine, $tagRECT,"annoying line")
+
+
+;~  $rcAnnoyingLine.left = 0
+;~  $rcAnnoyingLine.top = 0
+;~  $rcAnnoyingLine.right = 100
+;~  $rcAnnoyingLine.bottom = 200
+
+    ;$hRgn=_WinAPI_CreateRectRgn(0,0,8000,8000)
+    $hRgn=_WinAPI_CreateRectRgn(0,0,8000,8000)
+
+;~  $hDC = _WinAPI_GetDC($hWnd)
+    $hDC=_WinAPI_GetDCEx($hWnd,$hRgn, BitOR($DCX_WINDOW,$DCX_INTERSECTRGN))
+    _WinAPI_FillRect($hDC, $rcAnnoyingLine, $hSolidBrush)
+    _WinAPI_ReleaseDC($hWnd, $hDC)
+
+    ;_WinAPI_DisplayStruct($rcAnnoyingLine, $tagRECT, "annoying line")
+EndFunc   ;==>_drawUAHMenuNCBottomLine
+
+; ioa747
+Func WM_ACTIVATE_Handler($hWnd, $MsgID, $wParam, $lParam)
+    If $hWnd <> $hGUI Then Return $GUI_RUNDEFMSG
+    ;_WinAPI_DefWindowProc($hWnd, $MsgID, $wParam, $lParam)
+    _drawUAHMenuNCBottomLine($hWnd)
+
+    Return $GUI_RUNDEFMSG
+EndFunc
+
+Func _BorderOpt0()
+    ; active window only
+    $iBorderColorOptions = IniRead($sIniPath, "Configuration", "BorderColorOptions", "0")
+    If $iBorderColorOptions = "0" Then
+        Return
+    ElseIf $iBorderColorOptions <> "0" Then
+        ; set value
+        IniWrite($sIniPath, "Configuration", "BorderColorOptions", "0")
+        GUICtrlSetState($idBorderOpt0, $GUI_CHECKED)
+        _RestartTask()
+    EndIf
+EndFunc
+
+Func _BorderOpt1()
+    ; active and inactive windows
+    $iBorderColorOptions = IniRead($sIniPath, "Configuration", "BorderColorOptions", "0")
+    If $iBorderColorOptions = "1" Then
+        Return
+    ElseIf $iBorderColorOptions <> "1" Then
+        ; set value
+        IniWrite($sIniPath, "Configuration", "BorderColorOptions", "1")
+        GUICtrlSetState($idBorderOpt1, $GUI_CHECKED)
+        _RestartTask()
+    EndIf
+EndFunc
+
+Func _BorderOpt2()
+    ; LED strobe border effects
+    $iBorderColorOptions = IniRead($sIniPath, "Configuration", "BorderColorOptions", "0")
+    If $iBorderColorOptions = "2" Then
+        Return
+    ElseIf $iBorderColorOptions <> "2" Then
+        IniWrite($sIniPath, "Configuration", "BorderColorOptions", "2")
+        GUICtrlSetState($idBorderOpt2, $GUI_CHECKED)
+        _RestartTask()
+    EndIf
+EndFunc
+
+Func _BorderOpt3()
+    ; disable border color (system)
+    $iBorderColorOptions = IniRead($sIniPath, "Configuration", "BorderColorOptions", "")
+    If Not $iBorderColorOptions Then
+        Return
+    ElseIf $iBorderColorOptions <> "" Then
+        IniWrite($sIniPath, "Configuration", "BorderColorOptions", "")
+        GUICtrlSetState($idBorderOpt3, $GUI_CHECKED)
+        _RestartTask()
+    EndIf
+EndFunc
+
+Func _VSCodePatch()
+    ; patch vscode
+    $sMsg = "This will patch all VSCode and VSCodium installs on the system." & @CRLF & @CRLF
+    $sMsg &= "You will likely have to do this after every VSCode and VSCodium update." & @CRLF & @CRLF
+    $sMsg &= 'NOTE: VSCode and VSCodium will show a message stating that your "...installation appears to be corrupt".' & @CRLF
+    $sMsg &= "This message is harmless. Click on the cogwheel and select Don't Show Again." & @CRLF
+    $sMsg &= " " & @CRLF
+    $sMsg &= "Do you want to continue?" & @CRLF
+    $iRetValue = _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 4, $sProdName, $sMsg)
+
+    If $iRetValue = 1 Then
+        _VSCode_mod()
+        $sMsg = "VSCode/VScodium patches have been applied." & @CRLF & @CRLF
+        $sMsg &= "You will need to close and reopen any running instances of" & @CRLF
+        $sMsg &= "VSCode/VSCodium to reflect the changes." & @CRLF
+        _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+    ElseIf $iRetValue = 2 Then
+        Return
+    EndIf
+EndFunc
+
+Func _VSCodeUnpatch()
+    ; unpatch vscode
+    _VSCode_mod_uninstall()
+    $sMsg = "VSCode/VScodium patches have been removed." & @CRLF & @CRLF
+    $sMsg &= "You will need to close and reopen any running instances of" & @CRLF
+    $sMsg &= "VSCode/VSCodium to reflect the changes." & @CRLF
+    _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+EndFunc
+
+Func _TerminalPatch()
+    ; patch terminal
+    $sMsg = "This will patch Windows Terminal to apply backdrop materials." & @CRLF & @CRLF
+    $sMsg &= "This works by adding a Mica theme to the Terminal settings file." & @CRLF
+    $sMsg &= " " & @CRLF
+    $sMsg &= "Do you want to continue?" & @CRLF
+    $iRetValue = _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 4, $sProdName, $sMsg)
+
+    If $iRetValue = 1 Then
+        _Terminal_patch()
+        $sMsg = "The ImmersiveUX theme has been added to your Windows Terminal settings." & @CRLF & @CRLF
+        $sMsg &= "Changes should be reflected immediately in any running instances" & @CRLF
+        $sMsg &= "of Windows Terminal." & @CRLF
+        _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+    ElseIf $iRetValue = 2 Then
+        Return
+    EndIf
+EndFunc
+
+Func _TerminalUnpatch()
+    ; unpatch terminal
+    _Terminal_patch_remove()
+    $sMsg = "Your original Windows Terminal settings have been restored." & @CRLF & @CRLF
+    $sMsg &= "Changes should be reflected immediately in any running instances" & @CRLF
+    $sMsg &= "of Windows Terminal." & @CRLF
+    _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+EndFunc
+
+Func _TaskInstallAdmin()
+    ; Install Task (Admin)
+    If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
+    If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
+    Sleep(200)
+    _InstallTask()
+    Sleep(500)
+    ; start task
+    ShellExecute(@ScriptDir & "\" & $sEngName & ".exe", "starttask", @ScriptDir, $SHEX_OPEN, @SW_HIDE)
+    Sleep(500)
+    _TaskStatusUpdate()
+    _IsEngineProcRunning()
+    _UpdateTaskMenu()
+EndFunc
+
+Func _TaskInstall()
+    ; Install Task
+    If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
+    If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
+    Sleep(200)
+    _InstallTask()
+    Sleep(500)
+    ; start task
+    ShellExecute(@ScriptDir & "\" & $sEngName & ".exe", "starttask", @ScriptDir, $SHEX_OPEN, @SW_HIDE)
+    Sleep(500)
+    _TaskStatusUpdate()
+    _IsEngineProcRunning()
+    _UpdateTaskMenu()
+EndFunc
+
+Func _TaskUninstall()
+    ; Uninstall Task
+    If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
+    If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
+    Sleep(200)
+    _UninstallTask()
+    Sleep(500)
+    _TaskStatusUpdate()
+    _IsEngineProcRunning()
+    _UpdateTaskMenu()
+EndFunc
+
+Func _TaskRestart()
+    ; Restart Task
+    _RestartTask()
+    Sleep(500)
+    _IsEngineProcRunning()
+    _UpdateTaskMenu()
+EndFunc
+
+#cs
+    $idTaskOpt0 = GUICtrlCreateMenuItem("Install Task (Admin)", $idTaskMenu)
+    $idTaskOpt1 = GUICtrlCreateMenuItem("Install Task", $idTaskMenu)
+    $idTaskOpt2 = GUICtrlCreateMenuItem("Uninstall Task", $idTaskMenu)
+    $idTaskOpt3 = GUICtrlCreateMenuItem("Restart Task", $idTaskMenu)
+#ce
+
+Func _UpdateTaskMenu()
+    If @Compiled Then
+        If $TaskInstalled = "Yes" Then GUICtrlSetState($idTaskOpt0, $GUI_DISABLE)
+        If $TaskInstalled = "Yes" Then GUICtrlSetState($idTaskOpt1, $GUI_DISABLE)
+        If $TaskInstalled = "Yes" Then GUICtrlSetState($idTaskOpt2, $GUI_ENABLE)
+        If $TaskInstalled = "Yes" Then GUICtrlSetState($idTaskOpt3, $GUI_ENABLE)
+        If $TaskInstalled = "Yes" And IsAdmin() And $TaskIntegrity = "No" Then GUICtrlSetState($idTaskOpt0, $GUI_ENABLE)
+        If $TaskInstalled <> "Yes" Then GUICtrlSetState($idTaskOpt2, $GUI_DISABLE)
+        If $TaskInstalled <> "Yes" And Not IsAdmin() Then GUICtrlSetState($idTaskOpt0, $GUI_DISABLE)
+        If $TaskInstalled <> "Yes" And IsAdmin() Then GUICtrlSetState($idTaskOpt0, $GUI_ENABLE)
+        If $TaskInstalled <> "Yes" And Not IsAdmin() Then GUICtrlSetState($idTaskOpt1, $GUI_ENABLE)
+        If $TaskInstalled <> "Yes" And IsAdmin() Then GUICtrlSetState($idTaskOpt1, $GUI_DISABLE)
+        If $TaskInstalled <> "Yes" Then GUICtrlSetState($idTaskOpt3, $GUI_DISABLE)
+    EndIf
+
+    If Not @Compiled Then
+        GUICtrlSetState($idTaskOpt0, $GUI_DISABLE)
+        GUICtrlSetState($idTaskOpt1, $GUI_DISABLE)
+        GUICtrlSetState($idTaskOpt2, $GUI_DISABLE)
+        GUICtrlSetState($idTaskOpt3, $GUI_DISABLE)
+    EndIf
+EndFunc
+
+Func _WinAPI_SetWindowText_mod($hWnd, $sText)
+	Local $aCall = DllCall('user32.dll', "bool", "SetWindowTextW", "hwnd", $hWnd, "wstr", $sText)
+	If @error Then Return SetError(@error, @extended, False)
+
+	Return $aCall[0]
+EndFunc   ;==>_WinAPI_SetWindowText_mod
