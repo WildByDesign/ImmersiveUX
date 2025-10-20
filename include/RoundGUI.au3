@@ -63,7 +63,7 @@ Func _RGUI_RoundButton($sText, $nTextColor, $iLeft, $iTop, $iWidth, $iHeight, $n
 EndFunc   ;==>_RGUI_RoundButton
 
 Func _RGUI_RoundInput($sText, $nTextColor, $iLeft, $iTop, $iWidth, $iHeight, $nColor, $nBkColor, $iCorner, $iMargin, $iFlags = -1)
-  _RGUI_RoundRect($iLeft, $iTop, $iWidth, $iHeight, $nColor, $nBkColor, $iCorner)
+  ;_RGUI_RoundRect($iLeft, $iTop, $iWidth, $iHeight, $nColor, $nBkColor, $iCorner)
   Local $idInput = GUICtrlCreateInput($sText, $iLeft + $iCorner, $iTop + $iMargin, $iWidth - 2 * $iCorner, $iHeight - $iMargin, $iFlags, 0)
   GUICtrlSetBkColor(-1, $nBkColor)
   GUICtrlSetColor(-1, $nTextColor)
