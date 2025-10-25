@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX GUI
-#AutoIt3Wrapper_Res_Fileversion=1.7.0
+#AutoIt3Wrapper_Res_Fileversion=1.7.1
 #AutoIt3Wrapper_Res_ProductName=Immersive UX GUI
-#AutoIt3Wrapper_Res_ProductVersion=1.7.0
+#AutoIt3Wrapper_Res_ProductVersion=1.7.1
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -16,7 +16,7 @@
 #AutoIt3Wrapper_res_Compatibility=Win10
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
-Global $iVersion = '1.7.0'
+Global $iVersion = '1.7.1'
 
 #include <MsgBoxConstants.au3>
 #include <WinAPIFiles.au3>
@@ -1212,7 +1212,7 @@ Func ED_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
         Case GUICtrlGetHandle($idInput)
             Switch $iCode
                 Case $EN_SETFOCUS
-                    $bWatchSaveChanges = True
+                    ;$bWatchSaveChanges = True
                     _GUICtrlComboBox_ShowDropDown($RuleListCombo, True)
                     ControlFocus($hGUI, "", $RuleListCombo)
             EndSwitch
@@ -1487,18 +1487,16 @@ Func _SavedChangesMsgBox()
         $iRetValue = _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 1, $sProdName, $sMsg)
 
         If $iRetValue = 1 Then
-            ConsoleWrite("user pressed ok" & @CRLF)
+            ; user pressed ok
+            $bPendingChanges = False
         ElseIf $iRetValue = 2 Then
-            ConsoleWrite("user pressed cancel" & @CRLF)
+            ; user pressed cancel
+            $bPendingChanges = True
         ElseIf $iRetValue = 0 Then
-            ConsoleWrite("user closed the dialog" & @CRLF)
-            ; assume cancel in this case
+            ; user closed the dialog, assume cancel
+            $bPendingChanges = True
         EndIf
 
-        ; maybe set a Global state to Return asking func
-        $bPendingChanges = True
-        ; also Return on this func
-        ; may need to run revert func too (if user chooses no) but not sure
         Return
     Else
         $bPendingChanges = False
@@ -1630,6 +1628,10 @@ Func hBtnRuleEnabled()
 EndFunc
 
 Func idComboRuleList()
+    ; unsaved changes dialog
+    _SavedChangesMsgBox()
+    If $bPendingChanges Then Return
+
     GUICtrlSetData($idInput, GUICtrlRead($RuleListCombo))
     _RuleList()
 EndFunc
@@ -1698,6 +1700,10 @@ Func idComboRuleEnabled()
 EndFunc
 
 Func hBtnAddRule()
+    ; unsaved changes dialog
+    _SavedChangesMsgBox()
+    If $bPendingChanges Then Return
+
     GUICtrlSetState($TargetInput, $GUI_ENABLE)
     GUICtrlSetState($idInputRuleType, $GUI_ENABLE)
     GUICtrlSetState($RuleTypeCombo, $GUI_ENABLE)
@@ -1747,6 +1753,9 @@ Func hBtnAddRule()
     ; set focus to Target input
     GUICtrlSetState($TargetInput, $GUI_FOCUS)
     $sTargetLast = ""
+
+    GUICtrlSetState($idPart4, $GUI_HIDE)
+    GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
 EndFunc
 
 Func hBtnAddRule_nofocus()
@@ -1880,7 +1889,7 @@ Func hBtnRevertChanges()
 EndFunc
 
 Func hBtnReloadRules()
-    ; test unsaved changes dialog
+    ; unsaved changes dialog
     _SavedChangesMsgBox()
     If $bPendingChanges Then Return
 
