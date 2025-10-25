@@ -5,18 +5,18 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX GUI
-#AutoIt3Wrapper_Res_Fileversion=1.6.1
+#AutoIt3Wrapper_Res_Fileversion=1.7.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX GUI
-#AutoIt3Wrapper_Res_ProductVersion=1.6.1
+#AutoIt3Wrapper_Res_ProductVersion=1.7.0
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
 #AutoIt3Wrapper_Res_Icon_Add=app.ico
 #AutoIt3Wrapper_Run_Au3Stripper=y
-#Au3Stripper_Ignore_Funcs=_traynotifyicon
+#AutoIt3Wrapper_res_Compatibility=Win10
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
-Global $iVersion = '1.6.1'
+Global $iVersion = '1.7.0'
 
 #include <MsgBoxConstants.au3>
 #include <WinAPIFiles.au3>
@@ -50,7 +50,7 @@ Global $iVersion = '1.6.1'
 
 Global $aCustomRules[0][17]
 
-Global $sIniPath = @ScriptDir & "\ImmersiveUX.ini"
+Global $IniFile = @ScriptDir & "\ImmersiveUX.ini"
 Global $sProdName = "ImmersiveUX"
 Global $sEngName = "ImmersiveEngine"
 
@@ -83,17 +83,26 @@ Global $idInput, $RuleListCombo, $idInputRuleType, $RuleTypeCombo, $idInputDarkT
 Global $DarkTitleCombo, $idInputTitleBarBackdrop, $TitleBarBackdropCombo
 Global $idInputCornerPreference, $CornerPreferenceCombo, $idInputExtendFrame, $ExtendFrameCombo
 Global $idInputBlurBehind, $BlurBehindCombo, $idInputRuleEnabled, $RuleEnabledCombo
-Global $TargetInput, $hBtnRuleType, $hBtnRuleEnabled, $DeleteButton, $SaveButton
+Global $TargetInput, $hBtnRuleType, $hBtnRuleEnabled, $DeleteButton, $SaveButton, $RevertButton
 Global $BlurColorIntensitySlider, $idPart2, $idPart1, $idPart4
 Global $TaskIntegrity, $TaskInstalled, $TaskRunning
 Global $aProcessRunning, $IsRunFromTS, $bProcessRunning
 Global $idBorderOpt0, $idBorderOpt1, $idBorderOpt2, $idBorderOpt3
 Global $idTaskOpt0, $idTaskOpt1, $idTaskOpt2, $idTaskOpt3
+Global $sWatchBorderColorInput, $sWatchTitlebarColorInput, $sWatchBlurColorIntensitySliderInact, $sWatchBlurColorIntensitySlider
+Global $sWatchTitlebarTextColorInput, $sWatchBlurTintColorInputInact, $sWatchBlurTintColorInput, $sWatchTargetInput, $sWatchidInputRuleType
+Global $sWatchidInputDarkTitle, $sWatchidInputTitleBarBackdrop, $sWatchidInputCornerPreference, $sWatchidInputExtendFrame
+Global $sWatchidInputBlurBehind, $sWatchidInputRuleEnabled
+Global $idLiveOpt0, $idLiveOpt1
+Global $bWatchSaveChanges = False, $bPendingChanges = False
 Global $sTargetLast = ""
 Global $bHideGUI = False
 Global $TRAY_EVENT_PRIMARYDOWN = -7
 Global $DWMWA_COLOR_NONE = 0xFFFFFFFE
 Global $DWMWA_COLOR_DEFAULT = 0xFFFFFFFF
+Global Const $TRBN_THUMBPOSCHANGING = -1502
+Global Const $tagTRBTHUMBPOSCHANGING = $tagNMHDR & ";dword Pos;int Reason"
+Global Const $TBS_NOTIFYBEFOREMOVE = 2048
 Global $iW = 658, $iH = 420
 
 Global $iDPI = _WinAPI_SetDPIAwareness(), $iDPI_def = 96
@@ -106,7 +115,7 @@ If StringInStr($CmdLineRaw, "hidegui") Then $bHideGUI = True
 If Not StringInStr($CmdLineRaw, "elevate") Then
     If _Singleton($sProdName, 1) = 0 Then
         ; handle situation when engine process is elevated and GUI process is not
-        Local $bElevated = _ToBoolean(IniRead($sIniPath, "StartupInfoOnly", "Elevated", "False"))
+        Local $bElevated = _ToBoolean(IniRead($IniFile, "StartupInfoOnly", "Elevated", "False"))
         If $bElevated And Not IsAdmin() Then
             $sMsg = "Immersive UX is already running in the system tray." & @CRLF & @CRLF
             $sMsg &= "To avoid mismatching of integrity levels between engine process" & @CRLF
@@ -119,8 +128,8 @@ If Not StringInStr($CmdLineRaw, "elevate") Then
             ; need to close all
             If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
             If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
-            ;If WinExists("Immersive UX") Then WinClose("Immersive UX")
             If WinExists("Immersive UX GUI") Then WinClose("Immersive UX GUI")
+            If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
 
             ShellExecute(@ScriptDir & "\" & $sProdName & ".exe", "elevate", @ScriptDir, $SHEX_OPEN)
             Exit
@@ -156,16 +165,13 @@ Func _StartGUI()
     Local $hGuiWnd = _GetHwndFromPID(@AutoItPID)
     _WinAPI_SetWindowText_mod($hGuiWnd, "Immersive UX GUI")
 
-    $aProcessRunning = ProcessList($sEngName & ".exe")
-    If $aProcessRunning[0][0] <> 0 Then
-        Local $iPID = $aProcessRunning[1][1]
+    If WinExists("Immersive UX Engine") Then
         $bProcessRunning = True
-        $IsRunFromTS = _ToBoolean(IniRead($sIniPath, "StartupInfoOnly", "StartedByTask", "False"))
-    ElseIf $aProcessRunning[0][0] = 0 Then
+        $IsRunFromTS = _ToBoolean(IniRead($IniFile, "StartupInfoOnly", "StartedByTask", "False"))
+    Else
         $bProcessRunning = False
     EndIf
-    ;_ArrayDisplay($aProcessRunning, "running")
-    ;ConsoleWrite()
+
     $TaskIntegrity = "No"
     $TaskInstalled = _IsTaskInstalled()
     ;Global $TaskRunning = "No"
@@ -179,7 +185,7 @@ Func _StartGUI()
 
     ; run engine if running from au3 sources only
     If Not @Compiled Then
-        Local $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
+        Local $iPID = Int(IniRead($IniFile, "StartupInfoOnly", "PID", ""))
         If $iPID = "" Then ShellExecute(@ScriptDir & "\" & $sEngName & ".au3")
     EndIf
 
@@ -236,19 +242,27 @@ Func _StartGUI()
 
     Local $idBorderMenu = GUICtrlCreateMenu("&Borders", $idSettingsMenu)
 
-    Local $idBorderOpt0 = GUICtrlCreateMenuItem("Active Window Only", $idBorderMenu, 0, 1)
+    $idBorderOpt0 = GUICtrlCreateMenuItem("Active Window Only", $idBorderMenu, 0, 1)
     GUICtrlSetOnEvent(-1, "_BorderOpt0")
-    Local $idBorderOpt1 = GUICtrlCreateMenuItem("Active && Inactive Windows", $idBorderMenu, 1, 1)
+    $idBorderOpt1 = GUICtrlCreateMenuItem("Active && Inactive Windows", $idBorderMenu, 1, 1)
     GUICtrlSetOnEvent(-1, "_BorderOpt1")
-    Local $idBorderOpt2 = GUICtrlCreateMenuItem("LED Strobe Effects", $idBorderMenu, 2, 1)
+    $idBorderOpt2 = GUICtrlCreateMenuItem("LED Strobe Effects", $idBorderMenu, 2, 1)
     GUICtrlSetOnEvent(-1, "_BorderOpt2")
-    Local $idBorderOpt3 = GUICtrlCreateMenuItem("Disabled (System)", $idBorderMenu, 3, 1)
+    $idBorderOpt3 = GUICtrlCreateMenuItem("Disabled (System)", $idBorderMenu, 3, 1)
     GUICtrlSetOnEvent(-1, "_BorderOpt3")
 
     If $iBorderColorOptions = "0" Then GUICtrlSetState($idBorderOpt0, $GUI_CHECKED)
     If $iBorderColorOptions = "1" Then GUICtrlSetState($idBorderOpt1, $GUI_CHECKED)
     If $iBorderColorOptions = "2" Then GUICtrlSetState($idBorderOpt2, $GUI_CHECKED)
     If $iBorderColorOptions = "" Then GUICtrlSetState($idBorderOpt3, $GUI_CHECKED)
+
+    Local $idLiveMenu = GUICtrlCreateMenu("&Live Wallpaper", $idSettingsMenu)
+    $idLiveOpt0 = GUICtrlCreateMenuItem("Enabled", $idLiveMenu, 0, 0)
+    GUICtrlSetOnEvent(-1, "_LiveOpt0")
+    $idLiveOpt1 = GUICtrlCreateMenuItem("Loop", $idLiveMenu, 1, 0)
+    GUICtrlSetOnEvent(-1, "_LiveOpt1")
+
+    _UpdateLiveMenu()
 
     $idTaskOpt0 = GUICtrlCreateMenuItem("Install Task (Admin)", $idTaskMenu)
     GUICtrlSetOnEvent(-1, "_TaskInstallAdmin")
@@ -343,10 +357,10 @@ Func _StartGUI()
     $idPart3 = GUICtrlCreateLabel("Elevated:", ($idStatusBarDiv * 2) + 20, $aClientSize[1] - $iMenubarHeight + $iStatusTextAlign, 164 * $iDPI1, $iMenubarHeight, $SS_CENTERIMAGE)
     GUICtrlSetBkColor(-1, $GUI_BKCOLOR_TRANSPARENT)
 
-    $idPart4 = GUICtrlCreateLabel(" Other Settings  ▼ ", 508 * $iDPI1, $aClientSize[1] - $iMenubarHeight + $iStatusTextAlign, 164 * $iDPI1, $iMenubarHeight, $SS_CENTER + $SS_CENTERIMAGE)
+    $idPart4 = GUICtrlCreateLabel("Unsaved Changes", ($idStatusBarDiv * 3) + 20, $aClientSize[1] - $iMenubarHeight + $iStatusTextAlign, 164 * $iDPI1, $iMenubarHeight, $SS_CENTERIMAGE)
     GUICtrlSetBkColor(-1, $GUI_BKCOLOR_TRANSPARENT)
 
-    GUICtrlSetState(-1, $GUI_HIDE)
+    GUICtrlSetState($idPart4, $GUI_HIDE)
 
     ;EndIf
 
@@ -496,9 +510,23 @@ Func _StartGUI()
     GuiFlatButton_SetColorsEx(-1, $aColorsEx)
     GUICtrlSetOnEvent(-1, "hBtnReloadRules")
     GUICtrlSetFont(-1, 10, 200, -1, "Segoe Fluent Icons")
-    
+
+    $aPos = ControlGetPos($hGUI, "", $ReloadButton)
+
+    $ReloadButtonPosV = $aPos[1] + $aPos[3]
+    $ReloadButtonPosH = $aPos[0] + $aPos[2]
 
     _GUIToolTip_AddTool($hToolTip2, $hGUI, "Reload & Refresh Rules", GUICtrlGetHandle($ReloadButton))
+
+    $RevertButton = GuiFlatButton_Create(ChrW(0xE248), $aClientSize[0] - ($FontHeight * 2), $aClientSize[1] - $iMenubarHeight + ($FontHeight / 2) - 3, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
+    ;GuiFlatButton_SetColorsEx(-1, $aColorsEx)
+    ;GuiFlatButton_SetBkColor(-1, $GUI_StatusBackColor)
+    GuiFlatButton_SetColors(-1, $GUI_StatusBackColor, $GUI_FontColor, $GUI_StatusBackColor)
+    GUICtrlSetOnEvent(-1, "hBtnRevertChanges")
+    GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
+    GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+
+    _GUIToolTip_AddTool($hToolTip2, $hGUI, "Revert Unsaved Changes", GUICtrlGetHandle($RevertButton))
 
     $TargetLabel = GUICtrlCreateLabel("Target:", 20, $RuleListComboPosV + 20, -1, -1)
     
@@ -953,7 +981,7 @@ Func _StartGUI()
 
     $BlurColorIntensityLabelPosV = $aPos[1] + $aPos[3]
 
-    $BlurColorIntensitySlider = GUICtrlCreateSlider($idInputExtendFramePosH + $FontHeight + 40 - 4, $BlurColorIntensityLabelPosV, 100 * $iDPI1 + 40, $FontHeight, BitOR($TBS_TOOLTIPS, $TBS_AUTOTICKS))
+    $BlurColorIntensitySlider = GUICtrlCreateSlider($idInputExtendFramePosH + $FontHeight + 40 - 4, $BlurColorIntensityLabelPosV, 100 * $iDPI1 + 40, $FontHeight, BitOR($TBS_TOOLTIPS, $TBS_AUTOTICKS, $TBS_NOTIFYBEFOREMOVE))
     ;GUICtrlSetOnEvent(-1, "SliderFunction")
     $hWndTT = _GUICtrlSlider_GetToolTips($BlurColorIntensitySlider)
     _GUICtrlSlider_SetToolTips($BlurColorIntensitySlider, $hWndTT)
@@ -973,7 +1001,7 @@ Func _StartGUI()
 
     $BlurColorIntensityLabelInactPosV = $aPos[1] + $aPos[3]
 
-    $BlurColorIntensitySliderInact = GUICtrlCreateSlider($idInputExtendFramePosH + $FontHeight + 40 - 4, $BlurColorIntensityLabelInactPosV, 100 * $iDPI1 + 40, $FontHeight, BitOR($TBS_TOOLTIPS, $TBS_AUTOTICKS))
+    $BlurColorIntensitySliderInact = GUICtrlCreateSlider($idInputExtendFramePosH + $FontHeight + 40 - 4, $BlurColorIntensityLabelInactPosV, 100 * $iDPI1 + 40, $FontHeight, BitOR($TBS_TOOLTIPS, $TBS_AUTOTICKS, $TBS_NOTIFYBEFOREMOVE))
     ;GUICtrlSetOnEvent(-1, "SliderFunction")
     $hWndTT = _GUICtrlSlider_GetToolTips($BlurColorIntensitySliderInact)
     _GUICtrlSlider_SetToolTips($BlurColorIntensitySliderInact, $hWndTT)
@@ -1006,6 +1034,7 @@ Func _StartGUI()
     GUICtrlSendMsg( $DarkTitleCombo, $WM_CHANGEUISTATE, 65537, 0 )
 
     GUIRegisterMsg($WM_COMMAND, "ED_WM_COMMAND")
+    GUIRegisterMsg($WM_NOTIFY, "WM_NOTIFY")
 
     ControlFocus($hGUI, "", $RuleListCombo)
 
@@ -1071,6 +1100,7 @@ Func ColorPicker()
     If @error Then
         GUICtrlSetData($BorderColorInput, $colorprev)
     Else
+        $bWatchSaveChanges = True
         GUICtrlSetData($BorderColorInput, $color)
         ;GUICtrlSetBkColor($colorlabelfill, $color)
         GuiFlatButton_SetBkColor($colorlabelfill, $color)
@@ -1089,6 +1119,7 @@ Func ColorPickerTitlebar()
     If @error Then
         GUICtrlSetData($TitlebarColorInput, $colorprev)
     Else
+        $bWatchSaveChanges = True
         GUICtrlSetData($TitlebarColorInput, $color)
         ;GUICtrlSetBkColor($TitlebarColorLabel, $color)
         GuiFlatButton_SetBkColor($TitlebarColorLabel, $color)
@@ -1107,6 +1138,7 @@ Func ColorPickerTitlebarText()
     If @error Then
         GUICtrlSetData($TitlebarTextColorInput, $colorprev)
     Else
+        $bWatchSaveChanges = True
         GUICtrlSetData($TitlebarTextColorInput, $color)
         ;GUICtrlSetBkColor($TitlebarTextColorLabel, $color)
         GuiFlatButton_SetBkColor($TitlebarTextColorLabel, $color)
@@ -1125,6 +1157,7 @@ Func ColorPickerBlurTintColor()
     If @error Then
         GUICtrlSetData($BlurTintColorInput, $colorprev)
     Else
+        $bWatchSaveChanges = True
         GUICtrlSetData($BlurTintColorInput, $color)
         ;GUICtrlSetBkColor($BlurTintColorPickLabel, $color)
         GuiFlatButton_SetBkColor($BlurTintColorPickLabel, $color)
@@ -1143,6 +1176,7 @@ Func ColorPickerBlurTintColorInact()
     If @error Then
         GUICtrlSetData($BlurTintColorInputInact, $colorprev)
     Else
+        $bWatchSaveChanges = True
         GUICtrlSetData($BlurTintColorInputInact, $color)
         ;GUICtrlSetBkColor($BlurTintColorPickLabel, $color)
         GuiFlatButton_SetBkColor($BlurTintColorPickLabelInact, $color)
@@ -1171,61 +1205,384 @@ EndFunc
 
 Func ED_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
     #forceref $hWnd, $iMsg
+    Local Static $b01 = True, $b02 = True, $b03 = True, $b04 = True, $b05 = True, $b06 = True, $b07 = True, $b08 = True, $b09 = True
+    Local Static $b10 = True, $b11 = True, $b12 = True, $b13 = True, $b14 = True, $b15 = True
     Local $iCode = BitShift($wParam, 16)
     Switch $lParam
         Case GUICtrlGetHandle($idInput)
             Switch $iCode
                 Case $EN_SETFOCUS
+                    $bWatchSaveChanges = True
                     _GUICtrlComboBox_ShowDropDown($RuleListCombo, True)
                     ControlFocus($hGUI, "", $RuleListCombo)
+            EndSwitch
+        Case GUICtrlGetHandle($TargetInput)
+            Switch $iCode
+                Case $EN_SETFOCUS
+                    $bWatchSaveChanges = True
+                Case $EN_CHANGE
+                    If $bWatchSaveChanges And GUICtrlRead($TargetInput) <> $sWatchTargetInput Then
+                        _SavedChangesStatus()
+                        $b06 = False
+                    Else
+                        $b06 = True
+                        If $bWatchSaveChanges Then
+                            If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
+                                GUICtrlSetState($idPart4, $GUI_HIDE)
+                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                            EndIf
+                        EndIf
+                    EndIf
             EndSwitch
         Case GUICtrlGetHandle($idInputRuleType)
             Switch $iCode
                 Case $EN_SETFOCUS
+                    $bWatchSaveChanges = True
                     _GUICtrlComboBox_ShowDropDown($RuleTypeCombo, True)
                     ControlFocus($hGUI, "", $RuleTypeCombo)
+                Case $EN_CHANGE
+                    If $bWatchSaveChanges And GUICtrlRead($idInputRuleType) <> $sWatchidInputRuleType Then
+                        _SavedChangesStatus()
+                        $b07 = False
+                    Else
+                        $b07 = True
+                        If $bWatchSaveChanges Then
+                            If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
+                                GUICtrlSetState($idPart4, $GUI_HIDE)
+                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                            EndIf
+                        EndIf
+                    EndIf
             EndSwitch
         Case GUICtrlGetHandle($idInputDarkTitle)
             Switch $iCode
                 Case $EN_SETFOCUS
+                    $bWatchSaveChanges = True
                     _GUICtrlComboBox_ShowDropDown($DarkTitleCombo, True)
                     ControlFocus($hGUI, "", $DarkTitleCombo)
+                Case $EN_CHANGE
+                    If $bWatchSaveChanges And GUICtrlRead($idInputDarkTitle) <> $sWatchidInputDarkTitle Then
+                        _SavedChangesStatus()
+                        $b08 = False
+                    Else
+                        $b08 = True
+                        If $bWatchSaveChanges Then
+                            If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
+                                GUICtrlSetState($idPart4, $GUI_HIDE)
+                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                            EndIf
+                        EndIf
+                    EndIf
             EndSwitch
         Case GUICtrlGetHandle($idInputTitleBarBackdrop)
             Switch $iCode
                 Case $EN_SETFOCUS
+                    $bWatchSaveChanges = True
                     _GUICtrlComboBox_ShowDropDown($TitleBarBackdropCombo, True)
                     ControlFocus($hGUI, "", $TitleBarBackdropCombo)
+                Case $EN_CHANGE
+                    If $bWatchSaveChanges And GUICtrlRead($idInputTitleBarBackdrop) <> $sWatchidInputTitleBarBackdrop Then
+                        _SavedChangesStatus()
+                        $b09 = False
+                    Else
+                        $b09 = True
+                        If $bWatchSaveChanges Then
+                            If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
+                                GUICtrlSetState($idPart4, $GUI_HIDE)
+                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                            EndIf
+                        EndIf
+                    EndIf
             EndSwitch
         Case GUICtrlGetHandle($idInputCornerPreference)
             Switch $iCode
                 Case $EN_SETFOCUS
+                    $bWatchSaveChanges = True
                     _GUICtrlComboBox_ShowDropDown($CornerPreferenceCombo, True)
                     ControlFocus($hGUI, "", $CornerPreferenceCombo)
+                Case $EN_CHANGE
+                    If $bWatchSaveChanges And GUICtrlRead($idInputCornerPreference) <> $sWatchidInputCornerPreference Then
+                        _SavedChangesStatus()
+                        $b10 = False
+                    Else
+                        $b10 = True
+                        If $bWatchSaveChanges Then
+                            If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
+                                GUICtrlSetState($idPart4, $GUI_HIDE)
+                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                            EndIf
+                        EndIf
+                    EndIf
             EndSwitch
         Case GUICtrlGetHandle($idInputExtendFrame)
             Switch $iCode
                 Case $EN_SETFOCUS
+                    $bWatchSaveChanges = True
                     _GUICtrlComboBox_ShowDropDown($ExtendFrameCombo, True)
                     ControlFocus($hGUI, "", $ExtendFrameCombo)
+                Case $EN_CHANGE
+                    If $bWatchSaveChanges And GUICtrlRead($idInputExtendFrame) <> $sWatchidInputExtendFrame Then
+                        _SavedChangesStatus()
+                        $b11 = False
+                    Else
+                        $b11 = True
+                        If $bWatchSaveChanges Then
+                            If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
+                                GUICtrlSetState($idPart4, $GUI_HIDE)
+                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                            EndIf
+                        EndIf
+                    EndIf
             EndSwitch
          Case GUICtrlGetHandle($idInputBlurBehind)
             Switch $iCode
                 Case $EN_SETFOCUS
+                    $bWatchSaveChanges = True
                     _GUICtrlComboBox_ShowDropDown($BlurBehindCombo, True)
                     ControlFocus($hGUI, "", $BlurBehindCombo)
+                Case $EN_CHANGE
+                    If $bWatchSaveChanges And GUICtrlRead($idInputBlurBehind) <> $sWatchidInputBlurBehind Then
+                        _SavedChangesStatus()
+                        $b12 = False
+                    Else
+                        $b12 = True
+                        If $bWatchSaveChanges Then
+                            If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
+                                GUICtrlSetState($idPart4, $GUI_HIDE)
+                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                            EndIf
+                        EndIf
+                    EndIf
             EndSwitch
         Case GUICtrlGetHandle($idInputRuleEnabled)
             Switch $iCode
                 Case $EN_SETFOCUS
+                    $bWatchSaveChanges = True
                     _GUICtrlComboBox_ShowDropDown($RuleEnabledCombo, True)
                     ControlFocus($hGUI, "", $RuleEnabledCombo)
+                Case $EN_CHANGE
+                    If $bWatchSaveChanges And GUICtrlRead($idInputRuleEnabled) <> $sWatchidInputRuleEnabled Then
+                        _SavedChangesStatus()
+                        $b13 = False
+                    Else
+                        $b13 = True
+                        If $bWatchSaveChanges Then
+                            If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
+                                GUICtrlSetState($idPart4, $GUI_HIDE)
+                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                            EndIf
+                        EndIf
+                    EndIf
+            EndSwitch
+        Case GUICtrlGetHandle($BorderColorInput)
+            Switch $iCode
+                Case $EN_SETFOCUS
+                    $bWatchSaveChanges = True
+                Case $EN_CHANGE
+                    If $bWatchSaveChanges And GUICtrlRead($BorderColorInput) <> $sWatchBorderColorInput Then
+                        _SavedChangesStatus()
+                        $b01 = False
+                    Else
+                        $b01 = True
+                        If $bWatchSaveChanges Then
+                            If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
+                                GUICtrlSetState($idPart4, $GUI_HIDE)
+                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                            EndIf
+                        EndIf
+                    EndIf
+            EndSwitch
+        Case GUICtrlGetHandle($TitlebarColorInput)
+            Switch $iCode
+                Case $EN_SETFOCUS
+                    $bWatchSaveChanges = True
+                Case $EN_CHANGE
+                    If $bWatchSaveChanges And GUICtrlRead($TitlebarColorInput) <> $sWatchTitlebarColorInput Then
+                        _SavedChangesStatus()
+                        $b02 = False
+                    Else
+                        $b02 = True
+                        If $bWatchSaveChanges Then
+                            If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
+                                GUICtrlSetState($idPart4, $GUI_HIDE)
+                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                            EndIf
+                        EndIf
+                    EndIf
+            EndSwitch
+        Case GUICtrlGetHandle($TitlebarTextColorInput)
+            Switch $iCode
+                Case $EN_SETFOCUS
+                    $bWatchSaveChanges = True
+                Case $EN_CHANGE
+                    If $bWatchSaveChanges And GUICtrlRead($TitlebarTextColorInput) <> $sWatchTitlebarTextColorInput Then
+                        _SavedChangesStatus()
+                        $b03 = False
+                    Else
+                        $b03 = True
+                        If $bWatchSaveChanges Then
+                            If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
+                                GUICtrlSetState($idPart4, $GUI_HIDE)
+                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                            EndIf
+                        EndIf
+                    EndIf
+            EndSwitch
+        Case GUICtrlGetHandle($BlurTintColorInput)
+            Switch $iCode
+                Case $EN_SETFOCUS
+                    $bWatchSaveChanges = True
+                Case $EN_CHANGE
+                    If $bWatchSaveChanges And GUICtrlRead($BlurTintColorInput) <> $sWatchBlurTintColorInput Then
+                        _SavedChangesStatus()
+                        $b04 = False
+                    Else
+                        $b04 = True
+                        If $bWatchSaveChanges Then
+                            If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
+                                GUICtrlSetState($idPart4, $GUI_HIDE)
+                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                            EndIf
+                        EndIf
+                    EndIf
+            EndSwitch
+        Case GUICtrlGetHandle($BlurTintColorInputInact)
+            Switch $iCode
+                Case $EN_SETFOCUS
+                    $bWatchSaveChanges = True
+                Case $EN_CHANGE
+                    If $bWatchSaveChanges And GUICtrlRead($BlurTintColorInputInact) <> $sWatchBlurTintColorInputInact Then
+                        _SavedChangesStatus()
+                        $b05 = False
+                    Else
+                        $b05 = True
+                        If $bWatchSaveChanges Then
+                            If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
+                                GUICtrlSetState($idPart4, $GUI_HIDE)
+                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                            EndIf
+                        EndIf
+                    EndIf
             EndSwitch
     EndSwitch
 
     Return $GUI_RUNDEFMSG
 EndFunc  ;==>ED_WM_COMMAND
 
+Func _SavedChangesStatus()
+    If GUICtrlGetState($idPart4) = 96 Then
+        GUICtrlSetState($idPart4, $GUI_SHOW)
+    EndIf
+    If GuiFlatButton_GetState($RevertButton) = 96 Then
+        GuiFlatButton_SetState($RevertButton, $GUI_SHOW)
+    EndIf
+EndFunc
+
+Func _SavedChangesMsgBox()
+    If GUICtrlGetState($idPart4) = 80 Then
+        ; show dialog if there are unsaved changes
+        $sMsg = "There are unsaved changes to the currently displayed rule." & @CRLF & @CRLF
+        $sMsg &= "Press OK to discard those changes and continue or press Cancel to return" & @CRLF
+        $sMsg &= "so that you can save those changes." & @CRLF
+        $iRetValue = _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 1, $sProdName, $sMsg)
+
+        If $iRetValue = 1 Then
+            ConsoleWrite("user pressed ok" & @CRLF)
+        ElseIf $iRetValue = 2 Then
+            ConsoleWrite("user pressed cancel" & @CRLF)
+        ElseIf $iRetValue = 0 Then
+            ConsoleWrite("user closed the dialog" & @CRLF)
+            ; assume cancel in this case
+        EndIf
+
+        ; maybe set a Global state to Return asking func
+        $bPendingChanges = True
+        ; also Return on this func
+        ; may need to run revert func too (if user chooses no) but not sure
+        Return
+    Else
+        $bPendingChanges = False
+    EndIf
+EndFunc
+
+Func _WatchSaveChanges()
+    $sWatchTargetInput = GUICtrlRead($TargetInput)
+    $sWatchidInputRuleType = GUICtrlRead($idInputRuleType)
+    $sWatchidInputDarkTitle = GUICtrlRead($idInputDarkTitle)
+    $sWatchidInputTitleBarBackdrop = GUICtrlRead($idInputTitleBarBackdrop)
+    $sWatchidInputCornerPreference = GUICtrlRead($idInputCornerPreference)
+    $sWatchidInputExtendFrame = GUICtrlRead($idInputExtendFrame)
+    $sWatchidInputBlurBehind = GUICtrlRead($idInputBlurBehind)
+    $sWatchidInputRuleEnabled = GUICtrlRead($idInputRuleEnabled)
+    $sWatchBorderColorInput = GUICtrlRead($BorderColorInput)
+    $sWatchTitlebarColorInput = GUICtrlRead($TitlebarColorInput)
+    $sWatchBlurColorIntensitySliderInact = GUICtrlRead($BlurColorIntensitySliderInact)
+    $sWatchBlurColorIntensitySlider = GUICtrlRead($BlurColorIntensitySlider)
+    $sWatchTitlebarTextColorInput = GUICtrlRead($TitlebarTextColorInput)
+    $sWatchBlurTintColorInput = GUICtrlRead($BlurTintColorInput)
+    $sWatchBlurTintColorInputInact = GUICtrlRead($BlurTintColorInputInact)
+EndFunc
+
+Func _RevertChanges()
+    GUICtrlSetData($TargetInput, $sWatchTargetInput)
+    GUICtrlSetData($idInputRuleType, $sWatchidInputRuleType)
+    If $sWatchidInputRuleType = "Class" Then _GUICtrlComboBox_SetCurSel($RuleTypeCombo, 0)
+	If $sWatchidInputRuleType = "Process" Then _GUICtrlComboBox_SetCurSel($RuleTypeCombo, 1)
+    If $sWatchidInputRuleType = "" Then _GUICtrlComboBox_SetCurSel($RuleTypeCombo, -1)
+    GUICtrlSetData($idInputDarkTitle, $sWatchidInputDarkTitle)
+    If $sWatchidInputDarkTitle = "True" Then _GUICtrlComboBox_SetCurSel($DarkTitleCombo, 0)
+	If $sWatchidInputDarkTitle = "False" Then _GUICtrlComboBox_SetCurSel($DarkTitleCombo, 1)
+    If $sWatchidInputDarkTitle = "" Then _GUICtrlComboBox_SetCurSel($DarkTitleCombo, -1)
+    GUICtrlSetData($idInputTitleBarBackdrop, $sWatchidInputTitleBarBackdrop)
+    If $sWatchidInputTitleBarBackdrop = "" Then _GUICtrlComboBox_SetCurSel($TitleBarBackdropCombo, -1)
+    If $sWatchidInputTitleBarBackdrop = "Mica Alt" Then _GUICtrlComboBox_SetCurSel($TitleBarBackdropCombo, 4)
+    If $sWatchidInputTitleBarBackdrop = "Acrylic" Then _GUICtrlComboBox_SetCurSel($TitleBarBackdropCombo, 3)
+    If $sWatchidInputTitleBarBackdrop = "Mica" Then _GUICtrlComboBox_SetCurSel($TitleBarBackdropCombo, 2)
+    If $sWatchidInputTitleBarBackdrop = "None" Then _GUICtrlComboBox_SetCurSel($TitleBarBackdropCombo, 1)
+    If $sWatchidInputTitleBarBackdrop = "Auto" Then _GUICtrlComboBox_SetCurSel($TitleBarBackdropCombo, 0)
+    GUICtrlSetData($idInputCornerPreference, $sWatchidInputCornerPreference)
+    If $sWatchidInputCornerPreference = "" Then _GUICtrlComboBox_SetCurSel($CornerPreferenceCombo, -1)
+    If $sWatchidInputCornerPreference = "Round Small" Then _GUICtrlComboBox_SetCurSel($CornerPreferenceCombo, 3)
+    If $sWatchidInputCornerPreference = "Round" Then _GUICtrlComboBox_SetCurSel($CornerPreferenceCombo, 2)
+    If $sWatchidInputCornerPreference = "Square" Then _GUICtrlComboBox_SetCurSel($CornerPreferenceCombo, 1)
+    If $sWatchidInputCornerPreference = "Default" Then _GUICtrlComboBox_SetCurSel($CornerPreferenceCombo, 0)
+    GUICtrlSetData($idInputExtendFrame, $sWatchidInputExtendFrame)
+    If $sWatchidInputExtendFrame = "True" Then _GUICtrlComboBox_SetCurSel($ExtendFrameCombo, 0)
+	If $sWatchidInputExtendFrame = "False" Then _GUICtrlComboBox_SetCurSel($ExtendFrameCombo, 1)
+	If $sWatchidInputExtendFrame = "" Then _GUICtrlComboBox_SetCurSel($ExtendFrameCombo, -1)
+    GUICtrlSetData($idInputBlurBehind, $sWatchidInputBlurBehind)
+    If $sWatchidInputBlurBehind = "True" Then _GUICtrlComboBox_SetCurSel($BlurBehindCombo, 0)
+	If $sWatchidInputBlurBehind = "False" Then _GUICtrlComboBox_SetCurSel($BlurBehindCombo, 1)
+	If $sWatchidInputBlurBehind = "" Then _GUICtrlComboBox_SetCurSel($BlurBehindCombo, -1)
+    GUICtrlSetData($idInputRuleEnabled, $sWatchidInputRuleEnabled)
+    If $sWatchidInputRuleEnabled = "True" Then _GUICtrlComboBox_SetCurSel($RuleEnabledCombo, 0)
+	If $sWatchidInputRuleEnabled = "False" Then _GUICtrlComboBox_SetCurSel($RuleEnabledCombo, 1)
+    GUICtrlSetData($BorderColorInput, $sWatchBorderColorInput)
+    GUICtrlSetData($TitlebarColorInput, $sWatchTitlebarColorInput)
+    GUICtrlSetData($BlurColorIntensitySliderInact, $sWatchBlurColorIntensitySliderInact)
+    GUICtrlSetData($BlurColorIntensitySlider, $sWatchBlurColorIntensitySlider)
+    GUICtrlSetData($TitlebarTextColorInput, $sWatchTitlebarTextColorInput)
+    GUICtrlSetData($BlurTintColorInput, $sWatchBlurTintColorInput)
+    GUICtrlSetData($BlurTintColorInputInact, $sWatchBlurTintColorInputInact)
+EndFunc
+
+Func WM_NOTIFY($hWnd, $iMsg, $wParam, $lParam)
+    ; $BlurColorIntensitySlider
+    Local $tChange2 = DllStructCreate($tagTRBTHUMBPOSCHANGING, $lParam)
+    If $tChange2.IDfrom = $BlurColorIntensitySlider And $tChange2.Code = $TRBN_THUMBPOSCHANGING Then
+        If $tChange2.Pos <> $sWatchBlurColorIntensitySlider Then
+            _SavedChangesStatus()
+        EndIf
+    EndIf
+    ; $BlurColorIntensitySliderInact
+    Local $tChange = DllStructCreate($tagTRBTHUMBPOSCHANGING, $lParam)
+    If $tChange.IDfrom = $BlurColorIntensitySliderInact And $tChange.Code = $TRBN_THUMBPOSCHANGING Then
+        If $tChange.Pos <> $sWatchBlurColorIntensitySliderInact Then
+            _SavedChangesStatus()
+        EndIf
+    EndIf
+    Return $GUI_RUNDEFMSG
+EndFunc   ;==>WM_NOTIFY
 
 Func hBtn()
     _GUICtrlComboBox_ShowDropDown($RuleListCombo, True)
@@ -1492,7 +1849,7 @@ Func hBtnDeleteRule()
 	If $iRetValue = 1 Then
         For $i = 0 To Ubound($aCustomRules)-1
             If $aCustomRules[$i][16] = $SectionName Then
-                IniDelete($sIniPath, $aCustomRules[$i][15])
+                IniDelete($IniFile, $aCustomRules[$i][15])
             EndIf
         Next
 	ElseIf $iRetValue = 2 Then
@@ -1515,7 +1872,18 @@ Func hBtnDeleteRule()
     ;GuiFlatButton_SetState($DeleteButton, $GUI_SHOW)
 EndFunc
 
+Func hBtnRevertChanges()
+    _RevertChanges()
+    _UpdateColorBoxes()
+    GUICtrlSetState($idPart4, $GUI_HIDE)
+    GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+EndFunc
+
 Func hBtnReloadRules()
+    ; test unsaved changes dialog
+    _SavedChangesMsgBox()
+    If $bPendingChanges Then Return
+
     ; first check if engine is running, start it if not
     Local $sEngineRunning = _IsEngineRunning()
     If Not $sEngineRunning Then
@@ -1534,20 +1902,25 @@ Func hBtnReloadRules()
     ControlFocus($hGUI, "", $RuleListCombo)
     _GUICtrlComboBox_InsertString($RuleListCombo, "Global Rules", 0)
     $sTargetLast = ""
+
+    ; reset values for save changes watch
+    $bWatchSaveChanges = False
+    _WatchSaveChanges()
+    GUICtrlSetState($idPart4, $GUI_HIDE)
+    GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
 EndFunc
 
 Func _IsEngineRunning()
     Local $iPID
-    Local $bElevated = _ToBoolean(IniRead($sIniPath, "StartupInfoOnly", "Elevated", "False"))
+    Local $bElevated = _ToBoolean(IniRead($IniFile, "StartupInfoOnly", "Elevated", "False"))
     Local $sEngineRunning = False
 
     If @Compiled Then
-        $aProcessRunning = ProcessList($sEngName & ".exe")
-        If $aProcessRunning[0][0] <> 0 Then
+        If WinExists("Immersive UX Engine") Then
             ; engine is running
             $sEngineRunning = True
             Return $sEngineRunning
-        ElseIf $aProcessRunning[0][0] = 0 Then
+        Else
             ; engine not running
             $sEngineRunning = False
             Return $sEngineRunning
@@ -1555,7 +1928,7 @@ Func _IsEngineRunning()
     EndIf
 
     If Not @Compiled Then
-        $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
+        $iPID = Int(IniRead($IniFile, "StartupInfoOnly", "PID", ""))
         If $iPID <> "" Then
             ; engine is running
             $sEngineRunning = True
@@ -1574,45 +1947,51 @@ Func _WriteIniSection()
     Local $SectionName = GUICtrlRead($RuleListCombo)
     If $SectionName = "Global Rules" Then
         Local $DarkTitleBar = GUICtrlRead($idInputDarkTitle)
-        IniWrite($sIniPath, "GlobalRules", "GlobalDarkTitleBar", $DarkTitleBar)
+        IniWrite($IniFile, "GlobalRules", "GlobalDarkTitleBar", $DarkTitleBar)
         Local $BorderColor = GUICtrlRead($BorderColorInput)
-        IniWrite($sIniPath, "GlobalRules", "GlobalBorderColor", $BorderColor)
+        IniWrite($IniFile, "GlobalRules", "GlobalBorderColor", $BorderColor)
         Local $TitleBarColor = GUICtrlRead($TitlebarColorInput)
-        IniWrite($sIniPath, "GlobalRules", "GlobalTitleBarColor", $TitleBarColor)
+        IniWrite($IniFile, "GlobalRules", "GlobalTitleBarColor", $TitleBarColor)
         Local $TitleBarTextColor = GUICtrlRead($TitlebarTextColorInput)
-        IniWrite($sIniPath, "GlobalRules", "GlobalTitleBarTextColor", $TitleBarTextColor)
+        IniWrite($IniFile, "GlobalRules", "GlobalTitleBarTextColor", $TitleBarTextColor)
         Local $TitleBarBackdrop = GUICtrlRead($idInputTitleBarBackdrop)
         If $TitleBarBackdrop = "Mica Alt" Then $TitleBarBackdrop = "4"
         If $TitleBarBackdrop = "Acrylic" Then $TitleBarBackdrop = "3"
         If $TitleBarBackdrop = "Mica" Then $TitleBarBackdrop = "2"
         If $TitleBarBackdrop = "None" Then $TitleBarBackdrop = "1"
         If $TitleBarBackdrop = "Auto" Then $TitleBarBackdrop = "0"
-        IniWrite($sIniPath, "GlobalRules", "GlobalTitleBarBackdrop", $TitleBarBackdrop)
+        IniWrite($IniFile, "GlobalRules", "GlobalTitleBarBackdrop", $TitleBarBackdrop)
         Local $CornerPreference = GUICtrlRead($idInputCornerPreference)
         If $CornerPreference = "Round Small" Then $CornerPreference = "3"
         If $CornerPreference = "Round" Then $CornerPreference = "2"
         If $CornerPreference = "Square" Then $CornerPreference = "1"
         If $CornerPreference = "Default" Then $CornerPreference = "0"
-        IniWrite($sIniPath, "GlobalRules", "GlobalCornerPreference", $CornerPreference)
+        IniWrite($IniFile, "GlobalRules", "GlobalCornerPreference", $CornerPreference)
         Local $ExtendFrameIntoClient = GUICtrlRead($idInputExtendFrame)
-        IniWrite($sIniPath, "GlobalRules", "GlobalExtendFrameIntoClient", $ExtendFrameIntoClient)
+        IniWrite($IniFile, "GlobalRules", "GlobalExtendFrameIntoClient", $ExtendFrameIntoClient)
         Local $EnableBlurBehind = GUICtrlRead($idInputBlurBehind)
-        IniWrite($sIniPath, "GlobalRules", "GlobalEnableBlurBehind", $EnableBlurBehind)
+        IniWrite($IniFile, "GlobalRules", "GlobalEnableBlurBehind", $EnableBlurBehind)
         Local $BlurTintColor = GUICtrlRead($BlurTintColorInput)
-        IniWrite($sIniPath, "GlobalRules", "GlobalBlurTintColor", $BlurTintColor)
+        IniWrite($IniFile, "GlobalRules", "GlobalBlurTintColor", $BlurTintColor)
         Local $BlurTintColorInact = GUICtrlRead($BlurTintColorInputInact)
-        IniWrite($sIniPath, "GlobalRules", "GlobalBlurTintColorInactive", $BlurTintColorInact)
+        IniWrite($IniFile, "GlobalRules", "GlobalBlurTintColorInactive", $BlurTintColorInact)
         Local $TintColorIntensity = GUICtrlRead($BlurColorIntensitySlider)
         If $TintColorIntensity = "0" Then $TintColorIntensity = ""
-        IniWrite($sIniPath, "GlobalRules", "GlobalTintColorIntensity", $TintColorIntensity)
+        IniWrite($IniFile, "GlobalRules", "GlobalTintColorIntensity", $TintColorIntensity)
         Local $TintColorIntensityInact = GUICtrlRead($BlurColorIntensitySliderInact)
         If $TintColorIntensityInact = "0" Then $TintColorIntensityInact = ""
-        IniWrite($sIniPath, "GlobalRules", "GlobalColorIntensityInactive", $TintColorIntensityInact)
+        IniWrite($IniFile, "GlobalRules", "GlobalColorIntensityInactive", $TintColorIntensityInact)
 
         _GetIniDetails()
         _UpdateColorBoxes()
 
         _SaveReloadRules()
+
+        ; reset values for save changes watch
+        $bWatchSaveChanges = False
+        _WatchSaveChanges()
+        GUICtrlSetState($idPart4, $GUI_HIDE)
+        GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
 
         Return
     EndIf
@@ -1663,7 +2042,7 @@ Func _WriteIniSection()
     If $SectionName <> $sTargetLast Then
         If $sTargetLast <> "" Then
             ; Rename the section labelled $sTargetLast to $SectionName
-            IniRenameSection($sIniPath, $sTargetLast, $SectionName)
+            IniRenameSection($IniFile, $sTargetLast, $SectionName)
         EndIf
     EndIf
 
@@ -1671,7 +2050,7 @@ Func _WriteIniSection()
 
     Local $aSection[17][2] = [[16, ""], ["RuleType", $RuleType], ["Target", $Target], ["DarkTitleBar", $DarkTitleBar], ["BorderColor", $BorderColor], ["TitleBarColor", $TitleBarColor], ["TitleBarTextColor", $TitleBarTextColor], ["TitleBarBackdrop", $TitleBarBackdrop], ["CornerPreference", $CornerPreference], ["ExtendFrameIntoClient", $ExtendFrameIntoClient], ["EnableBlurBehind", $EnableBlurBehind], ["BlurTintColor", $BlurTintColor], ["TintColorIntensity", $TintColorIntensity], ["BlurTintColorInactive", $BlurTintColorInact],["ColorIntensityInactive", $TintColorIntensityInact], ["Enabled", $RuleEnabled], ["DisplayName", $DisplayName]]
 
-    $IniWriteStatus = IniWriteSection($sIniPath, $SectionName, $aSection)
+    $IniWriteStatus = IniWriteSection($IniFile, $SectionName, $aSection)
     If $IniWriteStatus = 0 Then _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, " Failed to write changes to file. " & @CRLF)
 
     _SaveReloadRules()
@@ -1685,6 +2064,12 @@ Func _WriteIniSection()
     GUICtrlSetData($RuleListCombo, $DisplayName)
 
     _GUICtrlComboBox_InsertString($RuleListCombo, "Global Rules", 0)
+
+    ; reset values for save changes watch
+    $bWatchSaveChanges = False
+    _WatchSaveChanges()
+    GUICtrlSetState($idPart4, $GUI_HIDE)
+    GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
 EndFunc
 
 Func _SaveReloadRules()
@@ -1711,77 +2096,86 @@ EndFunc
 
 Func _GetIniDetails()
     Local $count = 0
-    Local $sIniPath = @ScriptDir & "\ImmersiveUX.ini"
+    Local $IniFile = @ScriptDir & "\ImmersiveUX.ini"
     ; Create a constant variable in Local scope of the filepath that will be read/written to.
     ;Local Const $sFilePath = _WinAPI_GetTempFileName(@TempDir)
 
     ; Global rules
-    $bGlobalDarkTitleBar = IniRead($sIniPath, "GlobalRules", "GlobalDarkTitleBar", "True")
-    $dGlobalBorderColor = IniRead($sIniPath, "GlobalRules", "GlobalBorderColor", "")
-    $dGlobalTitleBarColor = IniRead($sIniPath, "GlobalRules", "GlobalTitleBarColor", "")
-    $dGlobalTitleBarTextColor = IniRead($sIniPath, "GlobalRules", "GlobalTitleBarTextColor", "")
-    $iGlobalTitleBarBackdrop = IniRead($sIniPath, "GlobalRules", "GlobalTitleBarBackdrop", "0")
-    $iGlobalCornerPreference = IniRead($sIniPath, "GlobalRules", "GlobalCornerPreference", "0")
-    $iGlobalExtendFrameIntoClient = IniRead($sIniPath, "GlobalRules", "GlobalExtendFrameIntoClient", "False")
-    $iGlobalEnableBlurBehind = IniRead($sIniPath, "GlobalRules", "GlobalEnableBlurBehind", "False")
-    $dGlobalBlurTintColor = IniRead($sIniPath, "GlobalRules", "GlobalBlurTintColor", "")
-    $iGlobalTintColorIntensity = IniRead($sIniPath, "GlobalRules", "GlobalTintColorIntensity", "")
-    $dGlobalBlurTintColorInactive = IniRead($sIniPath, "GlobalRules", "GlobalBlurTintColorInactive", "missing")
-    $iGlobalColorIntensityInactive = IniRead($sIniPath, "GlobalRules", "GlobalColorIntensityInactive", "missing")
+    $bGlobalDarkTitleBar = IniRead($IniFile, "GlobalRules", "GlobalDarkTitleBar", "True")
+    $dGlobalBorderColor = IniRead($IniFile, "GlobalRules", "GlobalBorderColor", "")
+    $dGlobalTitleBarColor = IniRead($IniFile, "GlobalRules", "GlobalTitleBarColor", "")
+    $dGlobalTitleBarTextColor = IniRead($IniFile, "GlobalRules", "GlobalTitleBarTextColor", "")
+    $iGlobalTitleBarBackdrop = IniRead($IniFile, "GlobalRules", "GlobalTitleBarBackdrop", "0")
+    $iGlobalCornerPreference = IniRead($IniFile, "GlobalRules", "GlobalCornerPreference", "0")
+    $iGlobalExtendFrameIntoClient = IniRead($IniFile, "GlobalRules", "GlobalExtendFrameIntoClient", "False")
+    $iGlobalEnableBlurBehind = IniRead($IniFile, "GlobalRules", "GlobalEnableBlurBehind", "False")
+    $dGlobalBlurTintColor = IniRead($IniFile, "GlobalRules", "GlobalBlurTintColor", "")
+    $iGlobalTintColorIntensity = IniRead($IniFile, "GlobalRules", "GlobalTintColorIntensity", "")
+    $dGlobalBlurTintColorInactive = IniRead($IniFile, "GlobalRules", "GlobalBlurTintColorInactive", "missing")
+    $iGlobalColorIntensityInactive = IniRead($IniFile, "GlobalRules", "GlobalColorIntensityInactive", "missing")
+
+    ; Immersive Live rules
+    Local $bLiveEnabled = IniRead($IniFile, "ImmersiveLive", "Enabled", "missing")
+	Local $sLiveWallpaperFile = IniRead($IniFile, "ImmersiveLive", "LiveWallpaperFile", "missing")
+    Local $bLoopEnabled = IniRead($IniFile, "ImmersiveLive", "LoopEnabled", "missing")
+
+    If $bLiveEnabled = "missing" Then IniWrite($IniFile, "ImmersiveLive", "Enabled", "False")
+    If $sLiveWallpaperFile = "missing" Then IniWrite($IniFile, "ImmersiveLive", "LiveWallpaperFile", "bloom.mp4")
+    If $bLoopEnabled = "missing" Then IniWrite($IniFile, "ImmersiveLive", "LoopEnabled", "False")
 
     ; Custom GUI Colors
-    $GUI_BackColor = IniRead($sIniPath, "Settings", "GUI_BackColor", "missing")
+    $GUI_BackColor = IniRead($IniFile, "Settings", "GUI_BackColor", "missing")
     If $GUI_BackColor = "missing" Then
-        IniWrite($sIniPath, "Settings", "GUI_BackColor", "0x000000")
+        IniWrite($IniFile, "Settings", "GUI_BackColor", "0x000000")
         $GUI_BackColor = "0x000000"
     EndIf
     If Not $GUI_BackColor Then $GUI_BackColor = "0x000000"
 
-    $GUI_FontColor = IniRead($sIniPath, "Settings", "GUI_FontColor", "missing")
+    $GUI_FontColor = IniRead($IniFile, "Settings", "GUI_FontColor", "missing")
     If $GUI_FontColor = "missing" Then
-        IniWrite($sIniPath, "Settings", "GUI_FontColor", "0xE0E0E0")
+        IniWrite($IniFile, "Settings", "GUI_FontColor", "0xE0E0E0")
         $GUI_FontColor = "0xE0E0E0"
     EndIf
     If Not $GUI_FontColor Then $GUI_FontColor = "0xE0E0E0"
 
-    $GUI_InputBackColor = IniRead($sIniPath, "Settings", "GUI_InputBackColor", "missing")
+    $GUI_InputBackColor = IniRead($IniFile, "Settings", "GUI_InputBackColor", "missing")
     If $GUI_InputBackColor = "missing" Then
-        IniWrite($sIniPath, "Settings", "GUI_InputBackColor", "0x202020")
+        IniWrite($IniFile, "Settings", "GUI_InputBackColor", "0x202020")
         $GUI_InputBackColor = "0x202020"
     EndIf
     If Not $GUI_InputBackColor Then $GUI_InputBackColor = "0x202020"
 
-    $GUI_StatusBackColor = IniRead($sIniPath, "Settings", "GUI_StatusBackColor", "missing")
+    $GUI_StatusBackColor = IniRead($IniFile, "Settings", "GUI_StatusBackColor", "missing")
     If $GUI_StatusBackColor = "missing" Then
-        IniWrite($sIniPath, "Settings", "GUI_StatusBackColor", "0x080808")
+        IniWrite($IniFile, "Settings", "GUI_StatusBackColor", "0x080808")
         $GUI_StatusBackColor = "0x080808"
     EndIf
     If Not $GUI_StatusBackColor Then $GUI_StatusBackColor = "0x080808"
 
-    $GUI_StatusLineColor = IniRead($sIniPath, "Settings", "GUI_StatusLineColor", "missing")
+    $GUI_StatusLineColor = IniRead($IniFile, "Settings", "GUI_StatusLineColor", "missing")
     If $GUI_StatusLineColor = "missing" Then
-        IniWrite($sIniPath, "Settings", "GUI_StatusLineColor", "0x242424")
+        IniWrite($IniFile, "Settings", "GUI_StatusLineColor", "0x242424")
         $GUI_StatusLineColor = "0x242424"
     EndIf
     If Not $GUI_StatusLineColor Then $GUI_StatusLineColor = "0x242424"
 
-    $GUI_MenubarBackColor = IniRead($sIniPath, "Settings", "GUI_MenubarBackColor", "missing")
+    $GUI_MenubarBackColor = IniRead($IniFile, "Settings", "GUI_MenubarBackColor", "missing")
     If $GUI_MenubarBackColor = "missing" Then
-        IniWrite($sIniPath, "Settings", "GUI_MenubarBackColor", "0x080808")
+        IniWrite($IniFile, "Settings", "GUI_MenubarBackColor", "0x080808")
         $GUI_MenubarBackColor = "0x080808"
     EndIf
     If Not $GUI_MenubarBackColor Then $GUI_MenubarBackColor = "0x080808"
 
-    $GUI_MenubarLineColor = IniRead($sIniPath, "Settings", "GUI_MenubarLineColor", "missing")
+    $GUI_MenubarLineColor = IniRead($IniFile, "Settings", "GUI_MenubarLineColor", "missing")
     If $GUI_MenubarLineColor = "missing" Then
-        IniWrite($sIniPath, "Settings", "GUI_MenubarLineColor", "0x242424")
+        IniWrite($IniFile, "Settings", "GUI_MenubarLineColor", "0x242424")
         $GUI_MenubarLineColor = "0x242424"
     EndIf
     If Not $GUI_MenubarLineColor Then $GUI_MenubarLineColor = "0x242424"
 
-    $GUI_AdvancedLineColor = IniRead($sIniPath, "Settings", "GUI_AdvancedLineColor", "missing")
+    $GUI_AdvancedLineColor = IniRead($IniFile, "Settings", "GUI_AdvancedLineColor", "missing")
     If $GUI_AdvancedLineColor = "missing" Then
-        IniWrite($sIniPath, "Settings", "GUI_AdvancedLineColor", "0x242424")
+        IniWrite($IniFile, "Settings", "GUI_AdvancedLineColor", "0x242424")
         $GUI_AdvancedLineColor = "0x242424"
     EndIf
     If Not $GUI_AdvancedLineColor Then $GUI_AdvancedLineColor = "0x242424"
@@ -1789,58 +2183,58 @@ Func _GetIniDetails()
 
     If $dGlobalBlurTintColorInactive = "missing" Then
         ; create backup of pre-1.5.0 config file
-        Local $bCopyStatus = FileCopy($sIniPath, @ScriptDir & "\ImmersiveUX-pre-1.5-backup.ini")
-        If $bCopyStatus = 0 Then FileCopy($sIniPath, @DesktopDir & "\ImmersiveUX-pre-1.5-backup.ini")
+        Local $bCopyStatus = FileCopy($IniFile, @ScriptDir & "\ImmersiveUX-pre-1.5-backup.ini")
+        If $bCopyStatus = 0 Then FileCopy($IniFile, @DesktopDir & "\ImmersiveUX-pre-1.5-backup.ini")
         ; add to config
-        IniWrite($sIniPath, "GlobalRules", "GlobalBlurTintColorInactive", "")
+        IniWrite($IniFile, "GlobalRules", "GlobalBlurTintColorInactive", "")
         $dGlobalBlurTintColorInactive = ""
     EndIf
     If $iGlobalColorIntensityInactive = "missing" Then
         ; add to config
-        IniWrite($sIniPath, "GlobalRules", "GlobalColorIntensityInactive", "")
+        IniWrite($IniFile, "GlobalRules", "GlobalColorIntensityInactive", "")
         $iGlobalColorIntensityInactive = ""
     EndIf
 
     ; settings
-    $iBorderColorOptions = IniRead($sIniPath, "Configuration", "BorderColorOptions", "0")
+    $iBorderColorOptions = IniRead($IniFile, "Configuration", "BorderColorOptions", "0")
 
     ; temporary fix for mistakenly allowing Global on dropdown, remove later
     If $bGlobalDarkTitleBar = "Global" Then
         $bGlobalDarkTitleBar = "True"
-        IniWrite($sIniPath, "GlobalRules", "GlobalDarkTitleBar", "True")
+        IniWrite($IniFile, "GlobalRules", "GlobalDarkTitleBar", "True")
     EndIf
     ; temporary fix for mistakenly allowing Global on dropdown, remove later
     If $iGlobalTitleBarBackdrop = "Global" Then
         $iGlobalTitleBarBackdrop = "0"
-        IniWrite($sIniPath, "GlobalRules", "GlobalTitleBarBackdrop", "0")
+        IniWrite($IniFile, "GlobalRules", "GlobalTitleBarBackdrop", "0")
     EndIf
     ; temporary fix for mistakenly allowing Global on dropdown, remove later
     If $iGlobalCornerPreference = "Global" Then
         $iGlobalCornerPreference = "0"
-        IniWrite($sIniPath, "GlobalRules", "GlobalCornerPreference", "0")
+        IniWrite($IniFile, "GlobalRules", "GlobalCornerPreference", "0")
     EndIf
     ; temporary fix for mistakenly allowing Global on dropdown, remove later
     If $iGlobalExtendFrameIntoClient = "Global" Then
         $iGlobalExtendFrameIntoClient = "True"
-        IniWrite($sIniPath, "GlobalRules", "GlobalExtendFrameIntoClient", "True")
+        IniWrite($IniFile, "GlobalRules", "GlobalExtendFrameIntoClient", "True")
     EndIf
     ; temporary fix for mistakenly allowing Global on dropdown, remove later
     If $iGlobalEnableBlurBehind = "Global" Then
         $iGlobalEnableBlurBehind = "True"
-        IniWrite($sIniPath, "GlobalRules", "GlobalEnableBlurBehind", "True")
+        IniWrite($IniFile, "GlobalRules", "GlobalEnableBlurBehind", "True")
     EndIf
 
     ; Read the INI section labelled 'General'. This will return a 2 dimensional array.
-    Local $aSectionNames = IniReadSectionNames($sIniPath)
+    Local $aSectionNames = IniReadSectionNames($IniFile)
 
     For $i = 1 To $aSectionNames[0]
     ;For $i = 1 To 2
         ;If StringInStr($aSectionNames[$i], "CustomRules") Then
         Local $a = $aSectionNames[$i]
-        If $a <> "Configuration" And $a <> "ProcessExclusion" And $a <> "ClassExclusion" And $a <> "Settings" And $a <> "GlobalRules" And $a <> "StartupInfoOnly" And $a <> "VSCodeInstallPath" Then
+        If $a <> "Configuration" And $a <> "ProcessExclusion" And $a <> "ClassExclusion" And $a <> "Settings" And $a <> "GlobalRules" And $a <> "StartupInfoOnly" And $a <> "VSCodeInstallPath" And $a <> "ImmersiveLive" Then
             $count += 1
             ;ConsoleWrite($aSectionNames[$i] & @CRLF)
-            Local $aArray = IniReadSection($sIniPath, $aSectionNames[$i])
+            Local $aArray = IniReadSection($IniFile, $aSectionNames[$i])
             ;ConsoleWrite("test: " & $aArray[$i][$i] & @CRLF)
             ;For $z = 0 To UBound($aArray) -1
                 ;ConsoleWrite("test: " & '[' & $z & ']' & $aArray[$z][0] & @CRLF)
@@ -1849,7 +2243,7 @@ Func _GetIniDetails()
             If $aArray[0][0] = "14" Then
                 _ArrayInsert($aArray, 13, "BlurTintColorInactive", 0)
                 _ArrayInsert($aArray, 14, "ColorIntensityInactive", 0)
-                IniWriteSection($sIniPath, $aSectionNames[$i], $aArray)
+                IniWriteSection($IniFile, $aSectionNames[$i], $aArray)
             EndIf
 
             _ArrayColDelete($aArray, 0)
@@ -1925,6 +2319,11 @@ Func _ResetCombosGlobal()
 EndFunc
 
 Func _RuleList()
+    ; reset values for save changes watch
+    $bWatchSaveChanges = False
+    GUICtrlSetState($idPart4, $GUI_HIDE)
+    GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+
 	$IFEOname = GUICtrlRead($RuleListCombo)
 
     If $IFEOname = "Global Rules" Then
@@ -2033,6 +2432,9 @@ Func _RuleList()
 
         GUICtrlSetData($BlurColorIntensitySlider, $iGlobalTintColorIntensity)
         GUICtrlSetData($BlurColorIntensitySliderInact, $iGlobalColorIntensityInactive)
+
+        _WatchSaveChanges()
+
         Return
     EndIf
 
@@ -2139,6 +2541,9 @@ Func _RuleList()
             EndIf
 		EndIf
     Next
+
+    _WatchSaveChanges()
+
 EndFunc
 
 Func _GetTaskIntegrityLevel()
@@ -2228,11 +2633,13 @@ Func _RestartTask()
     If @Compiled Then
         If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
         If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
         Sleep(200)
         ShellExecute(@ScriptDir & "\" & $sEngName & ".exe")
     ElseIf Not @Compiled Then
         If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
         If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
         Sleep(200)
         ShellExecute(@ScriptDir & "\" & $sEngName & ".au3")
     EndIf
@@ -2437,18 +2844,18 @@ Func _TaskStatusUpdate_adlib20()
 
     _IsEngineProcRunning()
     _UpdateTaskMenu()
+    _UpdateLiveMenu()
 
     GUICtrlSetData($idPart2, "Task Installed: " & $TaskInstalled)
 EndFunc
 
 Func _IsEngineProcRunning()
     Local $iPID
-    Local $bElevated = _ToBoolean(IniRead($sIniPath, "StartupInfoOnly", "Elevated", "False"))
+    Local $bElevated = _ToBoolean(IniRead($IniFile, "StartupInfoOnly", "Elevated", "False"))
     Local $sEngineStatus, $sElevatedStatus
 
     If @Compiled Then
-        $aProcessRunning = ProcessList($sEngName & ".exe")
-        If $aProcessRunning[0][0] <> 0 Then
+        If WinExists("Immersive UX Engine") Then
             ; engine is running
             If $bElevated Then
                 ; engine is running as admin
@@ -2463,14 +2870,14 @@ Func _IsEngineProcRunning()
                 GUICtrlSetData($idPart1, $sEngineStatus)
                 GUICtrlSetData($idPart3, $sElevatedStatus)
             EndIf
-        ElseIf $aProcessRunning[0][0] = 0 Then
+        Else
             $sEngineStatus = "Engine Running: No"
             GUICtrlSetData($idPart1, $sEngineStatus)
         EndIf
     EndIf
 
     If Not @Compiled Then
-        $iPID = Int(IniRead($sIniPath, "StartupInfoOnly", "PID", ""))
+        $iPID = Int(IniRead($IniFile, "StartupInfoOnly", "PID", ""))
         If $iPID <> "" Then
             ; engine is running
             If $bElevated Then
@@ -2533,7 +2940,7 @@ Func _VSCode_mod()
         _VSCode_mod_json($sJsonStablePath)
     EndIf
 
-	Local $aArray = IniReadSection($sIniPath, "VSCodeInstallPath")
+	Local $aArray = IniReadSection($IniFile, "VSCodeInstallPath")
 
 	; Check if an error occurred.
 	If Not @error Then
@@ -2688,7 +3095,7 @@ Func _VSCode_mod_uninstall()
         _VSCode_mod_json_restore($sJsonStablePath)
     EndIf
 
-	Local $aArray = IniReadSection($sIniPath, "VSCodeInstallPath")
+	Local $aArray = IniReadSection($IniFile, "VSCodeInstallPath")
 
 	; Check if an error occurred.
 	If Not @error Then
@@ -2969,6 +3376,7 @@ EndFunc
 Func _Exit()
     If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
     If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
+    If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
 
     Exit
 EndFunc
@@ -3039,14 +3447,57 @@ Func WM_ACTIVATE_Handler($hWnd, $MsgID, $wParam, $lParam)
     Return $GUI_RUNDEFMSG
 EndFunc
 
+Func _LiveOpt0()
+    ; live wallpaper enabled
+    If IniRead($IniFile, "ImmersiveLive", "Enabled", "") = "True" Then
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        IniWrite($IniFile, "ImmersiveLive", "Enabled", "False")
+    Else
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        IniWrite($IniFile, "ImmersiveLive", "Enabled", "True")
+        If @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+        ElseIf Not @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+        EndIf
+    EndIf
+
+    _UpdateLiveMenu()
+EndFunc
+
+Func _LiveOpt1()
+    ; live wallpaper loop
+    If IniRead($IniFile, "ImmersiveLive", "LoopEnabled", "") = "True" Then
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        IniWrite($IniFile, "ImmersiveLive", "LoopEnabled", "False")
+            If IniRead($IniFile, "ImmersiveLive", "Enabled", "") = "True" Then
+                If @Compiled Then
+                ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+            ElseIf Not @Compiled Then
+                ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+            EndIf
+        EndIf
+    Else
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        IniWrite($IniFile, "ImmersiveLive", "LoopEnabled", "True")
+        If @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+        ElseIf Not @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+        EndIf
+    EndIf
+
+    _UpdateLiveMenu()
+EndFunc
+
 Func _BorderOpt0()
     ; active window only
-    $iBorderColorOptions = IniRead($sIniPath, "Configuration", "BorderColorOptions", "0")
+    $iBorderColorOptions = IniRead($IniFile, "Configuration", "BorderColorOptions", "0")
     If $iBorderColorOptions = "0" Then
         Return
     ElseIf $iBorderColorOptions <> "0" Then
         ; set value
-        IniWrite($sIniPath, "Configuration", "BorderColorOptions", "0")
+        IniWrite($IniFile, "Configuration", "BorderColorOptions", "0")
         GUICtrlSetState($idBorderOpt0, $GUI_CHECKED)
         _RestartTask()
     EndIf
@@ -3054,12 +3505,12 @@ EndFunc
 
 Func _BorderOpt1()
     ; active and inactive windows
-    $iBorderColorOptions = IniRead($sIniPath, "Configuration", "BorderColorOptions", "0")
+    $iBorderColorOptions = IniRead($IniFile, "Configuration", "BorderColorOptions", "0")
     If $iBorderColorOptions = "1" Then
         Return
     ElseIf $iBorderColorOptions <> "1" Then
         ; set value
-        IniWrite($sIniPath, "Configuration", "BorderColorOptions", "1")
+        IniWrite($IniFile, "Configuration", "BorderColorOptions", "1")
         GUICtrlSetState($idBorderOpt1, $GUI_CHECKED)
         _RestartTask()
     EndIf
@@ -3067,11 +3518,11 @@ EndFunc
 
 Func _BorderOpt2()
     ; LED strobe border effects
-    $iBorderColorOptions = IniRead($sIniPath, "Configuration", "BorderColorOptions", "0")
+    $iBorderColorOptions = IniRead($IniFile, "Configuration", "BorderColorOptions", "0")
     If $iBorderColorOptions = "2" Then
         Return
     ElseIf $iBorderColorOptions <> "2" Then
-        IniWrite($sIniPath, "Configuration", "BorderColorOptions", "2")
+        IniWrite($IniFile, "Configuration", "BorderColorOptions", "2")
         GUICtrlSetState($idBorderOpt2, $GUI_CHECKED)
         _RestartTask()
     EndIf
@@ -3079,11 +3530,11 @@ EndFunc
 
 Func _BorderOpt3()
     ; disable border color (system)
-    $iBorderColorOptions = IniRead($sIniPath, "Configuration", "BorderColorOptions", "")
+    $iBorderColorOptions = IniRead($IniFile, "Configuration", "BorderColorOptions", "")
     If Not $iBorderColorOptions Then
         Return
     ElseIf $iBorderColorOptions <> "" Then
-        IniWrite($sIniPath, "Configuration", "BorderColorOptions", "")
+        IniWrite($IniFile, "Configuration", "BorderColorOptions", "")
         GUICtrlSetState($idBorderOpt3, $GUI_CHECKED)
         _RestartTask()
     EndIf
@@ -3151,6 +3602,7 @@ Func _TaskInstallAdmin()
     ; Install Task (Admin)
     If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
     If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
+    If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
     Sleep(200)
     _InstallTask()
     Sleep(500)
@@ -3160,12 +3612,14 @@ Func _TaskInstallAdmin()
     _TaskStatusUpdate()
     _IsEngineProcRunning()
     _UpdateTaskMenu()
+    _UpdateLiveMenu()
 EndFunc
 
 Func _TaskInstall()
     ; Install Task
     If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
     If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
+    If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
     Sleep(200)
     _InstallTask()
     Sleep(500)
@@ -3175,18 +3629,21 @@ Func _TaskInstall()
     _TaskStatusUpdate()
     _IsEngineProcRunning()
     _UpdateTaskMenu()
+    _UpdateLiveMenu()
 EndFunc
 
 Func _TaskUninstall()
     ; Uninstall Task
     If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
     If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
+    If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
     Sleep(200)
     _UninstallTask()
     Sleep(500)
     _TaskStatusUpdate()
     _IsEngineProcRunning()
     _UpdateTaskMenu()
+    _UpdateLiveMenu()
 EndFunc
 
 Func _TaskRestart()
@@ -3195,6 +3652,7 @@ Func _TaskRestart()
     Sleep(500)
     _IsEngineProcRunning()
     _UpdateTaskMenu()
+    _UpdateLiveMenu()
 EndFunc
 
 #cs
@@ -3203,6 +3661,21 @@ EndFunc
     $idTaskOpt2 = GUICtrlCreateMenuItem("Uninstall Task", $idTaskMenu)
     $idTaskOpt3 = GUICtrlCreateMenuItem("Restart Task", $idTaskMenu)
 #ce
+
+Func _UpdateLiveMenu()
+    Local $sLiveEnabled = IniRead($IniFile, "ImmersiveLive", "Enabled", "")
+    If $sLiveEnabled = "True" Then
+        GUICtrlSetState($idLiveOpt0, $GUI_CHECKED)
+    ElseIf $sLiveEnabled = "False" Then
+        GUICtrlSetState($idLiveOpt0, $GUI_UNCHECKED)
+    EndIf
+
+    If IniRead($IniFile, "ImmersiveLive", "LoopEnabled", "") = "True" Then
+        GUICtrlSetState($idLiveOpt1, $GUI_CHECKED)
+    Else
+        GUICtrlSetState($idLiveOpt1, $GUI_UNCHECKED)
+    EndIf
+EndFunc
 
 Func _UpdateTaskMenu()
     If @Compiled Then

@@ -5,13 +5,14 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.6.1
+#AutoIt3Wrapper_Res_Fileversion=1.7.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.6.1
+#AutoIt3Wrapper_Res_ProductVersion=1.7.0
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=Y
 #AutoIt3Wrapper_Run_Au3Stripper=y
+#AutoIt3Wrapper_res_Compatibility=Win10
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
 #include <AutoItExitCodes.au3>
@@ -22,6 +23,18 @@
 #include <Array.au3>
 #include <Misc.au3>
 #include <File.au3>
+
+#include <WindowsConstants.au3>
+#include <WinAPIvkeysConstants.au3>
+
+#include "Include\WinRT.au3"
+#include "Include\Classes\Windows.UI.Xaml.Hosting.WindowsXamlManager.au3"
+#include "Include\Classes\Windows.UI.Xaml.Hosting.DesktopWindowXamlSource.au3"
+#include "Include\Interfaces\IDesktopWindowXamlSourceNative.au3"
+#include "Include\Classes\Windows.UI.Xaml.Controls.MediaPlayerElement.au3"
+#include "Include\Classes\Windows.Storage.StorageFile.au3"
+#include "Include\Classes\Windows.Media.Core.MediaSource.au3"
+#include "Include\Classes\Windows.Media.Playback.MediaPlayer.au3"
 
 ; HotKey only used temporarily when needing to look for window classes to include/exclude
 ;#include <Process.au3>
@@ -47,10 +60,10 @@ Global $bGlobalDarkTitleBar, $dGlobalBorderColor, $dGlobalTitleBarColor, $dGloba
 Global $iGlobalBlurTintColor, $dGlobalBlurTintColor, $iGlobalBlurOpacity
 Global $dTerminalBorderColor, $dTerminalBackdrop, $bWindowsTerminalHandling, $dVSStudioBorderColor, $bWindowsTerminalBlur
 Global $dVSCodiumBackdrop, $dVSCodeBackdrop
-Global $hHookFuncDark, $hWinHookDark
+Global $hLiveGUI, $pPlayer, $pDesktopWinXamlSrc, $pWindowsXamlManager
+Global $bLiveEnabled, $bLoopEnabled
 ;Global $hActiveWnd
 Global Static $hLEDWndLast
-Global $bIsDarkFrame
 Global $bEnable = False
 Global $bBoot = True
 Global $bIsAnyBlurEnabled = False
@@ -99,17 +112,17 @@ If StringInStr($CmdLineRaw, "bordereffects") Then
 	Exit
 EndIf
 
-If StringInStr($CmdLineRaw, "darkframe") Then
-	_DarkFrameProcess()
-	Exit
-EndIf
-
 Global $aExcludeClassNames[17] = ["Progman", "Xaml_WindowedPopupClass", "Windows.UI.Core.CoreComponentInputSource", _
 	"Windows.UI.Core.CoreWindow", "Windows.UI.Composition.DesktopWindowContentBridge", "Chrome_RenderWidgetHostHWND", _
 	"ControlCenterWindow", "TopLevelWindowForOverflowXamlIsland", "SysDragImage", "IME", "OleMainThreadWndClass", "MSCTFIME UI", _
 	"CicMarshalWndClass", "XCPTimerClass", "msctls_statusbar32", "Microsoft.UI.Content.PopupWindowSiteBridge", "XamlExplorerHostIslandWindow"]
 
 ReadIniFile()
+
+If StringInStr($CmdLineRaw, "live") Then
+	_ImmersiveLiveProcess()
+	Exit
+EndIf
 
 If StringInStr($CmdLineRaw, "removeall") Then
 	SetBorderColor_removeall()
@@ -172,6 +185,15 @@ If $iBorderColorOptions = "2" Then
 		ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "bordereffects", @ScriptDir, $SHEX_OPEN)
 	ElseIf Not @Compiled Then
 		ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "bordereffects")
+	EndIf
+EndIf
+
+; start Immersive UX Live if configured
+If $bLiveEnabled Then
+	If @Compiled Then
+		ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+	ElseIf Not @Compiled Then
+		ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
 	EndIf
 EndIf
 
@@ -934,6 +956,10 @@ EndFunc   ;==>_GetHwndFromPID
 Func ReadIniFile()
 	Global $aCustomRules[0][16]
 
+	; Immersive Live
+	$bLiveEnabled = _ToBoolean(IniRead($IniFile, "ImmersiveLive", "Enabled", ""))
+	$bLoopEnabled = _ToBoolean(IniRead($IniFile, "ImmersiveLive", "LoopEnabled", ""))
+
 	; Global rules
 	$bGlobalDarkTitleBar = _ToBoolean(IniRead($IniFile, "GlobalRules", "GlobalDarkTitleBar", "True"))
 	$dGlobalBorderColor = IniRead($IniFile, "GlobalRules", "GlobalBorderColor", "")
@@ -962,7 +988,7 @@ Func ReadIniFile()
     For $i = 1 To $aSectionNames[0]
         ;If StringInStr($aSectionNames[$i], "CustomRules", $STR_NOCASESENSEBASIC) Then
 		Local $a = $aSectionNames[$i]
-        If $a <> "Configuration" And $a <> "ProcessExclusion" And $a <> "ClassExclusion" And $a <> "Settings" And $a <> "GlobalRules" And $a <> "StartupInfoOnly" And $a <> "VSCodeInstallPath" Then
+        If $a <> "Configuration" And $a <> "ProcessExclusion" And $a <> "ClassExclusion" And $a <> "Settings" And $a <> "GlobalRules" And $a <> "StartupInfoOnly" And $a <> "VSCodeInstallPath" And $a <> "ImmersiveLive" Then
 			Local $aArray = IniReadSection($IniFile, $aSectionNames[$i])
 			;ConsoleWrite("number of lines: " & $aArray[0][0] & @CRLF)
 			#cs
@@ -1356,67 +1382,135 @@ Func _WinAPI_ShouldAppsUseDarkMode()
 	Return $aResult[0]
 EndFunc   ;==>_WinAPI_ShouldAppsUseDarkMode
 
-Func _DarkFrameProcess_new()
-	Local $hDarkWnd
-	Local Static $hDarkWndLast
-	$bGlobalDarkTitleBar = _ToBoolean(IniRead($IniFile, "GlobalRules", "GlobalDarkTitleBar", "True"))
-	$bIsDarkFrame = _WinAPI_ShouldAppsUseDarkMode()
+Func _ImmersiveLiveProcess()
+	Local $hLiveWnd = _GetHwndFromPID(@AutoItPID)
+    _WinAPI_SetWindowText_mod($hLiveWnd, "Immersive UX Live")
 
-	Local $hWnd = _GetHwndFromPID(@AutoItPID)
-	_WinAPI_SetWindowText_mod($hWnd, "Immersive UX Dark")
+    Local $hWndCur, $hWndCur_Old = -1, $tPoint, $iTime
+    Local Static $iTimeLast
+	Local Static $sLastMediaAction = ""
+    OnAutoItExitRegister('DoCleanUpLive')
 
-	ProcessSetPriority(@AutoItPID, 4)
+    Local $sLiveWallpaperFile = IniRead($IniFile, "ImmersiveLive", "LiveWallpaperFile", "")
 
-	While 1
-		Sleep(10)
-		$hDarkWnd = _WinAPI_GetForegroundWindow_mod()
-		If $hDarkWnd <> $hDarkWndLast Then
-			;_WinAPI_DwmSetWindowAttribute__($hDarkWndLast, 34, $DWMWA_COLOR_NONE)
-			If $bIsDarkFrame And $bGlobalDarkTitleBar Then
-				DllCall($hDwmapi, 'long', 'DwmSetWindowAttribute', 'hwnd', $hDarkWnd, 'dword', 20, 'dword*', 1, 'dword', 4)
-			EndIf
-			$hDarkWndLast = $hDarkWnd
-		ElseIf $hDarkWnd = $hDarkWndLast Then
-			;If _WinAPI_IsWindowVisible_mod($hDarkWnd) Then _BorderEffects($hDarkWnd)
-		EndIf
-	WEnd
-EndFunc
+    Local $sDrive = "", $sDir = "", $sFileName = "", $sExtension = ""
+    Local $aPathSplit = _PathSplit($sLiveWallpaperFile, $sDrive, $sDir, $sFileName, $sExtension)
 
-Func _DarkFrameProcess()
-	$bGlobalDarkTitleBar = _ToBoolean(IniRead($IniFile, "GlobalRules", "GlobalDarkTitleBar", "True"))
-	$bIsDarkFrame = _WinAPI_ShouldAppsUseDarkMode()
-	OnAutoItExitRegister(DoCleanUpDark)
+    If $aPathSplit[1] = "" And $aPathSplit[2] = "" Then
+        $sLiveWallpaperFile = @ScriptDir & "\" & $sLiveWallpaperFile
+    EndIf
 
-	Local $hWnd = _GetHwndFromPID(@AutoItPID)
-	_WinAPI_SetWindowText_mod($hWnd, "Immersive UX Dark")
+    Local $iLength = _FileGetProperty($sLiveWallpaperFile, "Length")
 
-	ProcessSetPriority(@AutoItPID, 4)
+    Local $aKeys[1] = [$VK_LBUTTON]
 
-	Local $hHookFuncDark = DllCallbackRegister('_WinEventProcDark', 'none', 'ptr;uint;hwnd;int;int;uint;uint')
-	Local $hWinHookDark = _WinAPI_SetWinEventHook_mod($EVENT_OBJECT_CREATE, $EVENT_OBJECT_CREATE, DllCallbackGetPtr($hHookFuncDark))
+    _WinRT_Startup()
 
-	While 1
-		Sleep(10000)
-		$bIsDarkFrame = _WinAPI_ShouldAppsUseDarkMode()
-	WEnd
-EndFunc
+    Local $aPrimary = GetPrimaryMonitorCoords()
+    If @error Then Exit MsgBox(16, "Error", "Unable to get primary monitor")
+    Local $hProgman = WinGetHandle("[CLASS:Progman]"), $hWorkerW, $i
+    If Not $hProgman Then Exit MsgBox(16, "ERROR", "Couldn't find Progman", 30)
+    _WinAPI_SendMessageTimeout($hProgman, 0x052C, 13, 1, 250, $SMTO_NORMAL)
 
-Func DoCleanUpDark()
-    If $hWinHookDark Then _WinAPI_UnhookWinEvent_mod($hWinHookDark)
-    If $hHookFuncDark Then DllCallbackFree($hHookFuncDark)
-EndFunc   ;==>DoCleanUpDark
+    Local $hWorkerW = _WinAPI_FindWindowEx($hProgman, 0, "WorkerW", "")
+    If $hWorkerW = 0 Then Exit MsgBox(16, "ERROR", "Couldn't find WorkerW under Progman", 30)
 
-Func _WinEventProcDark($hHook, $iEvent, $hWnd, $iObjectID, $iChildID, $iEventThread, $imsEventTime)
-    Switch $iEvent
-		Case $EVENT_OBJECT_CREATE
-			;If $bIsDarkFrame And $bGlobalDarkTitleBar Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
-			If $bIsDarkFrame And $bGlobalDarkTitleBar Then
-				DllCall($hDwmapi, 'long', 'DwmSetWindowAttribute', 'hwnd', $hWnd, 'dword', 20, 'dword*', 1, 'dword', 4)
-			EndIf
-			;If $bIsDarkFrame And $bGlobalDarkTitleBar Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
-			;_WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
-    EndSwitch
-EndFunc
+    Local $aOrigin = GetDesktopOrigin()
+    Local $iX = $aPrimary[0] - $aOrigin[0]
+    Local $iY = $aPrimary[1] - $aOrigin[1]
+
+    ;Startup XAML Host
+    Local $pXamlMgr_Fact = _WinRT_GetActivationFactory("Windows.UI.Xaml.Hosting.WindowsXamlManager", $sIID_IWindowsXamlManagerStatics)
+    $pWindowsXamlManager = IWindowsXamlManagerStatics_InitializeForCurrentThread($pXamlMgr_Fact)
+
+    ;Create Container
+    Local $pDesktopWinXamlSrc_Fact = _WinRT_GetActivationFactory("Windows.UI.Xaml.Hosting.DesktopWindowXamlSource", $sIID_IDesktopWindowXamlSourceFactory)
+    Local $pInnerInterface
+    $pDesktopWinXamlSrc = IDesktopWindowXamlSourceFactory_CreateInstance($pDesktopWinXamlSrc_Fact, 0, $pInnerInterface)
+
+    ;Create XAML control
+    Local $pMediaPlayerElement_Fact = _WinRT_GetActivationFactory("Windows.UI.Xaml.Controls.MediaPlayerElement", $sIID_IMediaPlayerElementFactory)
+    Local $pMediaPlayerElement = IMediaPlayerElementFactory_CreateInstance($pMediaPlayerElement_Fact, 0, $pInnerInterface)
+    IDesktopWindowXamlSource_SetContent($pDesktopWinXamlSrc, $pMediaPlayerElement) ;Attach control to the container.
+    ;IMediaPlayerElement_SetAreTransportControlsEnabled($pMediaPlayerElement, 1)
+
+    $hLiveGUI = GUICreate("Immersive UX Desktop", $aPrimary[4], $aPrimary[5], $iX, $iY, $WS_POPUP, $WS_EX_TOOLWINDOW)
+
+    _WinAPI_SetParent($hLiveGUI, $hWorkerW)
+    _WinAPI_SetWindowPos($hLiveGUI, $HWND_BOTTOM, 0, 0, 0, 0, BitOR($SWP_NOMOVE, $SWP_NOSIZE, $SWP_NOACTIVATE))
+    _WinAPI_SetWindowLong($hLiveGUI, $GWL_EXSTYLE, BitOR(_WinAPI_GetWindowLong($hLiveGUI, $GWL_EXSTYLE), $WS_EX_LAYERED, $WS_EX_TRANSPARENT))
+    _WinAPI_SetLayeredWindowAttributes($hLiveGUI, 0, 255, $LWA_ALPHA)
+
+    ;Attach the container to our GUI.
+    Local $pDesktopWinXamlSrcNative = IUnknown_QueryInterface($pDesktopWinXamlSrc, $sIID_IDesktopWindowXamlSourceNative)
+    IDesktopWindowXamlSourceNative_AttachToWindow($pDesktopWinXamlSrcNative, $hLiveGUI)
+
+    ;Position and show the island - (by default, the width and hight are 0)
+    Local $hIsland = IDesktopWindowXamlSourceNative_GetWindowHandle($pDesktopWinXamlSrcNative)
+    IUnknown_Release($pDesktopWinXamlSrcNative)
+    _WinAPI_SetWindowPos($hIsland, $HWND_TOP, $iX, $iY, $aPrimary[4], $aPrimary[5], $SWP_SHOWWINDOW)
+
+    ;Prepare our test video.
+    Local $pFileFact = _WinRT_GetActivationFactory("Windows.Storage.StorageFile", $sIID_IStorageFileStatics)
+    Local $pAsync = IStorageFileStatics_GetFileFromPathAsync($pFileFact, $sLiveWallpaperFile)
+    Local $pFile = _WinRT_WaitForAsync($pAsync, "ptr*")
+    Local $pMediaSrcFact = _WinRT_GetActivationFactory("Windows.Media.Core.MediaSource", $sIID_IMediaSourceStatics)
+    Local $pMediaSrc = IMediaSourceStatics_CreateFromStorageFile($pMediaSrcFact, $pFile)
+
+    ;Setup the player obj, load the test file
+    $pPlayer = _WinRT_ActivateInstance("Windows.Media.Playback.MediaPlayer")
+    Local $pPlayer_Src = IUnknown_QueryInterface($pPlayer, $sIID_IMediaPlayerSource)
+    IMediaPlayerSource_SetMediaSource($pPlayer_Src, $pMediaSrc)
+    IUnknown_Release($pPlayer_Src)
+
+    ;Attach the player obj to the XAML control.
+    IMediaPlayerElement_SetMediaPlayer($pMediaPlayerElement, $pPlayer)
+
+    ;Initiate AutoPlay
+    IMediaPlayer_SetAutoPlay($pPlayer, True)
+
+    ;Allow video to repeat/loop
+	If $bLoopEnabled Then IMediaPlayer_SetIsLoopingEnabled($pPlayer, True)
+
+    GUISetState(@SW_SHOWNOACTIVATE, $hLiveGUI)
+
+    While 1
+        Local $iRet = _IsPressed($aKeys, $hUser32, False)
+
+        Switch $iRet
+        	Case 1 ; MouseClick Left
+                $tPoint = _WinAPI_GetMousePos()
+                $hWndCur = _WinAPI_GetAncestor_mod(_WinAPI_WindowFromPoint_mod($tPoint), $GA_ROOT)
+                If $hWndCur <> $hWndCur_Old Then
+				$sParent = _WinAPI_GetClassName_mod($hWndCur)
+				If $sParent = "Progman" Then
+                        $iTime = Round((_WinAPI_GetTickCount64_mod() / 1000))
+                        $iTimeDiff = $iTime - $iTimeLast
+                        ; ensure that it doesn't get hit more than once per second
+                        If $iTime <> $iTimeLast Then
+							If $sLastMediaAction = "" Then
+								;IMediaPlayer_SetPosition($pPlayer, 0)
+								IMediaPlayer_Play($pPlayer)
+								$sLastMediaAction = "Play"
+							ElseIf $sLastMediaAction = "Play" Then
+								IMediaPlayer_Pause($pPlayer)
+								$sLastMediaAction = "Pause"
+							ElseIf $sLastMediaAction = "Pause" Then
+								IMediaPlayer_Play($pPlayer)
+								$sLastMediaAction = "Play"
+							EndIf
+                        EndIf
+                        $iTimeLast = $iTime
+                    EndIf
+                ;$hWndCur_Old = $hWndCur
+                EndIf
+
+        EndSwitch
+
+        Sleep(100)
+    WEnd
+
+EndFunc   ;==>_ImmersiveLiveProcess
 
 Func _BorderEffectsProcess()
 	Local $hWnd = _GetHwndFromPID(@AutoItPID)
@@ -1475,6 +1569,179 @@ Func _BorderEffects($hWnd)
 
     DllCall($hDwmapi, 'long', 'DwmSetWindowAttribute', 'hwnd', $hWnd, 'dword', 34, 'dword*', $iRGB, 'dword', 4)
 EndFunc   ;==>_BorderEffects
+
+Func DoCleanUpLive()
+    IClosable_Close(IUnknown_QueryInterface($pPlayer, $sIID_IClosable))
+    IClosable_Close(IUnknown_QueryInterface($pDesktopWinXamlSrc, $sIID_IClosable))
+    IClosable_Close(IUnknown_QueryInterface($pWindowsXamlManager, $sIID_IClosable))
+    _WinRT_Shutdown()
+    GUIDelete($hLiveGUI)
+EndFunc   ;==>DoCleanUpLive
+
+Func _WinAPI_FindWindowEx($hParent, $hAfter, $sClass, $sTitle = "")
+    Local $ret = DllCall($hUser32, "hwnd", "FindWindowExW", "hwnd", $hParent, "hwnd", $hAfter, "wstr", $sClass, "wstr", $sTitle)
+    If @error Or Not IsArray($ret) Then Return 0
+    Return $ret[0]
+EndFunc   ;==>_WinAPI_FindWindowEx
+
+Func GetPrimaryMonitorCoords()
+    Local $tPoint = DllStructCreate("int x;int y")
+    $tPoint.x = 0
+    $tPoint.y = 0
+
+    Local $hMonitor = _WinAPI_MonitorFromPoint($tPoint, $MONITOR_DEFAULTTOPRIMARY)
+    If Not $hMonitor Then Return SetError(1, 0, 0)
+
+    Local $tMI = DllStructCreate("dword cbSize;long rcMonitor[4];long rcWork[4];dword dwFlags")
+    DllStructSetData($tMI, "cbSize", DllStructGetSize($tMI))
+
+    Local $aCall = DllCall($hUser32, "bool", "GetMonitorInfoW", "handle", $hMonitor, "ptr", DllStructGetPtr($tMI))
+    If @error Or Not $aCall[0] Then Return SetError(2, 0, 0)
+
+    Local $iLeft = $tMI.rcMonitor(1)
+    Local $iTop = $tMI.rcMonitor(2)
+    Local $iRight = $tMI.rcMonitor(3)
+    Local $iBottom = $tMI.rcMonitor(4)
+
+    Local $iWidth = $iRight - $iLeft
+    Local $iHeight = $iBottom - $iTop
+    Local $a[6] = [$iLeft, $iTop, $iRight, $iBottom, $iWidth, $iHeight]
+    Return $a
+EndFunc   ;==>GetPrimaryMonitorCoords
+
+Func GetDesktopOrigin()
+    Local $minX = 0, $minY = 0, $x, $y
+    Local $i = 0, $tDevice, $aRet, $tDevMode, $aED
+
+    While True
+        $tDevice = DllStructCreate("dword cb; char DeviceName[32]; char DeviceString[128]; dword StateFlags; char DeviceID[128]; char DeviceKey[128]")
+        $tDevice.cb = DllStructGetSize($tDevice)
+        $aRet = DllCall($hUser32, "bool", "EnumDisplayDevicesA", "ptr", 0, "dword", $i, "ptr", DllStructGetPtr($tDevice), "dword", 0)
+        If @error Or Not $aRet[0] Then ExitLoop
+
+        If BitAND($tDevice.StateFlags, 1) Then
+            $tDevMode = DllStructCreate( _
+                    "byte dmDeviceName[32]; word dmSpecVersion; word dmDriverVersion; word dmSize; word dmDriverExtra; dword dmFields;" & _
+                    "long dmPositionX; long dmPositionY; dword dmDisplayOrientation; dword dmDisplayFixedOutput;" & _
+                    "short dmColor; short dmDuplex; short dmYResolution; short dmTTOption; short dmCollate; char dmFormName[32];" & _
+                    "ushort dmLogPixels; dword dmBitsPerPel; dword dmPelsWidth; dword dmPelsHeight;" & _
+                    "dword dmDisplayFlags; dword dmDisplayFrequency; dword dmICMMethod; dword dmICMIntent;" & _
+                    "dword dmMediaType; dword dmDitherType; dword dmReserved1; dword dmReserved2; dword dmPanningWidth; dword dmPanningHeight")
+
+            $tDevMode.dmSize = DllStructGetSize($tDevMode)
+            $aED = DllCall($hUser32, "bool", "EnumDisplaySettingsA", "str", $tDevice.DeviceName, "dword", -1, "ptr", DllStructGetPtr($tDevMode))
+            If Not @error And $aED[0] Then
+                $x = $tDevMode.dmPositionX
+                $y = $tDevMode.dmPositionY
+                If $x < $minX Then $minX = $x
+                If $y < $minY Then $minY = $y
+            EndIf
+        EndIf
+        $i += 1
+    WEnd
+    Local $a[2] = [$minX, $minY]
+    Return $a
+EndFunc   ;==>GetDesktopOrigin
+
+;===============================================================================
+; Function Name.....: _FileGetProperty
+; Description.......: Returns a property or all properties for a file.
+; Version...........: 1.0.2
+; Change Date.......: 05-16-2012
+; AutoIt Version....: 3.2.12.1+
+; Parameter(s)......: $FGP_Path - String containing the file path to return the property from.
+;                     $FGP_PROPERTY - [optional] String containing the name of the property to return. (default = "")
+;                     $iPropertyCount - [optional] The number of properties to search through for $FGP_PROPERTY, or the number of items
+;                                       returned in the array if $FGP_PROPERTY is blank. (default = 300)
+; Requirements(s)...: None
+; Return Value(s)...: Success: Returns a string containing the property value.
+;                     If $FGP_PROPERTY is blank, a two-dimensional array is returned:
+;                         $av_array[0][0] = Number of properties.
+;                         $av_array[1][0] = 1st property name.
+;                         $as_array[1][1] = 1st property value.
+;                         $av_array[n][0] = nth property name.
+;                         $as_array[n][1] = nth property value.
+;                     Failure: Returns an empty string and sets @error to:
+;                       1 = The folder $FGP_Path does not exist.
+;                       2 = The property $FGP_PROPERTY does not exist or the array could not be created.
+;                       3 = Unable to create the "Shell.Application" object $objShell.
+; Author(s).........: - Simucal <Simucal@gmail.com>
+;                     - Modified by: Sean Hart <autoit@hartmail.ca>
+;                     - Modified by: teh_hahn <sPiTsHiT@gmx.de>
+;                     - Modified by: BrewManNH
+; URL...............: http://www.autoitscript.com/forum/topic/34732-udf-getfileproperty/page__view__findpost__p__557571
+; Note(s)...........: Modified the script that teh_hahn posted at the above link to include the properties that
+;                     Vista and Win 7 include that Windows XP doesn't. Also removed the ReDims for the $av_ret array and
+;                     replaced it with a single ReDim after it has found all the properties, this should speed things up.
+;                     I further updated the code so there's a single point of return except for any errors encountered.
+;                     $iPropertyCount is now a function parameter instead of being hardcoded in the function itself.
+;===============================================================================
+Func _FileGetProperty($FGP_Path, $FGP_PROPERTY = "", $iPropertyCount = 500)
+    If $FGP_PROPERTY = Default Then $FGP_PROPERTY = ""
+    $FGP_Path = StringRegExpReplace($FGP_Path, '["'']', "") ; strip the quotes, if any from the incoming string
+    If Not FileExists($FGP_Path) Then Return SetError(1, 0, "") ; path not found
+    Local Const $objShell = ObjCreate("Shell.Application")
+    If @error Then Return SetError(3, 0, "")
+    Local Const $FGP_File = StringTrimLeft($FGP_Path, StringInStr($FGP_Path, "\", 0, -1))
+    Local Const $FGP_Dir = StringTrimRight($FGP_Path, StringLen($FGP_File) + 1)
+    Local Const $objFolder = $objShell.NameSpace($FGP_Dir)
+    Local Const $objFolderItem = $objFolder.Parsename($FGP_File)
+    Local $Return = "", $iError = 0
+    If $FGP_PROPERTY Then
+        For $I = 0 To $iPropertyCount
+            If $objFolder.GetDetailsOf($objFolder.Items, $I) = $FGP_PROPERTY Then
+                $Return = $objFolder.GetDetailsOf($objFolderItem, $I)
+            EndIf
+        Next
+        If $Return = "" Then
+            $iError = 2
+        EndIf
+    Else
+        Local $av_ret[$iPropertyCount + 1][2] = [[0]]
+        For $I = 1 To $iPropertyCount
+            If $objFolder.GetDetailsOf($objFolder.Items, $I) Then
+                $av_ret[$I][0] = $objFolder.GetDetailsOf($objFolder.Items, $I - 1)
+                $av_ret[$I][1] = $objFolder.GetDetailsOf($objFolderItem, $I - 1)
+;~              $av_ret[0][0] += 1
+                $av_ret[0][0] = $I
+            EndIf
+        Next
+        ReDim $av_ret[$av_ret[0][0] + 1][2]
+        If Not $av_ret[1][0] Then
+            $iError = 2
+            $av_ret = $Return
+        Else
+            $Return = $av_ret
+        EndIf
+    EndIf
+    Return SetError($iError, 0, $Return)
+EndFunc   ;==>_FileGetProperty
+
+; UEZ
+Func Convert2Sec($sTime) ;format HH:MM:SS, no error / validity check for input!
+    Return 3600 * StringLeft($sTime, 2) + 60 * StringMid($sTime, 4, 2) + StringRight($sTime, 2)
+EndFunc
+
+Func _WinAPI_GetTickCount64_mod()
+	Local $aCall = DllCall($hKernel32, 'uint64', 'GetTickCount64')
+	If @error Then Return SetError(@error, @extended, 0)
+
+	Return $aCall[0]
+EndFunc   ;==>_WinAPI_GetTickCount64_mod
+
+Func _WinAPI_WindowFromPoint_mod(ByRef $tPOINT)
+	Local $aCall = DllCall($hUser32, "hwnd", "WindowFromPoint", "struct", $tPOINT)
+	If @error Then Return SetError(@error, @extended, 0)
+
+	Return $aCall[0]
+EndFunc   ;==>_WinAPI_WindowFromPoint_mod
+
+Func _WinAPI_GetAncestor_mod($hWnd, $iFlags = $GA_PARENT)
+	Local $aCall = DllCall($hUser32, "hwnd", "GetAncestor", "hwnd", $hWnd, "uint", $iFlags)
+	If @error Then Return SetError(@error, @extended, 0)
+
+	Return $aCall[0]
+EndFunc   ;==>_WinAPI_GetAncestor_mod
 
 #cs
 Func WinListtest()
