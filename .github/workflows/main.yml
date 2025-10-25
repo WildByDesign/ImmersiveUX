@@ -47,7 +47,7 @@ jobs:
             ImmersiveUX*.exe
           if-no-files-found: error
       - name: Zip package
-        run: 7z a -mx=0 ImmersiveUX.zip ImmersiveEngine*.exe ImmersiveUX*.exe ImmersiveUX.ini ImmersiveUX_ReadMe.md
+        run: 7z a ImmersiveUX.zip ImmersiveEngine*.exe ImmersiveUX*.exe ImmersiveUX.ini bloom.mp4 ImmersiveUX_ReadMe.md
       - name: Rename archive with tag
         shell: pwsh
         run: |
