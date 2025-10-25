@@ -28,7 +28,7 @@ jobs:
           curl -sSfL https://www.autoitscript.com/cgi-bin/getfile.pl?autoit3/autoit-v3-setup.exe -o autoit-v3-setup.exe `
             -sSfL https://www.autoitscript.com/autoit3/scite/download/beta_SciTE4AutoIt3/SciTE4AutoIt3_vsc.exe -o SciTE4AutoIt3_vsc.exe `
             -sSfLO https://github.com/WildByDesign/ImmersiveUX/raw/refs/heads/main/tools/Tools.zip
-          Expand-Archive Au3Stripper.zip "${env:ProgramFiles(x86)}\AutoIt3\SciTE" -Force
+          Expand-Archive Tools.zip "${env:ProgramFiles(x86)}\AutoIt3\SciTE" -Force
       - name: Install tools
         run: |
           Start-Process autoit-v3-setup.exe -ArgumentList /S -NoNewWindow -Wait
