@@ -45,11 +45,11 @@ jobs:
             ImmersiveUX*.exe
           if-no-files-found: error
       - name: Zip package
-        run: 7z a ImmersiveUX.7z ImmersiveEngine*.exe ImmersiveUX*.exe ImmersiveUX.ini bloom.mp4 ImmersiveUX_ReadMe.md -pImmersive
+        run: 7z a ImmersiveUX.zip ImmersiveEngine*.exe ImmersiveUX*.exe ImmersiveUX.ini bloom.mp4 ImmersiveUX_ReadMe.md
       - name: Rename archive with tag
         shell: pwsh
         run: |
-          Copy-Item ImmersiveUX.7z -Destination ImmersiveUX-x64-${{ inputs.version }}.7z
+          Copy-Item ImmersiveUX.zip -Destination ImmersiveUX-x64-${{ inputs.version }}.zip
       - name: Create release
         uses: softprops/action-gh-release@v2
         if: ${{ inputs.release }}
@@ -58,4 +58,4 @@ jobs:
           name: ImmersiveUX ${{ inputs.version }}
           tag_name: ${{ inputs.version }}
           files: |
-            ImmersiveUX-x64-${{ inputs.version }}.7z
+            ImmersiveUX-x64-${{ inputs.version }}.zip
