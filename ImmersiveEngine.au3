@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.7.1
+#AutoIt3Wrapper_Res_Fileversion=1.8.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.7.1
+#AutoIt3Wrapper_Res_ProductVersion=1.8.0
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=Y
@@ -16,9 +16,9 @@
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
 #include <AutoItExitCodes.au3>
-#include <WinAPIProc.au3>
-#include <WinAPIMisc.au3>
-#include <WinAPISys.au3>
+;#include <WinAPIProc.au3>
+;#include <WinAPIMisc.au3>
+;#include <WinAPISys.au3>
 ;#include <WinAPIGdi.au3>
 #include <Array.au3>
 #include <Misc.au3>
@@ -27,14 +27,7 @@
 #include <WindowsConstants.au3>
 #include <WinAPIvkeysConstants.au3>
 
-#include "Include\WinRT.au3"
-#include "Include\Classes\Windows.UI.Xaml.Hosting.WindowsXamlManager.au3"
-#include "Include\Classes\Windows.UI.Xaml.Hosting.DesktopWindowXamlSource.au3"
-#include "Include\Interfaces\IDesktopWindowXamlSourceNative.au3"
-#include "Include\Classes\Windows.UI.Xaml.Controls.MediaPlayerElement.au3"
-#include "Include\Classes\Windows.Storage.StorageFile.au3"
-#include "Include\Classes\Windows.Media.Core.MediaSource.au3"
-#include "Include\Classes\Windows.Media.Playback.MediaPlayer.au3"
+#include "include\MediaPlayerUDF.au3"
 
 ; HotKey only used temporarily when needing to look for window classes to include/exclude
 ;#include <Process.au3>
@@ -60,7 +53,7 @@ Global $bGlobalDarkTitleBar, $dGlobalBorderColor, $dGlobalTitleBarColor, $dGloba
 Global $iGlobalBlurTintColor, $dGlobalBlurTintColor, $iGlobalBlurOpacity
 Global $dTerminalBorderColor, $dTerminalBackdrop, $bWindowsTerminalHandling, $dVSStudioBorderColor, $bWindowsTerminalBlur
 Global $dVSCodiumBackdrop, $dVSCodeBackdrop
-Global $hLiveGUI, $pPlayer, $pDesktopWinXamlSrc, $pWindowsXamlManager
+Global $hLiveGUI, $hPlayer
 Global $bLiveEnabled, $bLoopEnabled
 ;Global $hActiveWnd
 Global Static $hLEDWndLast
@@ -1238,6 +1231,26 @@ Func _WinAPI_GetClassName_mod($hWnd)
 	Return SetExtended($aCall[0], $aCall[2])
 EndFunc   ;==>_WinAPI_GetClassName_mod
 
+Func _WinAPI_GetMousePos_mod($bToClient = False, $hWnd = 0)
+	Local $iMode = Opt("MouseCoordMode", 1)
+	Local $aPos = MouseGetPos()
+	Opt("MouseCoordMode", $iMode)
+
+	Local $tPOINT = DllStructCreate($tagPOINT)
+	DllStructSetData($tPOINT, "X", $aPos[0])
+	DllStructSetData($tPOINT, "Y", $aPos[1])
+	If $bToClient And Not _WinAPI_ScreenToClient_mod($hWnd, $tPOINT) Then Return SetError(@error + 20, @extended, 0)
+
+	Return $tPOINT
+EndFunc   ;==>_WinAPI_GetMousePos_mod
+
+Func _WinAPI_ScreenToClient_mod($hWnd, ByRef $tPoint)
+	Local $aCall = DllCall($hUser32, "bool", "ScreenToClient", "hwnd", $hWnd, "struct*", $tPoint)
+	If @error Then Return SetError(@error, @extended, False)
+
+	Return $aCall[0]
+EndFunc   ;==>_WinAPI_ScreenToClient_mod
+
 Func _WinAPI_DwmEnableBlurBehindWindow_mod($hWnd, $bEnable = True, $bTransition = False, $hRgn = 0)
 	Local $tBLURBEHIND = DllStructCreate('dword;bool;handle;bool')
 	Local $iFlags = 0
@@ -1383,15 +1396,20 @@ Func _WinAPI_ShouldAppsUseDarkMode()
 EndFunc   ;==>_WinAPI_ShouldAppsUseDarkMode
 
 Func _ImmersiveLiveProcess()
+	Local $tPoint, $iTimePress, $sParent, $hWndCur, $iTimeRelease
+	Local Static $bSingleLast, $bDouble
+	Local Static $iTimeLast
+
 	Local $hLiveWnd = _GetHwndFromPID(@AutoItPID)
     _WinAPI_SetWindowText_mod($hLiveWnd, "Immersive UX Live")
+	ProcessSetPriority(@AutoItPID, 4)
 
-    Local $hWndCur, $hWndCur_Old = -1, $tPoint, $iTime
-    Local Static $iTimeLast
-	Local Static $sLastMediaAction = ""
-    OnAutoItExitRegister('DoCleanUpLive')
+	_MediaPlayer_Init()
 
     Local $sLiveWallpaperFile = IniRead($IniFile, "ImmersiveLive", "LiveWallpaperFile", "")
+	Local $iMediaControlsClick = Int(IniRead($IniFile, "ImmersiveLive", "MediaControlsClick", "2"))
+	Local $iOpacityLevel = Int(IniRead($IniFile, "ImmersiveLive", "OpacityLevel", "100"))
+	$iOpacityLevel = Int(Map($iOpacityLevel, 0, 100, 0, 255))
 
     Local $sDrive = "", $sDir = "", $sFileName = "", $sExtension = ""
     Local $aPathSplit = _PathSplit($sLiveWallpaperFile, $sDrive, $sDir, $sFileName, $sExtension)
@@ -1400,115 +1418,112 @@ Func _ImmersiveLiveProcess()
         $sLiveWallpaperFile = @ScriptDir & "\" & $sLiveWallpaperFile
     EndIf
 
-    Local $iLength = _FileGetProperty($sLiveWallpaperFile, "Length")
-
-    Local $aKeys[1] = [$VK_LBUTTON]
-
-    _WinRT_Startup()
-
     Local $aPrimary = GetPrimaryMonitorCoords()
     If @error Then Exit MsgBox(16, "Error", "Unable to get primary monitor")
-    Local $hProgman = WinGetHandle("[CLASS:Progman]"), $hWorkerW, $i
+    Local $hProgman = WinGetHandle("[CLASS:Progman]")
     If Not $hProgman Then Exit MsgBox(16, "ERROR", "Couldn't find Progman", 30)
     _WinAPI_SendMessageTimeout($hProgman, 0x052C, 13, 1, 250, $SMTO_NORMAL)
 
     Local $hWorkerW = _WinAPI_FindWindowEx($hProgman, 0, "WorkerW", "")
+
+	If Not $hWorkerW Then
+		Local $aEnumWindows = _WinAPI_EnumWindows(False)
+		For $n = 1 To UBound($aEnumWindows) - 1
+			If $aEnumWindows[$n][1] <> "WorkerW" Then ContinueLoop
+			If _WinAPI_GetParent($aEnumWindows[$n][0]) = $hProgman Then
+				$hWorkerW = $aEnumWindows[$n][0]
+				ExitLoop
+			EndIf
+		Next
+	EndIf
+
     If $hWorkerW = 0 Then Exit MsgBox(16, "ERROR", "Couldn't find WorkerW under Progman", 30)
 
     Local $aOrigin = GetDesktopOrigin()
     Local $iX = $aPrimary[0] - $aOrigin[0]
     Local $iY = $aPrimary[1] - $aOrigin[1]
 
-    ;Startup XAML Host
-    Local $pXamlMgr_Fact = _WinRT_GetActivationFactory("Windows.UI.Xaml.Hosting.WindowsXamlManager", $sIID_IWindowsXamlManagerStatics)
-    $pWindowsXamlManager = IWindowsXamlManagerStatics_InitializeForCurrentThread($pXamlMgr_Fact)
-
-    ;Create Container
-    Local $pDesktopWinXamlSrc_Fact = _WinRT_GetActivationFactory("Windows.UI.Xaml.Hosting.DesktopWindowXamlSource", $sIID_IDesktopWindowXamlSourceFactory)
-    Local $pInnerInterface
-    $pDesktopWinXamlSrc = IDesktopWindowXamlSourceFactory_CreateInstance($pDesktopWinXamlSrc_Fact, 0, $pInnerInterface)
-
-    ;Create XAML control
-    Local $pMediaPlayerElement_Fact = _WinRT_GetActivationFactory("Windows.UI.Xaml.Controls.MediaPlayerElement", $sIID_IMediaPlayerElementFactory)
-    Local $pMediaPlayerElement = IMediaPlayerElementFactory_CreateInstance($pMediaPlayerElement_Fact, 0, $pInnerInterface)
-    IDesktopWindowXamlSource_SetContent($pDesktopWinXamlSrc, $pMediaPlayerElement) ;Attach control to the container.
-    ;IMediaPlayerElement_SetAreTransportControlsEnabled($pMediaPlayerElement, 1)
-
     $hLiveGUI = GUICreate("Immersive UX Desktop", $aPrimary[4], $aPrimary[5], $iX, $iY, $WS_POPUP, $WS_EX_TOOLWINDOW)
 
     _WinAPI_SetParent($hLiveGUI, $hWorkerW)
     _WinAPI_SetWindowPos($hLiveGUI, $HWND_BOTTOM, 0, 0, 0, 0, BitOR($SWP_NOMOVE, $SWP_NOSIZE, $SWP_NOACTIVATE))
     _WinAPI_SetWindowLong($hLiveGUI, $GWL_EXSTYLE, BitOR(_WinAPI_GetWindowLong($hLiveGUI, $GWL_EXSTYLE), $WS_EX_LAYERED, $WS_EX_TRANSPARENT))
-    _WinAPI_SetLayeredWindowAttributes($hLiveGUI, 0, 255, $LWA_ALPHA)
+    _WinAPI_SetLayeredWindowAttributes($hLiveGUI, 0, $iOpacityLevel, $LWA_ALPHA)
 
-    ;Attach the container to our GUI.
-    Local $pDesktopWinXamlSrcNative = IUnknown_QueryInterface($pDesktopWinXamlSrc, $sIID_IDesktopWindowXamlSourceNative)
-    IDesktopWindowXamlSourceNative_AttachToWindow($pDesktopWinXamlSrcNative, $hLiveGUI)
+	$hPlayer = _MediaPlayer_Create($hLiveGUI, 0, 0, @DesktopWidth, @DesktopHeight)
 
-    ;Position and show the island - (by default, the width and hight are 0)
-    Local $hIsland = IDesktopWindowXamlSourceNative_GetWindowHandle($pDesktopWinXamlSrcNative)
-    IUnknown_Release($pDesktopWinXamlSrcNative)
-    _WinAPI_SetWindowPos($hIsland, $HWND_TOP, $iX, $iY, $aPrimary[4], $aPrimary[5], $SWP_SHOWWINDOW)
+	_MediaPlayer_LoadFromStorage($hPlayer, $sLiveWallpaperFile)
+	_MediaPlayer_EnableTransport($hPlayer, False)
 
-    ;Prepare our test video.
-    Local $pFileFact = _WinRT_GetActivationFactory("Windows.Storage.StorageFile", $sIID_IStorageFileStatics)
-    Local $pAsync = IStorageFileStatics_GetFileFromPathAsync($pFileFact, $sLiveWallpaperFile)
-    Local $pFile = _WinRT_WaitForAsync($pAsync, "ptr*")
-    Local $pMediaSrcFact = _WinRT_GetActivationFactory("Windows.Media.Core.MediaSource", $sIID_IMediaSourceStatics)
-    Local $pMediaSrc = IMediaSourceStatics_CreateFromStorageFile($pMediaSrcFact, $pFile)
+	If $bLoopEnabled Then _MediaPlayer_SetIsLooping($hPlayer, True)
+	_MediaPlayer_Play($hPlayer)
 
-    ;Setup the player obj, load the test file
-    $pPlayer = _WinRT_ActivateInstance("Windows.Media.Playback.MediaPlayer")
-    Local $pPlayer_Src = IUnknown_QueryInterface($pPlayer, $sIID_IMediaPlayerSource)
-    IMediaPlayerSource_SetMediaSource($pPlayer_Src, $pMediaSrc)
-    IUnknown_Release($pPlayer_Src)
-
-    ;Attach the player obj to the XAML control.
-    IMediaPlayerElement_SetMediaPlayer($pMediaPlayerElement, $pPlayer)
-
-    ;Initiate AutoPlay
-    IMediaPlayer_SetAutoPlay($pPlayer, True)
-
-    ;Allow video to repeat/loop
-	If $bLoopEnabled Then IMediaPlayer_SetIsLoopingEnabled($pPlayer, True)
-
+	;Sleep(200)
     GUISetState(@SW_SHOWNOACTIVATE, $hLiveGUI)
 
-    While 1
-        Local $iRet = _IsPressed($aKeys, $hUser32, False)
-
-        Switch $iRet
-        	Case 1 ; MouseClick Left
-                $tPoint = _WinAPI_GetMousePos()
-                $hWndCur = _WinAPI_GetAncestor_mod(_WinAPI_WindowFromPoint_mod($tPoint), $GA_ROOT)
-                If $hWndCur <> $hWndCur_Old Then
+	While 1
+		If $iMediaControlsClick Then
+			If _IsPressed($VK_LBUTTON, $hUser32, False) Then
+				$tPoint = _WinAPI_GetMousePos_mod()
+				$hWndCur = _WinAPI_GetAncestor_mod(_WinAPI_WindowFromPoint_mod($tPoint), $GA_ROOT)
 				$sParent = _WinAPI_GetClassName_mod($hWndCur)
 				If $sParent = "Progman" Then
-                        $iTime = Round((_WinAPI_GetTickCount64_mod() / 1000))
-                        $iTimeDiff = $iTime - $iTimeLast
-                        ; ensure that it doesn't get hit more than once per second
-                        If $iTime <> $iTimeLast Then
-							If $sLastMediaAction = "" Then
-								;IMediaPlayer_SetPosition($pPlayer, 0)
-								IMediaPlayer_Play($pPlayer)
-								$sLastMediaAction = "Play"
-							ElseIf $sLastMediaAction = "Play" Then
-								IMediaPlayer_Pause($pPlayer)
-								$sLastMediaAction = "Pause"
-							ElseIf $sLastMediaAction = "Pause" Then
-								IMediaPlayer_Play($pPlayer)
-								$sLastMediaAction = "Play"
+					$iTimePress = Round((_WinAPI_GetTickCount64_mod() / 1000), 2)
+					$iTimeDiff = $iTimePress - $iTimeLast
+					;ConsoleWrite("Time: " & $iTimePress & "  Diff: " & $iTimeDiff & @CRLF)
+
+					; wait until key is released
+					While _IsPressed($VK_LBUTTON, $hUser32, False)
+						Sleep(5)
+					WEnd
+					; left click has been released
+					$iTimeRelease = Round((_WinAPI_GetTickCount64_mod() / 1000), 2)
+					$iDiffSingle = $iTimeRelease - $iTimePress
+					;ConsoleWrite("Single-click time: " & $iDiffSingle & @CRLF)
+					If $iDiffSingle < 0.4 Then ; single-click detected
+						If $bSingleLast And $iTimeDiff < 0.4 Then $bDouble = True
+						$bSingleLast = True
+						If $bSingleLast And $bDouble Then ; double-click detected
+							; double-click action here
+							If $iMediaControlsClick = 2 Then
+								Switch _MediaPlayer_GetCurrentState($hPlayer, True)
+									Case "Playing"
+										_MediaPlayer_Pause($hPlayer)
+									Case "Paused"
+										_MediaPlayer_Play($hPlayer)
+									Case "Stopped"
+										_MediaPlayer_Play($hPlayer)
+								EndSwitch
 							EndIf
-                        EndIf
-                        $iTimeLast = $iTime
-                    EndIf
-                ;$hWndCur_Old = $hWndCur
-                EndIf
-
-        EndSwitch
-
-        Sleep(100)
-    WEnd
+							; reset values
+							$bSingleLast = False
+							$bDouble = False
+						Else
+							If Not $bDouble Then ; single-click detected
+								; single-click action here
+								If $iMediaControlsClick = 1 Then
+									Switch _MediaPlayer_GetCurrentState($hPlayer, True)
+										Case "Playing"
+											_MediaPlayer_Pause($hPlayer)
+										Case "Paused"
+											_MediaPlayer_Play($hPlayer)
+										Case "Stopped"
+											_MediaPlayer_Play($hPlayer)
+									EndSwitch
+								EndIf
+							EndIf
+						EndIf
+					ElseIf $iDiffSingle > 0.4 Then
+						; possible drag/selection detected
+						$bSingleLast = False
+						$bDouble = False
+					EndIf
+					$iTimeLast = $iTimePress
+				EndIf
+			EndIf
+		EndIf
+		Sleep(100)
+	WEnd
 
 EndFunc   ;==>_ImmersiveLiveProcess
 
@@ -1569,14 +1584,6 @@ Func _BorderEffects($hWnd)
 
     DllCall($hDwmapi, 'long', 'DwmSetWindowAttribute', 'hwnd', $hWnd, 'dword', 34, 'dword*', $iRGB, 'dword', 4)
 EndFunc   ;==>_BorderEffects
-
-Func DoCleanUpLive()
-    IClosable_Close(IUnknown_QueryInterface($pPlayer, $sIID_IClosable))
-    IClosable_Close(IUnknown_QueryInterface($pDesktopWinXamlSrc, $sIID_IClosable))
-    IClosable_Close(IUnknown_QueryInterface($pWindowsXamlManager, $sIID_IClosable))
-    _WinRT_Shutdown()
-    GUIDelete($hLiveGUI)
-EndFunc   ;==>DoCleanUpLive
 
 Func _WinAPI_FindWindowEx($hParent, $hAfter, $sClass, $sTitle = "")
     Local $ret = DllCall($hUser32, "hwnd", "FindWindowExW", "hwnd", $hParent, "hwnd", $hAfter, "wstr", $sClass, "wstr", $sTitle)
@@ -1643,79 +1650,10 @@ Func GetDesktopOrigin()
     Return $a
 EndFunc   ;==>GetDesktopOrigin
 
-;===============================================================================
-; Function Name.....: _FileGetProperty
-; Description.......: Returns a property or all properties for a file.
-; Version...........: 1.0.2
-; Change Date.......: 05-16-2012
-; AutoIt Version....: 3.2.12.1+
-; Parameter(s)......: $FGP_Path - String containing the file path to return the property from.
-;                     $FGP_PROPERTY - [optional] String containing the name of the property to return. (default = "")
-;                     $iPropertyCount - [optional] The number of properties to search through for $FGP_PROPERTY, or the number of items
-;                                       returned in the array if $FGP_PROPERTY is blank. (default = 300)
-; Requirements(s)...: None
-; Return Value(s)...: Success: Returns a string containing the property value.
-;                     If $FGP_PROPERTY is blank, a two-dimensional array is returned:
-;                         $av_array[0][0] = Number of properties.
-;                         $av_array[1][0] = 1st property name.
-;                         $as_array[1][1] = 1st property value.
-;                         $av_array[n][0] = nth property name.
-;                         $as_array[n][1] = nth property value.
-;                     Failure: Returns an empty string and sets @error to:
-;                       1 = The folder $FGP_Path does not exist.
-;                       2 = The property $FGP_PROPERTY does not exist or the array could not be created.
-;                       3 = Unable to create the "Shell.Application" object $objShell.
-; Author(s).........: - Simucal <Simucal@gmail.com>
-;                     - Modified by: Sean Hart <autoit@hartmail.ca>
-;                     - Modified by: teh_hahn <sPiTsHiT@gmx.de>
-;                     - Modified by: BrewManNH
-; URL...............: http://www.autoitscript.com/forum/topic/34732-udf-getfileproperty/page__view__findpost__p__557571
-; Note(s)...........: Modified the script that teh_hahn posted at the above link to include the properties that
-;                     Vista and Win 7 include that Windows XP doesn't. Also removed the ReDims for the $av_ret array and
-;                     replaced it with a single ReDim after it has found all the properties, this should speed things up.
-;                     I further updated the code so there's a single point of return except for any errors encountered.
-;                     $iPropertyCount is now a function parameter instead of being hardcoded in the function itself.
-;===============================================================================
-Func _FileGetProperty($FGP_Path, $FGP_PROPERTY = "", $iPropertyCount = 500)
-    If $FGP_PROPERTY = Default Then $FGP_PROPERTY = ""
-    $FGP_Path = StringRegExpReplace($FGP_Path, '["'']', "") ; strip the quotes, if any from the incoming string
-    If Not FileExists($FGP_Path) Then Return SetError(1, 0, "") ; path not found
-    Local Const $objShell = ObjCreate("Shell.Application")
-    If @error Then Return SetError(3, 0, "")
-    Local Const $FGP_File = StringTrimLeft($FGP_Path, StringInStr($FGP_Path, "\", 0, -1))
-    Local Const $FGP_Dir = StringTrimRight($FGP_Path, StringLen($FGP_File) + 1)
-    Local Const $objFolder = $objShell.NameSpace($FGP_Dir)
-    Local Const $objFolderItem = $objFolder.Parsename($FGP_File)
-    Local $Return = "", $iError = 0
-    If $FGP_PROPERTY Then
-        For $I = 0 To $iPropertyCount
-            If $objFolder.GetDetailsOf($objFolder.Items, $I) = $FGP_PROPERTY Then
-                $Return = $objFolder.GetDetailsOf($objFolderItem, $I)
-            EndIf
-        Next
-        If $Return = "" Then
-            $iError = 2
-        EndIf
-    Else
-        Local $av_ret[$iPropertyCount + 1][2] = [[0]]
-        For $I = 1 To $iPropertyCount
-            If $objFolder.GetDetailsOf($objFolder.Items, $I) Then
-                $av_ret[$I][0] = $objFolder.GetDetailsOf($objFolder.Items, $I - 1)
-                $av_ret[$I][1] = $objFolder.GetDetailsOf($objFolderItem, $I - 1)
-;~              $av_ret[0][0] += 1
-                $av_ret[0][0] = $I
-            EndIf
-        Next
-        ReDim $av_ret[$av_ret[0][0] + 1][2]
-        If Not $av_ret[1][0] Then
-            $iError = 2
-            $av_ret = $Return
-        Else
-            $Return = $av_ret
-        EndIf
-    EndIf
-    Return SetError($iError, 0, $Return)
-EndFunc   ;==>_FileGetProperty
+;Coded by UEZ build 2025-10-29
+Func Map($val, $source_start, $source_stop, $dest_start, $dest_stop)
+    Return (($val - $source_start) * ($dest_stop - $dest_start) / ($source_stop - $source_start) + $dest_start)
+EndFunc
 
 ; UEZ
 Func Convert2Sec($sTime) ;format HH:MM:SS, no error / validity check for input!

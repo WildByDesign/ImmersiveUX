@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX GUI
-#AutoIt3Wrapper_Res_Fileversion=1.7.1
+#AutoIt3Wrapper_Res_Fileversion=1.8.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX GUI
-#AutoIt3Wrapper_Res_ProductVersion=1.7.1
+#AutoIt3Wrapper_Res_ProductVersion=1.8.0
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -16,7 +16,7 @@
 #AutoIt3Wrapper_res_Compatibility=Win10
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
-Global $iVersion = '1.7.1'
+Global $iVersion = '1.8.0'
 
 #include <MsgBoxConstants.au3>
 #include <WinAPIFiles.au3>
@@ -70,7 +70,7 @@ Opt("TrayMenuMode", 3)
 Opt("TrayAutoPause", 0)
 Opt("TrayOnEventMode", 1)
 
-Global $hGUI, $FontHeight, $iHitTestHeight
+Global $hGUI, $FontHeight, $iHitTestHeight, $idLiveMenu
 Global $GUI_BackColor, $GUI_FontColor, $GUI_InputBackColor, $GUI_StatusBackColor, $GUI_StatusLineColor
 Global $GUI_MenubarBackColor, $GUI_MenubarLineColor, $GUI_AdvancedLineColor
 Global $dGlobalBlurTintColorInactive, $iGlobalColorIntensityInactive
@@ -89,11 +89,14 @@ Global $TaskIntegrity, $TaskInstalled, $TaskRunning
 Global $aProcessRunning, $IsRunFromTS, $bProcessRunning
 Global $idBorderOpt0, $idBorderOpt1, $idBorderOpt2, $idBorderOpt3
 Global $idTaskOpt0, $idTaskOpt1, $idTaskOpt2, $idTaskOpt3
+Global $idClickOpt0, $idClickOpt1, $idClickOpt2
+Global $idOpacityOpt0, $idOpacityOpt1, $idOpacityOpt2, $idOpacityOpt3, $idOpacityOpt4, $idOpacityOpt5, $idOpacityOpt6
+Global $idOpacityOpt7, $idOpacityOpt8, $idOpacityOpt9, $idOpacityOpt10
 Global $sWatchBorderColorInput, $sWatchTitlebarColorInput, $sWatchBlurColorIntensitySliderInact, $sWatchBlurColorIntensitySlider
 Global $sWatchTitlebarTextColorInput, $sWatchBlurTintColorInputInact, $sWatchBlurTintColorInput, $sWatchTargetInput, $sWatchidInputRuleType
 Global $sWatchidInputDarkTitle, $sWatchidInputTitleBarBackdrop, $sWatchidInputCornerPreference, $sWatchidInputExtendFrame
 Global $sWatchidInputBlurBehind, $sWatchidInputRuleEnabled
-Global $idLiveOpt0, $idLiveOpt1
+Global $idLiveOpt0, $idLiveOpt1, $idLiveOpt2
 Global $bWatchSaveChanges = False, $bPendingChanges = False
 Global $sTargetLast = ""
 Global $bHideGUI = False
@@ -257,10 +260,46 @@ Func _StartGUI()
     If $iBorderColorOptions = "" Then GUICtrlSetState($idBorderOpt3, $GUI_CHECKED)
 
     Local $idLiveMenu = GUICtrlCreateMenu("&Live Wallpaper", $idSettingsMenu)
-    $idLiveOpt0 = GUICtrlCreateMenuItem("Enabled", $idLiveMenu, 0, 0)
+    $idLiveOpt0 = GUICtrlCreateMenuItem("Change", $idLiveMenu, 0, 0)
     GUICtrlSetOnEvent(-1, "_LiveOpt0")
-    $idLiveOpt1 = GUICtrlCreateMenuItem("Loop", $idLiveMenu, 1, 0)
+    GUICtrlCreateMenuItem("", $idLiveMenu, 1)
+    $idLiveOpt1 = GUICtrlCreateMenuItem("Enabled", $idLiveMenu, 2, 0)
     GUICtrlSetOnEvent(-1, "_LiveOpt1")
+    $idLiveOpt2 = GUICtrlCreateMenuItem("Loop", $idLiveMenu, 3, 0)
+    GUICtrlSetOnEvent(-1, "_LiveOpt2")
+
+    Local $idOpacityMenu = GUICtrlCreateMenu("&Opacity", $idLiveMenu)
+
+    $idOpacityOpt0 = GUICtrlCreateMenuItem("0%", $idOpacityMenu, 0, 1)
+    GUICtrlSetOnEvent(-1, "_OpacityOpt0")
+    $idOpacityOpt1 = GUICtrlCreateMenuItem("10%", $idOpacityMenu, 1, 1)
+    GUICtrlSetOnEvent(-1, "_OpacityOpt1")
+    $idOpacityOpt2 = GUICtrlCreateMenuItem("20%", $idOpacityMenu, 2, 1)
+    GUICtrlSetOnEvent(-1, "_OpacityOpt2")
+    $idOpacityOpt3 = GUICtrlCreateMenuItem("30%", $idOpacityMenu, 3, 1)
+    GUICtrlSetOnEvent(-1, "_OpacityOpt3")
+    $idOpacityOpt4 = GUICtrlCreateMenuItem("40%", $idOpacityMenu, 4, 1)
+    GUICtrlSetOnEvent(-1, "_OpacityOpt4")
+    $idOpacityOpt5 = GUICtrlCreateMenuItem("50%", $idOpacityMenu, 5, 1)
+    GUICtrlSetOnEvent(-1, "_OpacityOpt5")
+    $idOpacityOpt6 = GUICtrlCreateMenuItem("60%", $idOpacityMenu, 6, 1)
+    GUICtrlSetOnEvent(-1, "_OpacityOpt6")
+    $idOpacityOpt7 = GUICtrlCreateMenuItem("70%", $idOpacityMenu, 7, 1)
+    GUICtrlSetOnEvent(-1, "_OpacityOpt7")
+    $idOpacityOpt8 = GUICtrlCreateMenuItem("80%", $idOpacityMenu, 8, 1)
+    GUICtrlSetOnEvent(-1, "_OpacityOpt8")
+    $idOpacityOpt9 = GUICtrlCreateMenuItem("90%", $idOpacityMenu, 9, 1)
+    GUICtrlSetOnEvent(-1, "_OpacityOpt9")
+    $idOpacityOpt10 = GUICtrlCreateMenuItem("100%", $idOpacityMenu, 10, 1)
+    GUICtrlSetOnEvent(-1, "_OpacityOpt10")
+
+    Local $idClickControlMenu = GUICtrlCreateMenu("&Click Control", $idLiveMenu)
+    $idClickOpt0 = GUICtrlCreateMenuItem("Single-click", $idClickControlMenu, 0, 1)
+    GUICtrlSetOnEvent(-1, "_ClickOpt0")
+    $idClickOpt1 = GUICtrlCreateMenuItem("Double-click", $idClickControlMenu, 1, 1)
+    GUICtrlSetOnEvent(-1, "_ClickOpt1")
+    $idClickOpt2 = GUICtrlCreateMenuItem("Disabled", $idClickControlMenu, 2, 1)
+    GUICtrlSetOnEvent(-1, "_ClickOpt2")
 
     _UpdateLiveMenu()
 
@@ -1031,7 +1070,7 @@ Func _StartGUI()
     _WinAPI_DwmSetWindowAttribute__($hGUI, 38, 4)
     _WinAPI_DwmExtendFrameIntoClientArea($hGUI, _WinAPI_CreateMargins(-1, -1, -1, -1))
 
-    GUICtrlSendMsg( $DarkTitleCombo, $WM_CHANGEUISTATE, 65537, 0 )
+    GUICtrlSendMsg($DarkTitleCombo, $WM_CHANGEUISTATE, 65537, 0)
 
     GUIRegisterMsg($WM_COMMAND, "ED_WM_COMMAND")
     GUIRegisterMsg($WM_NOTIFY, "WM_NOTIFY")
@@ -2127,10 +2166,14 @@ Func _GetIniDetails()
     Local $bLiveEnabled = IniRead($IniFile, "ImmersiveLive", "Enabled", "missing")
 	Local $sLiveWallpaperFile = IniRead($IniFile, "ImmersiveLive", "LiveWallpaperFile", "missing")
     Local $bLoopEnabled = IniRead($IniFile, "ImmersiveLive", "LoopEnabled", "missing")
+    Local $iMediaControlsClick = IniRead($IniFile, "ImmersiveLive", "MediaControlsClick", "missing")
+	Local $iOpacityLevel = IniRead($IniFile, "ImmersiveLive", "OpacityLevel", "missing")
 
     If $bLiveEnabled = "missing" Then IniWrite($IniFile, "ImmersiveLive", "Enabled", "False")
     If $sLiveWallpaperFile = "missing" Then IniWrite($IniFile, "ImmersiveLive", "LiveWallpaperFile", "bloom.mp4")
     If $bLoopEnabled = "missing" Then IniWrite($IniFile, "ImmersiveLive", "LoopEnabled", "False")
+    If $iMediaControlsClick = "missing" Then IniWrite($IniFile, "ImmersiveLive", "MediaControlsClick", "2")
+    If $iOpacityLevel = "missing" Then IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "100")
 
     ; Custom GUI Colors
     $GUI_BackColor = IniRead($IniFile, "Settings", "GUI_BackColor", "missing")
@@ -3457,6 +3500,30 @@ Func WM_ACTIVATE_Handler($hWnd, $MsgID, $wParam, $lParam)
 EndFunc
 
 Func _LiveOpt0()
+    ; change live wallpaper media file
+    Local Const $sMessage = "Select a live wallpaper video file."
+
+    Local $sFileOpenDialog = FileOpenDialog($sMessage, @ScriptDir & "\", "Videos (*.mp4;*.avi;*.mpg;*.mkv)", BitOR($FD_FILEMUSTEXIST, $FD_PATHMUSTEXIST))
+    If @error Then
+        FileChangeDir(@ScriptDir)
+    Else
+        FileChangeDir(@ScriptDir)
+        $sFileOpenDialog = StringReplace($sFileOpenDialog, "|", @CRLF)
+        ConsoleWrite("You chose the following files:" & @CRLF & $sFileOpenDialog & @CRLF)
+        ; write new value to config file and restart live wallpaper process
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        IniWrite($IniFile, "ImmersiveLive", "LiveWallpaperFile", $sFileOpenDialog)
+        If @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+        ElseIf Not @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+        EndIf
+        ; update menu items
+        _UpdateLiveMenu()
+    EndIf
+EndFunc
+
+Func _LiveOpt1()
     ; live wallpaper enabled
     If IniRead($IniFile, "ImmersiveLive", "Enabled", "") = "True" Then
         If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
@@ -3474,7 +3541,7 @@ Func _LiveOpt0()
     _UpdateLiveMenu()
 EndFunc
 
-Func _LiveOpt1()
+Func _LiveOpt2()
     ; live wallpaper loop
     If IniRead($IniFile, "ImmersiveLive", "LoopEnabled", "") = "True" Then
         If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
@@ -3497,6 +3564,57 @@ Func _LiveOpt1()
     EndIf
 
     _UpdateLiveMenu()
+EndFunc
+
+Func _ClickOpt0()
+    Local $iMediaControlsClick = Int(IniRead($IniFile, "ImmersiveLive", "MediaControlsClick", ""))
+    If $iMediaControlsClick = "1" Then
+        Return
+    ElseIf $iMediaControlsClick <> "1" Then
+        ; set value
+        IniWrite($IniFile, "ImmersiveLive", "MediaControlsClick", "1")
+        GUICtrlSetState($idClickOpt0, $GUI_CHECKED)
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        If @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+        ElseIf Not @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+        EndIf
+    EndIf
+EndFunc
+
+Func _ClickOpt1()
+    Local $iMediaControlsClick = Int(IniRead($IniFile, "ImmersiveLive", "MediaControlsClick", ""))
+    If $iMediaControlsClick = "2" Then
+        Return
+    ElseIf $iMediaControlsClick <> "2" Then
+        ; set value
+        IniWrite($IniFile, "ImmersiveLive", "MediaControlsClick", "2")
+        GUICtrlSetState($idClickOpt1, $GUI_CHECKED)
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        If @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+        ElseIf Not @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+        EndIf
+    EndIf
+EndFunc
+
+Func _ClickOpt2()
+    Local $iMediaControlsClick = Int(IniRead($IniFile, "ImmersiveLive", "MediaControlsClick", ""))
+    If $iMediaControlsClick = "0" Then
+        Return
+    ElseIf $iMediaControlsClick <> "0" Then
+        ; set value
+        IniWrite($IniFile, "ImmersiveLive", "MediaControlsClick", "0")
+        GUICtrlSetState($idClickOpt2, $GUI_CHECKED)
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        If @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+        ElseIf Not @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+        EndIf
+    EndIf
 EndFunc
 
 Func _BorderOpt0()
@@ -3671,19 +3789,204 @@ EndFunc
     $idTaskOpt3 = GUICtrlCreateMenuItem("Restart Task", $idTaskMenu)
 #ce
 
+Func _OpacityOpt0()
+    Local $sOpacityLevel = IniRead($IniFile, "ImmersiveLive", "OpacityLevel", "")
+    If $sOpacityLevel <> "0" Then
+        IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "0")
+        GUICtrlSetState($idOpacityOpt0, $GUI_CHECKED)
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        If @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+        ElseIf Not @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+        EndIf
+    EndIf
+EndFunc
+
+Func _OpacityOpt1()
+    Local $sOpacityLevel = IniRead($IniFile, "ImmersiveLive", "OpacityLevel", "")
+    If $sOpacityLevel <> "10" Then
+        IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "10")
+        GUICtrlSetState($idOpacityOpt1, $GUI_CHECKED)
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        If @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+        ElseIf Not @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+        EndIf
+    EndIf
+EndFunc
+
+Func _OpacityOpt2()
+    Local $sOpacityLevel = IniRead($IniFile, "ImmersiveLive", "OpacityLevel", "")
+    If $sOpacityLevel <> "20" Then
+        IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "20")
+        GUICtrlSetState($idOpacityOpt2, $GUI_CHECKED)
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        If @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+        ElseIf Not @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+        EndIf
+    EndIf
+EndFunc
+
+Func _OpacityOpt3()
+    Local $sOpacityLevel = IniRead($IniFile, "ImmersiveLive", "OpacityLevel", "")
+    If $sOpacityLevel <> "30" Then
+        IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "30")
+        GUICtrlSetState($idOpacityOpt3, $GUI_CHECKED)
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        If @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+        ElseIf Not @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+        EndIf
+    EndIf
+EndFunc
+
+Func _OpacityOpt4()
+    Local $sOpacityLevel = IniRead($IniFile, "ImmersiveLive", "OpacityLevel", "")
+    If $sOpacityLevel <> "40" Then
+        IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "40")
+        GUICtrlSetState($idOpacityOpt4, $GUI_CHECKED)
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        If @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+        ElseIf Not @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+        EndIf
+    EndIf
+EndFunc
+
+Func _OpacityOpt5()
+    Local $sOpacityLevel = IniRead($IniFile, "ImmersiveLive", "OpacityLevel", "")
+    If $sOpacityLevel <> "50" Then
+        IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "50")
+        GUICtrlSetState($idOpacityOpt5, $GUI_CHECKED)
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        If @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+        ElseIf Not @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+        EndIf
+    EndIf
+EndFunc
+
+Func _OpacityOpt6()
+    Local $sOpacityLevel = IniRead($IniFile, "ImmersiveLive", "OpacityLevel", "")
+    If $sOpacityLevel <> "60" Then
+        IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "60")
+        GUICtrlSetState($idOpacityOpt6, $GUI_CHECKED)
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        If @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+        ElseIf Not @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+        EndIf
+    EndIf
+EndFunc
+
+Func _OpacityOpt7()
+    Local $sOpacityLevel = IniRead($IniFile, "ImmersiveLive", "OpacityLevel", "")
+    If $sOpacityLevel <> "70" Then
+        IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "70")
+        GUICtrlSetState($idOpacityOpt7, $GUI_CHECKED)
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        If @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+        ElseIf Not @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+        EndIf
+    EndIf
+EndFunc
+
+Func _OpacityOpt8()
+    Local $sOpacityLevel = IniRead($IniFile, "ImmersiveLive", "OpacityLevel", "")
+    If $sOpacityLevel <> "80" Then
+        IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "80")
+        GUICtrlSetState($idOpacityOpt8, $GUI_CHECKED)
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        If @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+        ElseIf Not @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+        EndIf
+    EndIf
+EndFunc
+
+Func _OpacityOpt9()
+    Local $sOpacityLevel = IniRead($IniFile, "ImmersiveLive", "OpacityLevel", "")
+    If $sOpacityLevel <> "90" Then
+        IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "90")
+        GUICtrlSetState($idOpacityOpt9, $GUI_CHECKED)
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        If @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+        ElseIf Not @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+        EndIf
+    EndIf
+EndFunc
+
+Func _OpacityOpt10()
+    Local $sOpacityLevel = IniRead($IniFile, "ImmersiveLive", "OpacityLevel", "")
+    If $sOpacityLevel <> "100" Then
+        IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "100")
+        GUICtrlSetState($idOpacityOpt10, $GUI_CHECKED)
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        If @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+        ElseIf Not @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+        EndIf
+    EndIf
+EndFunc
+
 Func _UpdateLiveMenu()
     Local $sLiveEnabled = IniRead($IniFile, "ImmersiveLive", "Enabled", "")
     If $sLiveEnabled = "True" Then
-        GUICtrlSetState($idLiveOpt0, $GUI_CHECKED)
+        GUICtrlSetState($idLiveOpt1, $GUI_CHECKED)
     ElseIf $sLiveEnabled = "False" Then
-        GUICtrlSetState($idLiveOpt0, $GUI_UNCHECKED)
+        GUICtrlSetState($idLiveOpt1, $GUI_UNCHECKED)
     EndIf
 
     If IniRead($IniFile, "ImmersiveLive", "LoopEnabled", "") = "True" Then
-        GUICtrlSetState($idLiveOpt1, $GUI_CHECKED)
+        GUICtrlSetState($idLiveOpt2, $GUI_CHECKED)
     Else
-        GUICtrlSetState($idLiveOpt1, $GUI_UNCHECKED)
+        GUICtrlSetState($idLiveOpt2, $GUI_UNCHECKED)
     EndIf
+
+    ; Get/Set Open item text
+    Local $hMain = _GUICtrlMenu_GetMenu($hGUI)
+    Local $hFile = _GUICtrlMenu_GetItemSubMenu($hMain, 1)
+    Local $hFile2 = _GUICtrlMenu_GetItemSubMenu($hFile, 1)
+
+    Local $sMediaFile = IniRead($IniFile, "ImmersiveLive", "LiveWallpaperFile", "")
+    Local $sDrive = "", $sDir = "", $sFileName = "", $sExtension = ""
+    Local $aPathSplit = _PathSplit($sMediaFile, $sDrive, $sDir, $sFileName, $sExtension)
+    $sMediaFile = $aPathSplit[3] & $aPathSplit[4]
+    _GUICtrlMenu_SetItemText($hFile2, 0, "Change (" & $sMediaFile & ")")
+
+    ; update opacity menu
+    Local $sOpacityLevel = IniRead($IniFile, "ImmersiveLive", "OpacityLevel", "")
+    If $sOpacityLevel = "0" Then GUICtrlSetState($idOpacityOpt0, $GUI_CHECKED)
+    If $sOpacityLevel = "10" Then GUICtrlSetState($idOpacityOpt1, $GUI_CHECKED)
+    If $sOpacityLevel = "20" Then GUICtrlSetState($idOpacityOpt2, $GUI_CHECKED)
+    If $sOpacityLevel = "30" Then GUICtrlSetState($idOpacityOpt3, $GUI_CHECKED)
+    If $sOpacityLevel = "40" Then GUICtrlSetState($idOpacityOpt4, $GUI_CHECKED)
+    If $sOpacityLevel = "50" Then GUICtrlSetState($idOpacityOpt5, $GUI_CHECKED)
+    If $sOpacityLevel = "60" Then GUICtrlSetState($idOpacityOpt6, $GUI_CHECKED)
+    If $sOpacityLevel = "70" Then GUICtrlSetState($idOpacityOpt7, $GUI_CHECKED)
+    If $sOpacityLevel = "80" Then GUICtrlSetState($idOpacityOpt8, $GUI_CHECKED)
+    If $sOpacityLevel = "90" Then GUICtrlSetState($idOpacityOpt9, $GUI_CHECKED)
+    If $sOpacityLevel = "100" Then GUICtrlSetState($idOpacityOpt10, $GUI_CHECKED)
+    
+    ; update play/pause control clicks
+    Local $iMediaControlsClick = Int(IniRead($IniFile, "ImmersiveLive", "MediaControlsClick", ""))
+    If $iMediaControlsClick = "1" Then GUICtrlSetState($idClickOpt0, $GUI_CHECKED)
+    If $iMediaControlsClick = "2" Then GUICtrlSetState($idClickOpt1, $GUI_CHECKED)
+    If $iMediaControlsClick = "0" Then GUICtrlSetState($idClickOpt2, $GUI_CHECKED)
 EndFunc
 
 Func _UpdateTaskMenu()
