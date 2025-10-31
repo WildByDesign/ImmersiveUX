@@ -16,10 +16,10 @@
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
 #include <AutoItExitCodes.au3>
-#include <WinAPIProc.au3>
-#include <WinAPIMisc.au3>
-#include <WinAPISys.au3>
-#include <WinAPIGdi.au3>
+;#include <WinAPIProc.au3>
+;#include <WinAPIMisc.au3>
+;#include <WinAPISys.au3>
+;#include <WinAPIGdi.au3>
 #include <Array.au3>
 #include <Misc.au3>
 #include <File.au3>
