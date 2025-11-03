@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX GUI
-#AutoIt3Wrapper_Res_Fileversion=1.8.0
+#AutoIt3Wrapper_Res_Fileversion=1.8.1
 #AutoIt3Wrapper_Res_ProductName=Immersive UX GUI
-#AutoIt3Wrapper_Res_ProductVersion=1.8.0
+#AutoIt3Wrapper_Res_ProductVersion=1.8.1
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -16,7 +16,7 @@
 #AutoIt3Wrapper_res_Compatibility=Win10
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
-Global $iVersion = '1.8.0'
+Global $iVersion = '1.8.1'
 
 #include <MsgBoxConstants.au3>
 #include <WinAPIFiles.au3>
@@ -96,7 +96,7 @@ Global $sWatchBorderColorInput, $sWatchTitlebarColorInput, $sWatchBlurColorInten
 Global $sWatchTitlebarTextColorInput, $sWatchBlurTintColorInputInact, $sWatchBlurTintColorInput, $sWatchTargetInput, $sWatchidInputRuleType
 Global $sWatchidInputDarkTitle, $sWatchidInputTitleBarBackdrop, $sWatchidInputCornerPreference, $sWatchidInputExtendFrame
 Global $sWatchidInputBlurBehind, $sWatchidInputRuleEnabled
-Global $idLiveOpt0, $idLiveOpt1, $idLiveOpt2
+Global $idLiveOpt0, $idLiveOpt1, $idLiveOpt2, $idTriggerOpt0
 Global $bWatchSaveChanges = False, $bPendingChanges = False
 Global $sTargetLast = ""
 Global $bHideGUI = False
@@ -293,7 +293,13 @@ Func _StartGUI()
     $idOpacityOpt10 = GUICtrlCreateMenuItem("100%", $idOpacityMenu, 10, 1)
     GUICtrlSetOnEvent(-1, "_OpacityOpt10")
 
+    Local $idTriggersMenu = GUICtrlCreateMenu("&Triggers", $idLiveMenu)
+
+    $idTriggerOpt0 = GUICtrlCreateMenuItem("Start button", $idTriggersMenu, 0, 0)
+    GUICtrlSetOnEvent(-1, "_TriggerOpt0")
+
     Local $idClickControlMenu = GUICtrlCreateMenu("&Click Control", $idLiveMenu)
+
     $idClickOpt0 = GUICtrlCreateMenuItem("Single-click", $idClickControlMenu, 0, 1)
     GUICtrlSetOnEvent(-1, "_ClickOpt0")
     $idClickOpt1 = GUICtrlCreateMenuItem("Double-click", $idClickControlMenu, 1, 1)
@@ -2166,12 +2172,14 @@ Func _GetIniDetails()
     Local $bLiveEnabled = IniRead($IniFile, "ImmersiveLive", "Enabled", "missing")
 	Local $sLiveWallpaperFile = IniRead($IniFile, "ImmersiveLive", "LiveWallpaperFile", "missing")
     Local $bLoopEnabled = IniRead($IniFile, "ImmersiveLive", "LoopEnabled", "missing")
+    Local $bTriggerStartButton = IniRead($IniFile, "ImmersiveLive", "TriggerStartButton", "missing")
     Local $iMediaControlsClick = IniRead($IniFile, "ImmersiveLive", "MediaControlsClick", "missing")
 	Local $iOpacityLevel = IniRead($IniFile, "ImmersiveLive", "OpacityLevel", "missing")
 
     If $bLiveEnabled = "missing" Then IniWrite($IniFile, "ImmersiveLive", "Enabled", "False")
     If $sLiveWallpaperFile = "missing" Then IniWrite($IniFile, "ImmersiveLive", "LiveWallpaperFile", "bloom.mp4")
     If $bLoopEnabled = "missing" Then IniWrite($IniFile, "ImmersiveLive", "LoopEnabled", "False")
+    If $bTriggerStartButton = "missing" Then IniWrite($IniFile, "ImmersiveLive", "TriggerStartButton", "True")
     If $iMediaControlsClick = "missing" Then IniWrite($IniFile, "ImmersiveLive", "MediaControlsClick", "2")
     If $iOpacityLevel = "missing" Then IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "100")
 
@@ -3499,6 +3507,24 @@ Func WM_ACTIVATE_Handler($hWnd, $MsgID, $wParam, $lParam)
     Return $GUI_RUNDEFMSG
 EndFunc
 
+Func _TriggerOpt0()
+    ; Start button trigger
+    If IniRead($IniFile, "ImmersiveLive", "TriggerStartButton", "") = "True" Then
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        IniWrite($IniFile, "ImmersiveLive", "TriggerStartButton", "False")
+    Else
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        IniWrite($IniFile, "ImmersiveLive", "TriggerStartButton", "True")
+        If @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+        ElseIf Not @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+        EndIf
+    EndIf
+
+    _UpdateLiveMenu()
+EndFunc
+
 Func _LiveOpt0()
     ; change live wallpaper media file
     Local Const $sMessage = "Select a live wallpaper video file."
@@ -3987,6 +4013,14 @@ Func _UpdateLiveMenu()
     If $iMediaControlsClick = "1" Then GUICtrlSetState($idClickOpt0, $GUI_CHECKED)
     If $iMediaControlsClick = "2" Then GUICtrlSetState($idClickOpt1, $GUI_CHECKED)
     If $iMediaControlsClick = "0" Then GUICtrlSetState($idClickOpt2, $GUI_CHECKED)
+
+    ; update Start button trigger
+    Local $bTriggerStartButton = IniRead($IniFile, "ImmersiveLive", "TriggerStartButton", "True")
+    If $bTriggerStartButton = "True" Then
+        GUICtrlSetState($idTriggerOpt0, $GUI_CHECKED)
+    Else
+        GUICtrlSetState($idTriggerOpt0, $GUI_UNCHECKED)
+    EndIf
 EndFunc
 
 Func _UpdateTaskMenu()

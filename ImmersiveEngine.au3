@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.8.0
+#AutoIt3Wrapper_Res_Fileversion=1.8.1
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.8.0
+#AutoIt3Wrapper_Res_ProductVersion=1.8.1
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=Y
@@ -55,6 +55,8 @@ Global $dTerminalBorderColor, $dTerminalBackdrop, $bWindowsTerminalHandling, $dV
 Global $dVSCodiumBackdrop, $dVSCodeBackdrop
 Global $hLiveGUI, $hPlayer
 Global $bLiveEnabled, $bLoopEnabled
+Global $iDuration, $iDurationMs
+Global $bMediaOpened = False
 ;Global $hActiveWnd
 Global Static $hLEDWndLast
 Global $bEnable = False
@@ -1399,6 +1401,8 @@ Func _ImmersiveLiveProcess()
 	Local $tPoint, $iTimePress, $sParent, $hWndCur, $iTimeRelease
 	Local Static $bSingleLast, $bDouble
 	Local Static $iTimeLast
+	Local $hWndCur2, $hWndChildCur, $sChild, $sActiveText
+	Local $iDurationTemp, $iDurationDiff
 
 	Local $hLiveWnd = _GetHwndFromPID(@AutoItPID)
     _WinAPI_SetWindowText_mod($hLiveWnd, "Immersive UX Live")
@@ -1408,6 +1412,7 @@ Func _ImmersiveLiveProcess()
 
     Local $sLiveWallpaperFile = IniRead($IniFile, "ImmersiveLive", "LiveWallpaperFile", "")
 	Local $iMediaControlsClick = Int(IniRead($IniFile, "ImmersiveLive", "MediaControlsClick", "2"))
+	Local $bTriggerStartButton = _ToBoolean(IniRead($IniFile, "ImmersiveLive", "TriggerStartButton", "True"))
 	Local $iOpacityLevel = Int(IniRead($IniFile, "ImmersiveLive", "OpacityLevel", "100"))
 	$iOpacityLevel = Int(Map($iOpacityLevel, 0, 100, 0, 255))
 
@@ -1452,49 +1457,87 @@ Func _ImmersiveLiveProcess()
 
 	$hPlayer = _MediaPlayer_Create($hLiveGUI, 0, 0, @DesktopWidth, @DesktopHeight)
 
+	_MediaPlayer_RegMediaOpenedProc($hPlayer, "MediaOpened")
 	_MediaPlayer_LoadFromStorage($hPlayer, $sLiveWallpaperFile)
 	_MediaPlayer_EnableTransport($hPlayer, False)
 
 	If $bLoopEnabled Then _MediaPlayer_SetIsLooping($hPlayer, True)
-	_MediaPlayer_Play($hPlayer)
+	_MediaPlayer_SetAutoPlay($hPlayer, True)
+	;_MediaPlayer_Play($hPlayer)
 
 	;Sleep(200)
     GUISetState(@SW_SHOWNOACTIVATE, $hLiveGUI)
 
 	While 1
+		If $bMediaOpened Then
+			$iDurationTemp = _MediaPlayer_GetPosition($hPlayer)/10000000
+			$iDurationDiff = $iDuration - $iDurationTemp
+			If $iDurationDiff < 0.3 Then
+				ConsoleWrite("diff: " & $iDurationDiff & @CRLF)
+				If Not $bLoopEnabled Then _MediaPlayer_Pause($hPlayer)
+				If $bLoopEnabled Then _MediaPlayer_SetPosition($hPlayer, 0)
+			EndIf
+		EndIf
 		If $iMediaControlsClick Then
-			If _IsPressed($VK_LBUTTON, $hUser32, False) Then
+			If _IsPressed($VK_LBUTTON, $hUser32) Then
 				$tPoint = _WinAPI_GetMousePos_mod()
 				$hWndCur = _WinAPI_GetAncestor_mod(_WinAPI_WindowFromPoint_mod($tPoint), $GA_ROOT)
+				$hWndCur2 = _WinAPI_WindowFromPoint_mod($tPoint)
+				$hWndChildCur = GetRealChild($hWndCur2)
+				$sChild = _WinAPI_GetClassName_mod($hWndChildCur)
+				$sChildText = _WinAPI_GetWindowText_mod($hWndChildCur)
 				$sParent = _WinAPI_GetClassName_mod($hWndCur)
+				If $sChild = "Windows.UI.Core.CoreWindow" And $sChildText = "DesktopWindowXamlSource" Then
+					If $bTriggerStartButton Then
+						; wait until key is released
+						While _IsPressed($VK_LBUTTON, $hUser32)
+							Sleep(5)
+						WEnd
+						Sleep(20)
+						$sActiveText = _WinAPI_GetWindowText_mod(_WinAPI_GetForegroundWindow_mod())
+						If $sActiveText = "Start" Or $sActiveText = "Search" Then
+							ConsoleWrite("Start button has been pushed." & @CRLF)
+							_MediaPlayer_SetPosition($hPlayer, 0)
+							_MediaPlayer_Play($hPlayer)
+						EndIf
+					EndIf
+				EndIf
 				If $sParent = "Progman" Then
 					$iTimePress = Round((_WinAPI_GetTickCount64_mod() / 1000), 2)
 					$iTimeDiff = $iTimePress - $iTimeLast
-					;ConsoleWrite("Time: " & $iTimePress & "  Diff: " & $iTimeDiff & @CRLF)
 
 					; wait until key is released
-					While _IsPressed($VK_LBUTTON, $hUser32, False)
+					While _IsPressed($VK_LBUTTON, $hUser32)
 						Sleep(5)
 					WEnd
 					; left click has been released
 					$iTimeRelease = Round((_WinAPI_GetTickCount64_mod() / 1000), 2)
 					$iDiffSingle = $iTimeRelease - $iTimePress
-					;ConsoleWrite("Single-click time: " & $iDiffSingle & @CRLF)
+
 					If $iDiffSingle < 0.4 Then ; single-click detected
 						If $bSingleLast And $iTimeDiff < 0.4 Then $bDouble = True
 						$bSingleLast = True
 						If $bSingleLast And $bDouble Then ; double-click detected
+
 							; double-click action here
 							If $iMediaControlsClick = 2 Then
 								Switch _MediaPlayer_GetCurrentState($hPlayer, True)
 									Case "Playing"
 										_MediaPlayer_Pause($hPlayer)
 									Case "Paused"
-										_MediaPlayer_Play($hPlayer)
+										$iDurationTemp = _MediaPlayer_GetPosition($hPlayer)/10000000
+										$iDurationDiff = $iDuration - $iDurationTemp
+										If $iDurationDiff < 0.3 Then
+											_MediaPlayer_SetPosition($hPlayer, 0)
+											_MediaPlayer_Play($hPlayer)
+										Else
+											_MediaPlayer_Play($hPlayer)
+										EndIf
 									Case "Stopped"
 										_MediaPlayer_Play($hPlayer)
 								EndSwitch
 							EndIf
+
 							; reset values
 							$bSingleLast = False
 							$bDouble = False
@@ -1506,7 +1549,14 @@ Func _ImmersiveLiveProcess()
 										Case "Playing"
 											_MediaPlayer_Pause($hPlayer)
 										Case "Paused"
+										$iDurationTemp = _MediaPlayer_GetPosition($hPlayer)/10000000
+										$iDurationDiff = $iDuration - $iDurationTemp
+										If $iDurationDiff < 0.3 Then
+											_MediaPlayer_SetPosition($hPlayer, 0)
 											_MediaPlayer_Play($hPlayer)
+										Else
+											_MediaPlayer_Play($hPlayer)
+										EndIf
 										Case "Stopped"
 											_MediaPlayer_Play($hPlayer)
 									EndSwitch
@@ -1680,6 +1730,77 @@ Func _WinAPI_GetAncestor_mod($hWnd, $iFlags = $GA_PARENT)
 
 	Return $aCall[0]
 EndFunc   ;==>_WinAPI_GetAncestor_mod
+
+Func MediaOpened($hPlayer)
+	$iDuration = _MediaPlayer_GetDuration($hPlayer)/10000000
+	$iDurationMs = Round($iDuration * 1000)
+	$bMediaOpened = True
+EndFunc
+
+Func _WinAPI_RealChildWindowFromPoint($hWnd, $tPoint)
+  Local $aRet = DllCall($hUser32, 'hwnd', 'RealChildWindowFromPoint', 'hwnd', $hWnd, 'struct', $tPoint)
+  If @error Then Return SetError(@error, @extended, 0)
+  Return $aRet[0]
+EndFunc   ;==>_WinAPI_RealChildWindowFromPoint
+
+Func GetRealChild($hWnd)
+  Local $tPoint, $hRoot = _WinAPI_GetAncestor_mod($hWnd, $GA_ROOT)
+  If $hWnd = $hRoot Then
+    $tPoint = _WinAPI_GetMousePos_mod(True, $hWnd)
+    Return _WinAPI_ChildWindowFromPointEx_mod($hWnd, $tPoint)
+  EndIf
+  Local $hParent = _WinAPI_GetAncestor_mod($hWnd, $GA_PARENT)
+  Local $aChild = _WinAPI_EnumChildWindows_mod($hParent)
+  If @error Then Return 0
+
+  Local $hFound
+
+  For $i = 1 To $aChild[0][0]
+    $hParent = _WinAPI_GetParent_mod($aChild[$i][0])
+    $tPoint = _WinAPI_GetMousePos_mod(True, $hParent)
+    $hFound = _WinAPI_RealChildWindowFromPoint($hParent, $tPoint)
+    If $hFound = $aChild[$i][0] Then Return $hFound
+  Next
+  Return 0
+EndFunc   ;==>GetRealChild
+
+Func _WinAPI_GetParent_mod($hWnd)
+	Local $aCall = DllCall($hUser32, "hwnd", "GetParent", "hwnd", $hWnd)
+	If @error Then Return SetError(@error, @extended, 0)
+
+	Return $aCall[0]
+EndFunc   ;==>_WinAPI_GetParent_mod
+
+Func _WinAPI_ChildWindowFromPointEx_mod($hWnd, $tPOINT, $iFlags = $CWP_ALL)
+	Local $aCall = DllCall($hUser32, 'hwnd', 'ChildWindowFromPointEx', 'hwnd', $hWnd, 'struct', $tPOINT, 'uint', $iFlags)
+	If @error Then Return SetError(@error, @extended, 0)
+
+	Return $aCall[0]
+EndFunc   ;==>_WinAPI_ChildWindowFromPointEx_mod
+
+Func _WinAPI_EnumChildWindows_mod($hWnd, $bVisible = True)
+	If Not _WinAPI_GetWindow_mod($hWnd, 5) Then Return SetError(2, 0, 0) ; $GW_CHILD
+
+	Local $hEnumProc = DllCallbackRegister('__EnumWindowsProc', 'bool', 'hwnd;lparam')
+
+	Dim $__g_vEnum[101][2] = [[0]]
+	DllCall($hUser32, 'bool', 'EnumChildWindows', 'hwnd', $hWnd, 'ptr', DllCallbackGetPtr($hEnumProc), 'lparam', $bVisible)
+	If @error Or Not $__g_vEnum[0][0] Then
+		$__g_vEnum = @error + 10
+	EndIf
+	DllCallbackFree($hEnumProc)
+	If $__g_vEnum Then Return SetError($__g_vEnum, 0, 0)
+
+	__Inc($__g_vEnum, -1)
+	Return $__g_vEnum
+EndFunc   ;==>_WinAPI_EnumChildWindows_mod
+
+Func _WinAPI_GetWindow_mod($hWnd, $iCmd)
+	Local $aCall = DllCall($hUser32, "hwnd", "GetWindow", "hwnd", $hWnd, "uint", $iCmd)
+	If @error Then Return SetError(@error, @extended, 0)
+
+	Return $aCall[0]
+EndFunc   ;==>_WinAPI_GetWindow_mod
 
 #cs
 Func WinListtest()
