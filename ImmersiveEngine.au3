@@ -5,21 +5,17 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.8.1
+#AutoIt3Wrapper_Res_Fileversion=1.9.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.8.1
+#AutoIt3Wrapper_Res_ProductVersion=1.9.0
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
-#AutoIt3Wrapper_Res_HiDpi=Y
+#AutoIt3Wrapper_Res_HiDpi=N
 #AutoIt3Wrapper_Run_Au3Stripper=y
 #AutoIt3Wrapper_res_Compatibility=Win10
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
 #include <AutoItExitCodes.au3>
-;#include <WinAPIProc.au3>
-;#include <WinAPIMisc.au3>
-;#include <WinAPISys.au3>
-;#include <WinAPIGdi.au3>
 #include <Array.au3>
 #include <Misc.au3>
 #include <File.au3>
@@ -28,6 +24,7 @@
 #include <WinAPIvkeysConstants.au3>
 
 #include "include\MediaPlayerUDF.au3"
+#include "include\UIAEH_AutomationEventHandler.au3"
 
 ; HotKey only used temporarily when needing to look for window classes to include/exclude
 ;#include <Process.au3>
@@ -36,12 +33,8 @@
 ; use RequireAdmin to color all apps, otherwise only user-mode apps will be colored
 ;#RequireAdmin
 
-If @Compiled = 0 Then
-	; System aware DPI awareness
-	;DllCall("User32.dll", "bool", "SetProcessDPIAware")
-	; Per-monitor V2 DPI awareness
-	DllCall("User32.dll", "bool", "SetProcessDpiAwarenessContext" , "HWND", "DPI_AWARENESS_CONTEXT" -4)
-EndIf
+; Per-monitor V2 DPI awareness
+DllCall("User32.dll", "bool", "SetProcessDpiAwarenessContext" , "HWND", "DPI_AWARENESS_CONTEXT" -4)
 
 Global $iPID, $sINFO, $oService, $fSpeed = 4
 Global $IniFile = @ScriptDir & "\ImmersiveUX.ini"
@@ -53,9 +46,8 @@ Global $bGlobalDarkTitleBar, $dGlobalBorderColor, $dGlobalTitleBarColor, $dGloba
 Global $iGlobalBlurTintColor, $dGlobalBlurTintColor, $iGlobalBlurOpacity
 Global $dTerminalBorderColor, $dTerminalBackdrop, $bWindowsTerminalHandling, $dVSStudioBorderColor, $bWindowsTerminalBlur
 Global $dVSCodiumBackdrop, $dVSCodeBackdrop
-Global $hLiveGUI, $hPlayer
 Global $bLiveEnabled, $bLoopEnabled
-Global $iDuration, $iDurationMs
+Global $iDuration, $iDurationMs, $oWinStart, $iDurationPause
 Global $bMediaOpened = False
 ;Global $hActiveWnd
 Global Static $hLEDWndLast
@@ -161,7 +153,7 @@ Func _ToBoolean($sString)
 EndFunc   ;==>_ToBoolean
 
 ; don't apply to all during boot as there is no need
-$Uptime = _WinAPI_StrFromTimeInterval(_WinAPI_GetTickCount64())
+$Uptime = _WinAPI_StrFromTimeInterval(_WinAPI_GetTickCount64_mod())
 If StringInStr($Uptime, "min") Then
 	$bBoot = False
 	; apply settings to all currently running apps
@@ -1401,9 +1393,43 @@ Func _ImmersiveLiveProcess()
 	Local $tPoint, $iTimePress, $sParent, $hWndCur, $iTimeRelease
 	Local Static $bSingleLast, $bDouble
 	Local Static $iTimeLast
-	Local $hWndCur2, $hWndChildCur, $sChild, $sActiveText
 	Local $iDurationTemp, $iDurationDiff
+	Local $hLiveGUI, $hPlayer
 
+	OnAutoItExitRegister(DoCleanUpLive)
+
+	Local $bMultiMonitorEnabled = _ToBoolean(IniRead($IniFile, "ImmersiveLive", "MultiMonitorEnabled", "False"))
+	Local $aPos, $aMonitor = _WinAPI_EnumDisplayMonitors()
+
+	If IsArray($aMonitor) Then
+		ReDim $aMonitor[$aMonitor[0][0] + 1][5]
+		For $i = 1 To $aMonitor[0][0]
+			$aPos = _WinAPI_GetPosFromRect($aMonitor[$i][1])
+			For $j = 0 To 3
+				$aMonitor[$i][$j + 1] = $aPos[$j]
+			Next
+		Next
+	EndIf
+
+	Local $aPlayer[$aMonitor[0][0]]
+	Local $iPlayerCount = $aMonitor[0][0]
+	_ArrayDelete($aMonitor, 0)
+
+	; remove any monitors smaller than 100px (possible virtual)
+	For $i = UBound($aMonitor) - 1 To 0 Step -1
+		If $aMonitor[$i][3] < 100 Or $aMonitor[$i][4] < 100 Then _ArrayDelete($aMonitor, $i)
+	Next
+
+	; remove extra monitors if MultiMonitorEnabled is false
+	If Not $bMultiMonitorEnabled Then
+		If UBound($aMonitor) > 1 Then
+			Do
+				_ArrayDelete($aMonitor, UBound($aMonitor) - 1)
+			Until UBound($aMonitor) = 1
+		EndIf
+	EndIf
+
+	OnAutoItExitRegister(DoCleanUpLive)
 	Local $hLiveWnd = _GetHwndFromPID(@AutoItPID)
     _WinAPI_SetWindowText_mod($hLiveWnd, "Immersive UX Live")
 	ProcessSetPriority(@AutoItPID, 4)
@@ -1411,21 +1437,18 @@ Func _ImmersiveLiveProcess()
 	_MediaPlayer_Init()
 
     Local $sLiveWallpaperFile = IniRead($IniFile, "ImmersiveLive", "LiveWallpaperFile", "")
+	Local $bLoopEnabled = _ToBoolean(IniRead($IniFile, "ImmersiveLive", "LoopEnabled", "False"))
+	Local $bTriggerStartButton = _ToBoolean(IniRead($IniFile, "ImmersiveLive", "TriggerStartButton", "False"))
 	Local $iMediaControlsClick = Int(IniRead($IniFile, "ImmersiveLive", "MediaControlsClick", "2"))
-	Local $bTriggerStartButton = _ToBoolean(IniRead($IniFile, "ImmersiveLive", "TriggerStartButton", "True"))
 	Local $iOpacityLevel = Int(IniRead($IniFile, "ImmersiveLive", "OpacityLevel", "100"))
 	$iOpacityLevel = Int(Map($iOpacityLevel, 0, 100, 0, 255))
 
-    Local $sDrive = "", $sDir = "", $sFileName = "", $sExtension = ""
-    Local $aPathSplit = _PathSplit($sLiveWallpaperFile, $sDrive, $sDir, $sFileName, $sExtension)
+	If Not FileExists($sLiveWallpaperFile) Then
+		MsgBox($MB_ICONERROR, "Error", "Live Wallpaper File not found.")
+		Exit
+	EndIf
 
-    If $aPathSplit[1] = "" And $aPathSplit[2] = "" Then
-        $sLiveWallpaperFile = @ScriptDir & "\" & $sLiveWallpaperFile
-    EndIf
-
-    Local $aPrimary = GetPrimaryMonitorCoords()
-    If @error Then Exit MsgBox(16, "Error", "Unable to get primary monitor")
-    Local $hProgman = WinGetHandle("[CLASS:Progman]")
+	Local $hProgman = WinGetHandle("[CLASS:Progman]")
     If Not $hProgman Then Exit MsgBox(16, "ERROR", "Couldn't find Progman", 30)
     _WinAPI_SendMessageTimeout($hProgman, 0x052C, 13, 1, 250, $SMTO_NORMAL)
 
@@ -1444,64 +1467,111 @@ Func _ImmersiveLiveProcess()
 
     If $hWorkerW = 0 Then Exit MsgBox(16, "ERROR", "Couldn't find WorkerW under Progman", 30)
 
-    Local $aOrigin = GetDesktopOrigin()
-    Local $iX = $aPrimary[0] - $aOrigin[0]
-    Local $iY = $aPrimary[1] - $aOrigin[1]
+    Local $sDrive = "", $sDir = "", $sFileName = "", $sExtension = ""
+    Local $aPathSplit = _PathSplit($sLiveWallpaperFile, $sDrive, $sDir, $sFileName, $sExtension)
 
-    $hLiveGUI = GUICreate("Immersive UX Desktop", $aPrimary[4], $aPrimary[5], $iX, $iY, $WS_POPUP, $WS_EX_TOOLWINDOW)
+    If $aPathSplit[1] = "" And $aPathSplit[2] = "" Then
+        $sLiveWallpaperFile = @ScriptDir & "\" & $sLiveWallpaperFile
+    EndIf
 
-    _WinAPI_SetParent($hLiveGUI, $hWorkerW)
-    _WinAPI_SetWindowPos($hLiveGUI, $HWND_BOTTOM, 0, 0, 0, 0, BitOR($SWP_NOMOVE, $SWP_NOSIZE, $SWP_NOACTIVATE))
-    _WinAPI_SetWindowLong($hLiveGUI, $GWL_EXSTYLE, BitOR(_WinAPI_GetWindowLong($hLiveGUI, $GWL_EXSTYLE), $WS_EX_LAYERED, $WS_EX_TRANSPARENT))
-    _WinAPI_SetLayeredWindowAttributes($hLiveGUI, 0, $iOpacityLevel, $LWA_ALPHA)
+	If $bTriggerStartButton Then
+		; Create UI Automation object
+		Local $oUIAutomation = ObjCreateInterface($sCLSID_CUIAutomation, $sIID_IUIAutomation, $dtag_IUIAutomation)
+		If Not IsObj($oUIAutomation) Then Exit ConsoleWrite("$oUIAutomation ERR" & @CRLF)
+		;ConsoleWrite("$oUIAutomation OK" & @CRLF)
 
-	$hPlayer = _MediaPlayer_Create($hLiveGUI, 0, 0, @DesktopWidth, @DesktopHeight)
+		; Get Desktop element
+		Local $pDesktop, $oDesktop
+		$oUIAutomation.GetRootElement($pDesktop)
+		$oDesktop = ObjCreateInterface($pDesktop, $sIID_IUIAutomationElement, $dtag_IUIAutomationElement)
+		If Not IsObj($oDesktop) Then Exit ConsoleWrite("$oDesktop ERR" & @CRLF)
+		;ConsoleWrite("$oDesktop OK" & @CRLF)
 
-	_MediaPlayer_RegMediaOpenedProc($hPlayer, "MediaOpened")
-	_MediaPlayer_LoadFromStorage($hPlayer, $sLiveWallpaperFile)
-	_MediaPlayer_EnableTransport($hPlayer, False)
+		UIAEH_AutomationEventHandlerCreate()
+		If Not IsObj($oUIAEH_AutomationEventHandler) Then Exit ConsoleWrite("$oUIAEH_AutomationEventHandler ERR" & @CRLF)
+		;ConsoleWrite("$oUIAEH_AutomationEventHandler OK" & @CRLF)
 
-	If $bLoopEnabled Then _MediaPlayer_SetIsLooping($hPlayer, True)
-	_MediaPlayer_SetAutoPlay($hPlayer, True)
-	;_MediaPlayer_Play($hPlayer)
+		$oUIAutomation.AddAutomationEventHandler($UIA_Window_WindowOpenedEventId, $pDesktop, $TreeScope_Subtree, 0, $oUIAEH_AutomationEventHandler)
 
-	;Sleep(200)
-    GUISetState(@SW_SHOWNOACTIVATE, $hLiveGUI)
+		Local $hWndStart, $bTreated
+	EndIf
+
+	; GUI section (multi-monitor)
+	;
+	; width		$aMonitor[$i][3]
+	; height	$aMonitor[$i][4]
+	; x			$aMonitor[$i][1]
+	; y			$aMonitor[$i][2]
+	;
+	For $i = 0 To UBound($aMonitor) -1
+		$hLiveGUI = GUICreate("Live Wallpaper - " & $i, $aMonitor[$i][3], $aMonitor[$i][4], $aMonitor[$i][1], $aMonitor[$i][2], $WS_POPUP, $WS_EX_TOOLWINDOW)
+		GUISetBkColor(0xff00ff) ; temp for testing screen placement
+
+		_WinAPI_SetParent($hLiveGUI, $hWorkerW)
+		_WinAPI_SetWindowPos($hLiveGUI, $HWND_BOTTOM, 0, 0, 0, 0, BitOR($SWP_NOMOVE, $SWP_NOSIZE, $SWP_NOACTIVATE))
+		;_WinAPI_SetWindowPos($hLiveGUI, $HWND_BOTTOM, $aMonitor[$i][1], $aMonitor[$i][2], $aMonitor[$i][3], $aMonitor[$i][4], $SWP_NOACTIVATE)
+		;_WinAPI_SetWindowPos($hLiveGUI, $HWND_BOTTOM, $aMonitor[$i][1], $aMonitor[$i][2], $aMonitor[$i][3], $aMonitor[$i][4], BitOR($SWP_NOMOVE, $SWP_NOSIZE, $SWP_NOACTIVATE))
+		_WinAPI_SetWindowLong($hLiveGUI, $GWL_EXSTYLE, BitOR(_WinAPI_GetWindowLong($hLiveGUI, $GWL_EXSTYLE), $WS_EX_LAYERED, $WS_EX_TRANSPARENT))
+		_WinAPI_SetLayeredWindowAttributes($hLiveGUI, 0, $iOpacityLevel, $LWA_ALPHA)
+
+		;$hPlayer = _MediaPlayer_Create($hLiveGUI, $aMonitor[$i][1], $aMonitor[$i][2], $aMonitor[$i][3], $aMonitor[$i][4])
+		$hPlayer = _MediaPlayer_Create($hLiveGUI, 0, 0, $aMonitor[$i][3], $aMonitor[$i][4])
+
+		; build array for player index
+		$aPlayer[$i] = $hPlayer
+		;_ArrayDisplay($aPlayer, 'Player Index')
+
+		_MediaPlayer_LoadFromStorage($hPlayer, $sLiveWallpaperFile)
+
+		If $bLoopEnabled Then _MediaPlayer_SetIsLooping($hPlayer, True)
+		_MediaPlayer_SetAutoPlay($hPlayer, True)
+
+		GUISetState(@SW_SHOWNOACTIVATE, $hLiveGUI)
+	Next
+	;
+	; GUI section (multi-monitor)
+
+	AdlibRegister("_IsMediaOpened")
 
 	While 1
+		If $bTriggerStartButton Then
+			If IsObj($oWinStart) Then
+				If Not $bTreated Then
+					; Start button has been pushed or Win button has activated Start menu
+					$bTreated = True
+					$oWinStart.GetCurrentPropertyValue($UIA_NativeWindowHandlePropertyId, $hWndStart)
+					For $i = 0 To UBound($aPlayer) -1
+						_MediaPlayer_SetPosition($aPlayer[$i], 0)
+						_MediaPlayer_Play($aPlayer[$i])
+					Next
+				ElseIf Not WinExists($hWndStart) Then
+					$oWinStart.Release()
+					$oWinStart = 0
+					$bTreated = False
+					$hWndStart = 0
+					;ConsoleWrite("Start window closed" & @CRLF)
+				EndIf
+			EndIf
+		EndIf
 		If $bMediaOpened Then
-			$iDurationTemp = _MediaPlayer_GetPosition($hPlayer)/10000000
+			$iDurationTemp = _MediaPlayer_GetPosition(1)/10000000
 			$iDurationDiff = $iDuration - $iDurationTemp
 			If $iDurationDiff < 0.3 Then
-				ConsoleWrite("diff: " & $iDurationDiff & @CRLF)
-				If Not $bLoopEnabled Then _MediaPlayer_Pause($hPlayer)
-				If $bLoopEnabled Then _MediaPlayer_SetPosition($hPlayer, 0)
+				ConsoleWrite("media is open, small diff" & @CRLF)
+				For $i = 0 To UBound($aPlayer) -1
+					If Not $bLoopEnabled Then
+						_MediaPlayer_Pause($aPlayer[$i])
+						_MediaPlayer_SetPosition($aPlayer[$i], $iDurationPause)
+					EndIf
+					If $bLoopEnabled Then _MediaPlayer_SetPosition($aPlayer[$i], 0)
+				Next
 			EndIf
 		EndIf
 		If $iMediaControlsClick Then
 			If _IsPressed($VK_LBUTTON, $hUser32) Then
 				$tPoint = _WinAPI_GetMousePos_mod()
 				$hWndCur = _WinAPI_GetAncestor_mod(_WinAPI_WindowFromPoint_mod($tPoint), $GA_ROOT)
-				$hWndCur2 = _WinAPI_WindowFromPoint_mod($tPoint)
-				$hWndChildCur = GetRealChild($hWndCur2)
-				$sChild = _WinAPI_GetClassName_mod($hWndChildCur)
-				$sChildText = _WinAPI_GetWindowText_mod($hWndChildCur)
 				$sParent = _WinAPI_GetClassName_mod($hWndCur)
-				If $sChild = "Windows.UI.Core.CoreWindow" And $sChildText = "DesktopWindowXamlSource" Then
-					If $bTriggerStartButton Then
-						; wait until key is released
-						While _IsPressed($VK_LBUTTON, $hUser32)
-							Sleep(5)
-						WEnd
-						Sleep(20)
-						$sActiveText = _WinAPI_GetWindowText_mod(_WinAPI_GetForegroundWindow_mod())
-						If $sActiveText = "Start" Or $sActiveText = "Search" Then
-							ConsoleWrite("Start button has been pushed." & @CRLF)
-							_MediaPlayer_SetPosition($hPlayer, 0)
-							_MediaPlayer_Play($hPlayer)
-						EndIf
-					EndIf
-				EndIf
 				If $sParent = "Progman" Then
 					$iTimePress = Round((_WinAPI_GetTickCount64_mod() / 1000), 2)
 					$iTimeDiff = $iTimePress - $iTimeLast
@@ -1521,21 +1591,23 @@ Func _ImmersiveLiveProcess()
 
 							; double-click action here
 							If $iMediaControlsClick = 2 Then
-								Switch _MediaPlayer_GetCurrentState($hPlayer, True)
-									Case "Playing"
-										_MediaPlayer_Pause($hPlayer)
-									Case "Paused"
-										$iDurationTemp = _MediaPlayer_GetPosition($hPlayer)/10000000
-										$iDurationDiff = $iDuration - $iDurationTemp
-										If $iDurationDiff < 0.3 Then
-											_MediaPlayer_SetPosition($hPlayer, 0)
-											_MediaPlayer_Play($hPlayer)
-										Else
-											_MediaPlayer_Play($hPlayer)
-										EndIf
-									Case "Stopped"
-										_MediaPlayer_Play($hPlayer)
-								EndSwitch
+								For $i = 0 To UBound($aPlayer) -1
+									Switch _MediaPlayer_GetCurrentState($aPlayer[$i], True)
+										Case "Playing"
+											_MediaPlayer_Pause($aPlayer[$i])
+										Case "Paused"
+											$iDurationTemp = _MediaPlayer_GetPosition($aPlayer[$i])/10000000
+											$iDurationDiff = $iDuration - $iDurationTemp
+											If $iDurationDiff < 0.4 Then
+												_MediaPlayer_SetPosition($aPlayer[$i], 0)
+												_MediaPlayer_Play($aPlayer[$i])
+											Else
+												_MediaPlayer_Play($aPlayer[$i])
+											EndIf
+										Case "Stopped"
+											_MediaPlayer_Play($aPlayer[$i])
+									EndSwitch
+								Next
 							EndIf
 
 							; reset values
@@ -1545,21 +1617,23 @@ Func _ImmersiveLiveProcess()
 							If Not $bDouble Then ; single-click detected
 								; single-click action here
 								If $iMediaControlsClick = 1 Then
-									Switch _MediaPlayer_GetCurrentState($hPlayer, True)
-										Case "Playing"
-											_MediaPlayer_Pause($hPlayer)
-										Case "Paused"
-										$iDurationTemp = _MediaPlayer_GetPosition($hPlayer)/10000000
-										$iDurationDiff = $iDuration - $iDurationTemp
-										If $iDurationDiff < 0.3 Then
-											_MediaPlayer_SetPosition($hPlayer, 0)
-											_MediaPlayer_Play($hPlayer)
-										Else
-											_MediaPlayer_Play($hPlayer)
-										EndIf
-										Case "Stopped"
-											_MediaPlayer_Play($hPlayer)
-									EndSwitch
+									For $i = 0 To UBound($aPlayer) -1
+										Switch _MediaPlayer_GetCurrentState($aPlayer[$i], True)
+											Case "Playing"
+												_MediaPlayer_Pause($aPlayer[$i])
+											Case "Paused"
+											$iDurationTemp = _MediaPlayer_GetPosition($aPlayer[$i])/10000000
+											$iDurationDiff = $iDuration - $iDurationTemp
+											If $iDurationDiff < 0.4 Then
+												_MediaPlayer_SetPosition($aPlayer[$i], 0)
+												_MediaPlayer_Play($aPlayer[$i])
+											Else
+												_MediaPlayer_Play($aPlayer[$i])
+											EndIf
+											Case "Stopped"
+												_MediaPlayer_Play($aPlayer[$i])
+										EndSwitch
+									Next
 								EndIf
 							EndIf
 						EndIf
@@ -1576,6 +1650,10 @@ Func _ImmersiveLiveProcess()
 	WEnd
 
 EndFunc   ;==>_ImmersiveLiveProcess
+
+Func DoCleanUpLive()
+	UIAEH_AutomationEventHandlerDelete()
+EndFunc
 
 Func _BorderEffectsProcess()
 	Local $hWnd = _GetHwndFromPID(@AutoItPID)
@@ -1731,10 +1809,14 @@ Func _WinAPI_GetAncestor_mod($hWnd, $iFlags = $GA_PARENT)
 	Return $aCall[0]
 EndFunc   ;==>_WinAPI_GetAncestor_mod
 
-Func MediaOpened($hPlayer)
-	$iDuration = _MediaPlayer_GetDuration($hPlayer)/10000000
-	$iDurationMs = Round($iDuration * 1000)
-	$bMediaOpened = True
+Func _IsMediaOpened()
+	$iDuration = _MediaPlayer_GetDuration(1)/10000000
+	If $iDuration <> 0 Then
+		$bMediaOpened = True
+		$iDurationMs = Round($iDuration * 1000)
+		$iDurationPause = ($iDuration - 0.3) * 10000000
+		AdlibUnRegister("_IsMediaOpened")
+	EndIf
 EndFunc
 
 Func _WinAPI_RealChildWindowFromPoint($hWnd, $tPoint)
@@ -1801,6 +1883,16 @@ Func _WinAPI_GetWindow_mod($hWnd, $iCmd)
 
 	Return $aCall[0]
 EndFunc   ;==>_WinAPI_GetWindow_mod
+
+Func UIAEH_AutomationEventHandler_HandleAutomationEvent($pSelf, $pSender, $iEventId)
+	Local $oSender = ObjCreateInterface($pSender, $sIID_IUIAutomationElement, $dtag_IUIAutomationElement)
+	$oSender.AddRef()
+	Local $sTitle, $sClass
+	$oSender.GetCurrentPropertyValue($UIA_NamePropertyId, $sTitle)
+	$oSender.GetCurrentPropertyValue($UIA_ClassNamePropertyId, $sClass)
+
+	If $sTitle = "Start" And $sClass = "Windows.UI.Core.CoreWindow" Then $oWinStart = $oSender
+EndFunc   ;==>UIAEH_AutomationEventHandler_HandleAutomationEvent
 
 #cs
 Func WinListtest()

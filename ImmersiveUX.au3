@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX GUI
-#AutoIt3Wrapper_Res_Fileversion=1.8.1
+#AutoIt3Wrapper_Res_Fileversion=1.9.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX GUI
-#AutoIt3Wrapper_Res_ProductVersion=1.8.1
+#AutoIt3Wrapper_Res_ProductVersion=1.9.0
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -16,7 +16,7 @@
 #AutoIt3Wrapper_res_Compatibility=Win10
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
-Global $iVersion = '1.8.1'
+Global $iVersion = '1.9.0'
 
 #include <MsgBoxConstants.au3>
 #include <WinAPIFiles.au3>
@@ -96,7 +96,7 @@ Global $sWatchBorderColorInput, $sWatchTitlebarColorInput, $sWatchBlurColorInten
 Global $sWatchTitlebarTextColorInput, $sWatchBlurTintColorInputInact, $sWatchBlurTintColorInput, $sWatchTargetInput, $sWatchidInputRuleType
 Global $sWatchidInputDarkTitle, $sWatchidInputTitleBarBackdrop, $sWatchidInputCornerPreference, $sWatchidInputExtendFrame
 Global $sWatchidInputBlurBehind, $sWatchidInputRuleEnabled
-Global $idLiveOpt0, $idLiveOpt1, $idLiveOpt2, $idTriggerOpt0
+Global $idLiveOpt0, $idLiveOpt1, $idLiveOpt2, $idLiveOpt3, $idTriggerOpt0
 Global $bWatchSaveChanges = False, $bPendingChanges = False
 Global $sTargetLast = ""
 Global $bHideGUI = False
@@ -267,6 +267,8 @@ Func _StartGUI()
     GUICtrlSetOnEvent(-1, "_LiveOpt1")
     $idLiveOpt2 = GUICtrlCreateMenuItem("Loop", $idLiveMenu, 3, 0)
     GUICtrlSetOnEvent(-1, "_LiveOpt2")
+    $idLiveOpt3 = GUICtrlCreateMenuItem("Multi-monitor", $idLiveMenu, 4, 0)
+    GUICtrlSetOnEvent(-1, "_LiveOpt3")
 
     Local $idOpacityMenu = GUICtrlCreateMenu("&Opacity", $idLiveMenu)
 
@@ -2175,6 +2177,7 @@ Func _GetIniDetails()
     Local $bTriggerStartButton = IniRead($IniFile, "ImmersiveLive", "TriggerStartButton", "missing")
     Local $iMediaControlsClick = IniRead($IniFile, "ImmersiveLive", "MediaControlsClick", "missing")
 	Local $iOpacityLevel = IniRead($IniFile, "ImmersiveLive", "OpacityLevel", "missing")
+    Local $bMultiMonitorEnabled = IniRead($IniFile, "ImmersiveLive", "MultiMonitorEnabled", "missing")
 
     If $bLiveEnabled = "missing" Then IniWrite($IniFile, "ImmersiveLive", "Enabled", "False")
     If $sLiveWallpaperFile = "missing" Then IniWrite($IniFile, "ImmersiveLive", "LiveWallpaperFile", "bloom.mp4")
@@ -2182,6 +2185,7 @@ Func _GetIniDetails()
     If $bTriggerStartButton = "missing" Then IniWrite($IniFile, "ImmersiveLive", "TriggerStartButton", "True")
     If $iMediaControlsClick = "missing" Then IniWrite($IniFile, "ImmersiveLive", "MediaControlsClick", "2")
     If $iOpacityLevel = "missing" Then IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "100")
+    If $bMultiMonitorEnabled = "missing" Then IniWrite($IniFile, "ImmersiveLive", "MultiMonitorEnabled", "False")
 
     ; Custom GUI Colors
     $GUI_BackColor = IniRead($IniFile, "Settings", "GUI_BackColor", "missing")
@@ -3592,6 +3596,31 @@ Func _LiveOpt2()
     _UpdateLiveMenu()
 EndFunc
 
+Func _LiveOpt3()
+    ; multi-monitor enable/disable
+    If IniRead($IniFile, "ImmersiveLive", "MultiMonitorEnabled", "") = "True" Then
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        IniWrite($IniFile, "ImmersiveLive", "MultiMonitorEnabled", "False")
+            If IniRead($IniFile, "ImmersiveLive", "Enabled", "") = "True" Then
+                If @Compiled Then
+                ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+            ElseIf Not @Compiled Then
+                ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+            EndIf
+        EndIf
+    Else
+        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        IniWrite($IniFile, "ImmersiveLive", "MultiMonitorEnabled", "True")
+        If @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+        ElseIf Not @Compiled Then
+            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+        EndIf
+    EndIf
+
+    _UpdateLiveMenu()
+EndFunc
+
 Func _ClickOpt0()
     Local $iMediaControlsClick = Int(IniRead($IniFile, "ImmersiveLive", "MediaControlsClick", ""))
     If $iMediaControlsClick = "1" Then
@@ -4020,6 +4049,14 @@ Func _UpdateLiveMenu()
         GUICtrlSetState($idTriggerOpt0, $GUI_CHECKED)
     Else
         GUICtrlSetState($idTriggerOpt0, $GUI_UNCHECKED)
+    EndIf
+
+    ; update multi-monitor option
+    Local $bMultiMonitorEnabled = IniRead($IniFile, "ImmersiveLive", "MultiMonitorEnabled", "False")
+    If $bMultiMonitorEnabled = "True" Then
+        GUICtrlSetState($idLiveOpt3, $GUI_CHECKED)
+    Else
+        GUICtrlSetState($idLiveOpt3, $GUI_UNCHECKED)
     EndIf
 EndFunc
 
