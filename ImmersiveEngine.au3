@@ -19,7 +19,7 @@
 #include <Array.au3>
 #include <Misc.au3>
 #include <File.au3>
-
+#include <WinAPI.au3>
 #include <WindowsConstants.au3>
 #include <WinAPIvkeysConstants.au3>
 
@@ -1718,65 +1718,6 @@ Func _WinAPI_FindWindowEx($hParent, $hAfter, $sClass, $sTitle = "")
     If @error Or Not IsArray($ret) Then Return 0
     Return $ret[0]
 EndFunc   ;==>_WinAPI_FindWindowEx
-
-Func GetPrimaryMonitorCoords()
-    Local $tPoint = DllStructCreate("int x;int y")
-    $tPoint.x = 0
-    $tPoint.y = 0
-
-    Local $hMonitor = _WinAPI_MonitorFromPoint($tPoint, $MONITOR_DEFAULTTOPRIMARY)
-    If Not $hMonitor Then Return SetError(1, 0, 0)
-
-    Local $tMI = DllStructCreate("dword cbSize;long rcMonitor[4];long rcWork[4];dword dwFlags")
-    DllStructSetData($tMI, "cbSize", DllStructGetSize($tMI))
-
-    Local $aCall = DllCall($hUser32, "bool", "GetMonitorInfoW", "handle", $hMonitor, "ptr", DllStructGetPtr($tMI))
-    If @error Or Not $aCall[0] Then Return SetError(2, 0, 0)
-
-    Local $iLeft = $tMI.rcMonitor(1)
-    Local $iTop = $tMI.rcMonitor(2)
-    Local $iRight = $tMI.rcMonitor(3)
-    Local $iBottom = $tMI.rcMonitor(4)
-
-    Local $iWidth = $iRight - $iLeft
-    Local $iHeight = $iBottom - $iTop
-    Local $a[6] = [$iLeft, $iTop, $iRight, $iBottom, $iWidth, $iHeight]
-    Return $a
-EndFunc   ;==>GetPrimaryMonitorCoords
-
-Func GetDesktopOrigin()
-    Local $minX = 0, $minY = 0, $x, $y
-    Local $i = 0, $tDevice, $aRet, $tDevMode, $aED
-
-    While True
-        $tDevice = DllStructCreate("dword cb; char DeviceName[32]; char DeviceString[128]; dword StateFlags; char DeviceID[128]; char DeviceKey[128]")
-        $tDevice.cb = DllStructGetSize($tDevice)
-        $aRet = DllCall($hUser32, "bool", "EnumDisplayDevicesA", "ptr", 0, "dword", $i, "ptr", DllStructGetPtr($tDevice), "dword", 0)
-        If @error Or Not $aRet[0] Then ExitLoop
-
-        If BitAND($tDevice.StateFlags, 1) Then
-            $tDevMode = DllStructCreate( _
-                    "byte dmDeviceName[32]; word dmSpecVersion; word dmDriverVersion; word dmSize; word dmDriverExtra; dword dmFields;" & _
-                    "long dmPositionX; long dmPositionY; dword dmDisplayOrientation; dword dmDisplayFixedOutput;" & _
-                    "short dmColor; short dmDuplex; short dmYResolution; short dmTTOption; short dmCollate; char dmFormName[32];" & _
-                    "ushort dmLogPixels; dword dmBitsPerPel; dword dmPelsWidth; dword dmPelsHeight;" & _
-                    "dword dmDisplayFlags; dword dmDisplayFrequency; dword dmICMMethod; dword dmICMIntent;" & _
-                    "dword dmMediaType; dword dmDitherType; dword dmReserved1; dword dmReserved2; dword dmPanningWidth; dword dmPanningHeight")
-
-            $tDevMode.dmSize = DllStructGetSize($tDevMode)
-            $aED = DllCall($hUser32, "bool", "EnumDisplaySettingsA", "str", $tDevice.DeviceName, "dword", -1, "ptr", DllStructGetPtr($tDevMode))
-            If Not @error And $aED[0] Then
-                $x = $tDevMode.dmPositionX
-                $y = $tDevMode.dmPositionY
-                If $x < $minX Then $minX = $x
-                If $y < $minY Then $minY = $y
-            EndIf
-        EndIf
-        $i += 1
-    WEnd
-    Local $a[2] = [$minX, $minY]
-    Return $a
-EndFunc   ;==>GetDesktopOrigin
 
 ;Coded by UEZ build 2025-10-29
 Func Map($val, $source_start, $source_stop, $dest_start, $dest_stop)
