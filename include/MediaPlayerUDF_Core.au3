@@ -1,7 +1,12 @@
 #Tidy_Parameters = /sf
 
 #include <APIErrorsConstants.au3>
-#include <WinAPI.au3>
+;#include <WinAPI.au3>
+
+#include <WinAPIConv.au3>
+#include <WinAPISysWin.au3>
+#include <AutoItConstants.au3>
+#include <WinAPIConstants.au3>
 
 Global $__g_hDLLComBase, $__g_hDLLOle32, $__g_hDLLRoMetaData, $__g_hDLLWinTypes
 Global $__g_aDelegates[1][4], $__g_hQueryInterface, $__g_hAddRef, $__g_hRelease

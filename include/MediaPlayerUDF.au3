@@ -305,10 +305,11 @@ Func _MediaPlayer_Init()
 	IUnknown_Release($pDesktopWinXamlSrc_Fact)
 	If $iErr Then Return SetError($iErr, $iExt, False)
 
-	$__g_pHdlr_MediaOpened = _WinRT_CreateDelegate("__MediaPlayer_MediaOpened", "Windows.Foundation.TypedEventHandler`2<Windows.Media.Playback.MediaPlayer, Object>")
-	$__g_pHdlr_MediaFailed = _WinRT_CreateDelegate("__MediaPlayer_MediaFailed", "Windows.Foundation.TypedEventHandler`2<Windows.Media.Playback.MediaPlayer, Windows.Media.Playback.MediaPlayerFailedEventArgs>")
-	$__g_pHdlr_MediaEnded = _WinRT_CreateDelegate("__MediaPlayer_MediaEnded", "Windows.Foundation.TypedEventHandler`2<Windows.Media.Playback.MediaPlayer, Object>")
-	$__g_pHdlr_StateChanged = _WinRT_CreateDelegate("__MediaPlayer_StateChanged", "Windows.Foundation.TypedEventHandler`2<Windows.Media.Playback.MediaPlayer, Object>")
+	; commented out due to issues with Au3Stripper
+	;$__g_pHdlr_MediaOpened = _WinRT_CreateDelegate("__MediaPlayer_MediaOpened", "Windows.Foundation.TypedEventHandler`2<Windows.Media.Playback.MediaPlayer, Object>")
+	;$__g_pHdlr_MediaFailed = _WinRT_CreateDelegate("__MediaPlayer_MediaFailed", "Windows.Foundation.TypedEventHandler`2<Windows.Media.Playback.MediaPlayer, Windows.Media.Playback.MediaPlayerFailedEventArgs>")
+	;$__g_pHdlr_MediaEnded = _WinRT_CreateDelegate("__MediaPlayer_MediaEnded", "Windows.Foundation.TypedEventHandler`2<Windows.Media.Playback.MediaPlayer, Object>")
+	;$__g_pHdlr_StateChanged = _WinRT_CreateDelegate("__MediaPlayer_StateChanged", "Windows.Foundation.TypedEventHandler`2<Windows.Media.Playback.MediaPlayer, Object>")
 
 	OnAutoItExitRegister("_MediaPlayer_XamlShutdown")
 EndFunc   ;==>_MediaPlayer_Init
