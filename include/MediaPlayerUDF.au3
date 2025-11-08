@@ -6,6 +6,13 @@ Global $__g_pWindowsXamlManager, $__g_apXamlSources[1], $__g_apMPElements[1], $_
 Global $__g_pHdlr_MediaOpened, $__g_pHdlr_MediaFailed, $__g_pHdlr_MediaEnded, $__g_pHdlr_StateChanged
 Global Enum $iMediaOpenedDgt, $iMediaFailedDgt, $iMediaEndedDgt, $iStateChangedDgt
 
+Func __MediaPlayer_GetSession($iMPIdx)
+	If $iMPIdx < 1 Or $iMPIdx >= UBound($__g_apPlayers) Then Return False
+	_WinRT_SwitchInterface($__g_apPlayers[$iMPIdx], $sIID_IMediaPlayer3)
+	If Not @error Then $pTransport = IMediaPlayer3_GetPlaybackSession($__g_apPlayers[$iMPIdx])
+	Return SetError(@error, @extended, $pTransport)
+EndFunc   ;==>__MediaPlayer_GetSession
+
 Func __MediaPlayer_GetTransport($iMPIdx)
 	If $iMPIdx < 1 Or $iMPIdx >= UBound($__g_apPlayers) Then Return False
 	_WinRT_SwitchInterface($__g_apMPElements[$iMPIdx], $sIID_IMediaPlayerElement)
@@ -245,6 +252,30 @@ Func _MediaPlayer_GetIsMuted($iMPIdx)
 	Return SetError(@error, @extended, $bState)
 EndFunc   ;==>_MediaPlayer_GetIsMuted
 
+Func _MediaPlayer_GetMediaHeight($iMPIdx)
+	Local $iHeight, $iErr, $iExt
+	If $iMPIdx < 1 Or $iMPIdx >= UBound($__g_apPlayers) Then Return False
+	Local $pSession = __MediaPlayer_GetSession($iMPIdx)
+	If @error Then Return SetError(@error, @extended, $pSession)
+	$iHeight = IMediaPlaybackSession_GetNaturalVideoHeight($pSession)
+	$iErr = @error
+	$iExt = @extended
+	IUnknown_Release($pSession)
+	Return SetError($iErr, $iExt, $iHeight)
+EndFunc   ;==>_MediaPlayer_GetMediaHeight
+
+Func _MediaPlayer_GetMediaWidth($iMPIdx)
+	Local $iWidth, $iErr, $iExt
+	If $iMPIdx < 1 Or $iMPIdx >= UBound($__g_apPlayers) Then Return False
+	Local $pSession = __MediaPlayer_GetSession($iMPIdx)
+	If @error Then Return SetError(@error, @extended, $pSession)
+	$iWidth = IMediaPlaybackSession_GetNaturalVideoWidth($pSession)
+	$iErr = @error
+	$iExt = @extended
+	IUnknown_Release($pSession)
+	Return SetError($iErr, $iExt, $iWidth)
+EndFunc   ;==>_MediaPlayer_GetMediaWidth
+
 Func _MediaPlayer_GetPlaybackRate($iMPIdx)
 	Local $fRate
 	If $iMPIdx < 1 Or $iMPIdx >= UBound($__g_apPlayers) Then Return False
@@ -261,6 +292,31 @@ Func _MediaPlayer_GetPosition($iMPIdx)
 	If @error Then Return SetError(@error, @extended, -1)
 	Return $iPos
 EndFunc   ;==>_MediaPlayer_GetPosition
+
+Func _MediaPlayer_GetRotation($iMPIdx, $bAsString = False)
+	Local $vRotation
+	If $iMPIdx < 1 Or $iMPIdx >= UBound($__g_apPlayers) Then Return False
+	Local $pSession = __MediaPlayer_GetSession($iMPIdx)
+	If @error Then Return SetError(@error, @extended, $pSession)
+	_WinRT_SwitchInterface($pSession, $sIID_IMediaPlaybackSession3)
+	If Not @error Then $vRotation = IMediaPlaybackSession3_GetPlaybackRotation($pSession)
+	$iErr = @error
+	$iExt = @extended
+	IUnknown_Release($pSession)
+	If $bAsString Then $vRotation = _WinRT_GetEnum($mMediaRotation, $vRotation)
+	Return SetError($iErr, $iExt, $vRotation)
+	Return $vRotation
+EndFunc   ;==>_MediaPlayer_GetRotation
+
+Func _MediaPlayer_GetStretch($iMPIdx, $bAsString = False)
+	Local $vStretch
+	If $iMPIdx < 1 Or $iMPIdx >= UBound($__g_apPlayers) Then Return False
+	_WinRT_SwitchInterface($__g_apMPElements[$iMPIdx], $sIID_IMediaPlayerElement)
+	If Not @error Then $vStretch = IMediaPlayerElement_GetStretch($__g_apMPElements[$iMPIdx])
+	If @error Then Return SetError(@error, @extended, -1)
+	If $bAsString Then $vStretch = _WinRT_GetEnum($mStretch, $vStretch)
+	Return $vStretch
+EndFunc   ;==>_MediaPlayer_GetStretch
 
 Func _MediaPlayer_GetVolume($iMPIdx)
 	Local $fVol
@@ -305,7 +361,6 @@ Func _MediaPlayer_Init()
 	IUnknown_Release($pDesktopWinXamlSrc_Fact)
 	If $iErr Then Return SetError($iErr, $iExt, False)
 
-	; commented out due to issues with Au3Stripper
 	;$__g_pHdlr_MediaOpened = _WinRT_CreateDelegate("__MediaPlayer_MediaOpened", "Windows.Foundation.TypedEventHandler`2<Windows.Media.Playback.MediaPlayer, Object>")
 	;$__g_pHdlr_MediaFailed = _WinRT_CreateDelegate("__MediaPlayer_MediaFailed", "Windows.Foundation.TypedEventHandler`2<Windows.Media.Playback.MediaPlayer, Windows.Media.Playback.MediaPlayerFailedEventArgs>")
 	;$__g_pHdlr_MediaEnded = _WinRT_CreateDelegate("__MediaPlayer_MediaEnded", "Windows.Foundation.TypedEventHandler`2<Windows.Media.Playback.MediaPlayer, Object>")
@@ -672,6 +727,30 @@ Func _MediaPlayer_SetPosition($iMPIdx, $iPos)
 	Return @error = $S_OK
 EndFunc   ;==>_MediaPlayer_SetPosition
 
+Func _MediaPlayer_SetRotation($iMPIdx, $vRotation)
+	Local $iErr, $iExt
+	If $iMPIdx < 1 Or $iMPIdx >= UBound($__g_apPlayers) Then Return False
+	Local $pSession = __MediaPlayer_GetSession($iMPIdx)
+	_WinRT_SwitchInterface($pSession, $sIID_IMediaPlaybackSession3)
+	If @error Then Return SetError(@error, @extended, $pSession)
+	If IsString($vRotation) Then $vRotation = _WinRT_GetEnum($mMediaRotation, $vRotation)
+	IMediaPlaybackSession3_SetPlaybackRotation($pSession, $vRotation)
+	$iErr = @error
+	$iExt = @extended
+	IUnknown_Release($pSession)
+	Return SetError($iErr, $iExt, @error = $S_OK)
+EndFunc   ;==>_MediaPlayer_SetRotation
+
+Func _MediaPlayer_SetStretch($iMPIdx, $vStretch)
+	If $iMPIdx < 1 Or $iMPIdx >= UBound($__g_apPlayers) Then Return False
+	_WinRT_SwitchInterface($__g_apMPElements[$iMPIdx], $sIID_IMediaPlayerElement)
+	If Not @error Then
+		If IsString($vStretch) Then $vStretch = _WinRT_GetEnum($mStretch, $vStretch)
+		IMediaPlayerElement_SetStretch($__g_apMPElements[$iMPIdx], $vStretch)
+	EndIf
+	Return SetError(@error, @extended, @error = $S_OK)
+EndFunc   ;==>_MediaPlayer_SetStretch
+
 Func _MediaPlayer_SetVolume($iMPIdx, $fVol)
 	If $iMPIdx < 1 Or $iMPIdx >= UBound($__g_apPlayers) Then Return False
 	_WinRT_SwitchInterface($__g_apPlayers[$iMPIdx], $sIID_IMediaPlayer)
@@ -703,132 +782,3 @@ Func _MediaPlayer_XamlShutdown()
 	If Not @error Then IClosable_Close($__g_pWindowsXamlManager)
 	If Not @error Then $__g_pWindowsXamlManager = 0
 EndFunc   ;==>_MediaPlayer_XamlShutdown
-
-;~ Func _MediaPlayer_GetIsZoomVisible($iMPIdx)
-;~ 	Local $bState, $iErr, $iExt
-;~ 	If $iMPIdx < 1 Or $iMPIdx >= UBound($__g_apPlayers) Then Return False
-;~ 	Local $pTransport = __MediaPlayer_GetTransport($iMPIdx)
-;~ 	If @error Then Return SetError(@error, @extended, False)
-;~ 	$bState = IMediaTransportControls_GetIsZoomButtonVisible($pTransport)
-;~ 	$iErr = @error
-;~ 	$iExt = @extended
-;~ 	IUnknown_Release($pTransport)
-;~ 	Return SetError($iErr, $iExt, $bState)
-;~ EndFunc
-
-;~ Func _MediaPlayer_GetIsZoomEnabled($iMPIdx)
-;~ 	Local $bState, $iErr, $iExt
-;~ 	If $iMPIdx < 1 Or $iMPIdx >= UBound($__g_apPlayers) Then Return False
-;~ 	Local $pTransport = __MediaPlayer_GetTransport($iMPIdx)
-;~ 	If @error Then Return SetError(@error, @extended, False)
-;~ 	$bState = IMediaTransportControls_GetIsZoomEnabled($pTransport)
-;~ 	$iErr = @error
-;~ 	$iExt = @extended
-;~ 	IUnknown_Release($pTransport)
-;~ 	Return SetError($iErr, $iExt, $bState)
-;~ EndFunc
-
-;~ Func _MediaPlayer_SetIsRepeatEnabled($iMPIdx, $bState)
-;~ 	Local $iErr
-;~ 	If $iMPIdx < 1 Or $iMPIdx >= UBound($__g_apPlayers) Then Return False
-;~ 	Local $pTransport = __MediaPlayer_GetTransport($iMPIdx)
-;~ 	If Not @error Then _WinRT_SwitchInterface($pTransport, $sIID_IMediaTransportControls3)
-;~ 	If @error Then Return SetError(@error, @extended, False)
-;~ 	IMediaTransportControls_Se _SetIsRepeatEnabled($pTransport, $bState)
-;~ 	$iErr = @error
-;~ 	IUnknown_Release($pTransport)
-;~ 	Return $iErr = $S_OK
-;~ EndFunc
-
-;~ Func _MediaPlayer_SetIsFullScreenVisible($iMPIdx, $bState)
-;~ 	Local $iErr
-;~ 	If $iMPIdx < 1 Or $iMPIdx >= UBound($__g_apPlayers) Then Return False
-;~ 	Local $pTransport = __MediaPlayer_GetTransport($iMPIdx)
-;~ 	If @error Then Return SetError(@error, @extended, False)
-;~ 	IMediaTransportControls_SetIsFullWindowButtonVisible($pTransport, $bState)
-;~ 	$iErr = @error
-;~ 	IUnknown_Release($pTransport)
-;~ 	Return $iErr = $S_OK
-;~ EndFunc
-
-Func _MediaPlayer_SetIsFullScreenEnabled($iMPIdx, $bState)
-	Local $iErr
-	If $iMPIdx < 1 Or $iMPIdx >= UBound($__g_apPlayers) Then Return False
-	Local $pTransport = __MediaPlayer_GetTransport($iMPIdx)
-	If @error Then Return SetError(@error, @extended, False)
-	IMediaTransportControls_SetIsFullWindowEnabled($pTransport, $bState)
-	$iErr = @error
-	IUnknown_Release($pTransport)
-	Return $iErr = $S_OK
-EndFunc
-
-Func _MediaPlayer_SetIMediaPlayerElement_SetIsFullWindow($iMPIdx, $bState)
-	Local $iErr
-	If $iMPIdx < 1 Or $iMPIdx >= UBound($__g_apPlayers) Then Return False
-	Local $pTransport = __MediaPlayer_GetTransport($iMPIdx)
-	If @error Then Return SetError(@error, @extended, False)
-	IMediaPlayerElement_SetIsFullWindow($pTransport, $bState)
-	$iErr = @error
-	IUnknown_Release($pTransport)
-	Return $iErr = $S_OK
-EndFunc
-
-Func _MediaPlayer_SetIMediaElement2_SetIsFullWindow($iMPIdx, $bState)
-	Local $iErr
-	If $iMPIdx < 1 Or $iMPIdx >= UBound($__g_apPlayers) Then Return False
-	Local $pTransport = __MediaPlayer_GetTransport($iMPIdx)
-	If @error Then Return SetError(@error, @extended, False)
-	IMediaElement2_SetIsFullWindow($pTransport, $bState)
-	$iErr = @error
-	IUnknown_Release($pTransport)
-	Return $iErr = $S_OK
-EndFunc
-
-Func _MediaPlayer_SetIMediaPlayerPresenter_SetStretch($iMPIdx, $bState)
-	Local $iErr
-	If $iMPIdx < 1 Or $iMPIdx >= UBound($__g_apPlayers) Then Return False
-	Local $pTransport = __MediaPlayer_GetTransport($iMPIdx)
-	If @error Then Return SetError(@error, @extended, False)
-	IMediaPlayerPresenter_SetStretch($pTransport, $bState)
-	$iErr = @error
-	IUnknown_Release($pTransport)
-	Return $iErr = $S_OK
-EndFunc
-
-Func _MediaPlayer_SetIMediaElement2_SetStretch($iMPIdx, $bState)
-	Local $iErr
-	If $iMPIdx < 1 Or $iMPIdx >= UBound($__g_apPlayers) Then Return False
-	Local $pTransport = __MediaPlayer_GetTransport($iMPIdx)
-	If @error Then Return SetError(@error, @extended, False)
-	IMediaElement2_SetStretch($pTransport, $bState)
-	$iErr = @error
-	IUnknown_Release($pTransport)
-	Return $iErr = $S_OK
-EndFunc
-
-Func _MediaPlayer_SetIMediaPlayerElement_SetStretch($iMPIdx, $bState)
-	Local $iErr
-	If $iMPIdx < 1 Or $iMPIdx >= UBound($__g_apPlayers) Then Return False
-	Local $pTransport = __MediaPlayer_GetTransport($iMPIdx)
-	If @error Then Return SetError(@error, @extended, False)
-	IMediaPlayerElement_SetStretch($pTransport, $bState)
-	$iErr = @error
-	IUnknown_Release($pTransport)
-	Return $iErr = $S_OK
-EndFunc
-
-Func _MediaPlayer_GetIMediaElement2_GetIsFullWindow($iMPIdx)
-	Local $fRate
-	If $iMPIdx < 1 Or $iMPIdx >= UBound($__g_apPlayers) Then Return False
-	_WinRT_SwitchInterface($__g_apPlayers[$iMPIdx], $sIID_IMediaPlayer)
-	If Not @error Then $fRate = IMediaElement2_GetIsFullWindow($__g_apPlayers[$iMPIdx])
-	Return SetError(@error, @extended, $fRate)
-EndFunc   ;==>_MediaPlayer_GetPlaybackRate
-
-Func _MediaPlayer_GetIMediaTransportControls_GetIsFullWindowEnabled($iMPIdx)
-	Local $fRate
-	If $iMPIdx < 1 Or $iMPIdx >= UBound($__g_apPlayers) Then Return False
-	_WinRT_SwitchInterface($__g_apPlayers[$iMPIdx], $sIID_IMediaPlayer)
-	If Not @error Then $fRate = IMediaTransportControls_GetIsFullWindowEnabled($__g_apPlayers[$iMPIdx])
-	Return SetError(@error, @extended, $fRate)
-EndFunc   ;==>_MediaPlayer_GetPlaybackRate

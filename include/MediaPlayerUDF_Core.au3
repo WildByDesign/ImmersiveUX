@@ -1,12 +1,7 @@
 #Tidy_Parameters = /sf
 
 #include <APIErrorsConstants.au3>
-;#include <WinAPI.au3>
-
-#include <WinAPIConv.au3>
-#include <WinAPISysWin.au3>
-#include <AutoItConstants.au3>
-#include <WinAPIConstants.au3>
+#include <WinAPI.au3>
 
 Global $__g_hDLLComBase, $__g_hDLLOle32, $__g_hDLLRoMetaData, $__g_hDLLWinTypes
 Global $__g_aDelegates[1][4], $__g_hQueryInterface, $__g_hAddRef, $__g_hRelease
@@ -52,6 +47,9 @@ Global Const $sIID_IMediaSourceStatics3 = "{453A30D6-2BEA-4122-9F73-EACE04526E35
 Global Const $sIID_IMediaSourceStatics4 = "{281B3BFC-E50A-4428-A500-9C4ED918D3F0}"
 Global Const $sIID_IMiracastReceiverMediaSourceCreatedEventArgs = "{17CF519E-1246-531D-945A-6B158E39C3AA}"
 Global Const $sIID_IBackgroundMediaPlayerStatics = "{856DDBC1-55F7-471F-A0F2-68AC4C904592}"
+Global Const $sIID_IMediaPlaybackSession = "{C32B683D-0407-41BA-8946-8B345A5A5435}"
+Global Const $sIID_IMediaPlaybackSession2 = "{F8BA7C79-1FC8-4097-AD70-C0FA18CC0050}"
+Global Const $sIID_IMediaPlaybackSession3 = "{7BA2B41A-A3E2-405F-B77B-A4812C238B66}"
 Global Const $sIID_IMediaPlaybackSource = "{EF9DC2BC-9317-4696-B051-2BAD643177B5}"
 Global Const $sIID_IMediaPlayer = "{381A83CB-6FFF-499B-8D64-2885DFC1249E}"
 Global Const $sIID_IMediaPlayer2 = "{3C841218-2123-4FC5-9082-2F883F77BDF5}"
@@ -360,6 +358,14 @@ $mManipulationModes["All"] = 0x0000FFFF
 $mManipulationModes["System"] = 0x00010000
 __WinRT_AddReverseMappings($mManipulationModes)
 
+Global $mMediaPlaybackState[]
+$mMediaPlaybackState["None"] = 0x00000000
+$mMediaPlaybackState["Opening"] = 0x00000001
+$mMediaPlaybackState["Buffering"] = 0x00000002
+$mMediaPlaybackState["Playing"] = 0x00000003
+$mMediaPlaybackState["Paused"] = 0x00000004
+__WinRT_AddReverseMappings($mMediaPlaybackState)
+
 Global $mMediaPlayerAudioCategory[]
 $mMediaPlayerAudioCategory["Other"] = 0x00000000
 $mMediaPlayerAudioCategory["Communications"] = 0x00000003
@@ -396,6 +402,13 @@ $mMediaPlayerState["Paused"] = 0x00000004
 $mMediaPlayerState["Stopped"] = 0x00000005
 __WinRT_AddReverseMappings($mMediaPlayerState)
 
+Global $mMediaRotation[]
+$mMediaRotation["None"] = 0x00000000
+$mMediaRotation["Clockwise90Degrees"] = 0x00000001
+$mMediaRotation["Clockwise180Degrees"] = 0x00000002
+$mMediaRotation["Clockwise270Degrees"] = 0x00000003
+__WinRT_AddReverseMappings($mMediaRotation)
+
 Global $mMediaSourceAudioInputNodeCreationStatus[]
 $mMediaSourceAudioInputNodeCreationStatus["Success"] = 0x00000000
 $mMediaSourceAudioInputNodeCreationStatus["FormatNotSupported"] = 0x00000001
@@ -416,6 +429,12 @@ $mRequiresPointer["Never"] = 0x00000000
 $mRequiresPointer["WhenEngaged"] = 0x00000001
 $mRequiresPointer["WhenFocused"] = 0x00000002
 __WinRT_AddReverseMappings($mRequiresPointer)
+
+Global $mStereoscopicVideoPackingMode[]
+$mStereoscopicVideoPackingMode["None"] = 0x00000000
+$mStereoscopicVideoPackingMode["SideBySide"] = 0x00000001
+$mStereoscopicVideoPackingMode["TopBottom"] = 0x00000002
+__WinRT_AddReverseMappings($mStereoscopicVideoPackingMode)
 
 Global $mStereoscopicVideoRenderMode[]
 $mStereoscopicVideoRenderMode["Mono"] = 0x00000000
@@ -887,7 +906,6 @@ Func __MetaData_ReadCompressedInt(ByRef $dSig, ByRef $iReadPtr, $bSigned)
 EndFunc   ;==>__MetaData_ReadCompressedInt
 
 Func __MetaData_ReadSerString(ByRef $tBuff, $iOffset)
-	Local Const $CP_UTF8 = 65001
 	Local $pBuff = Ptr(DllStructGetPtr($tBuff) + $iOffset)
 	Local $sDecStr = ""
 	Local $tBuff2 = DllStructCreate("byte", $pBuff)
@@ -7836,7 +7854,6 @@ Func IMetaDataImport_GetModuleRefProps($pThis, $iModuleRefTkn, ByRef $sName)
 EndFunc   ;==>IMetaDataImport_GetModuleRefProps
 
 Func IMetaDataImport_GetNameFromToken($pThis, $iToken)
-	Local Const $CP_UTF8 = 65001
 	Local $vFailVal = "", $sName
 	If (Not IsInt($iToken)) Or (Not $iToken) Then Return SetError($ERROR_INVALID_PARAMETER, 0, $vFailVal)
 	Local $pFunc = __WinRT_GetFuncAddress($pThis, 46)
@@ -10423,3 +10440,307 @@ Func IWindowsXamlManagerStatics_InitializeForCurrentThread($pThis)
 	If @error Then Return SetError(__WinRT_GetDllError(), 0, $vFailVal)
 	Return SetError($aCall[0], 0, $aCall[2])
 EndFunc   ;==>IWindowsXamlManagerStatics_InitializeForCurrentThread
+
+Func IMediaPlaybackSession_AddHdlrBufferingEnded($pThis, $pValue)
+	Local $vValue = __WinRT_AddHandler($pThis, 15, $pValue)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_AddHdlrBufferingProgressChanged($pThis, $pValue)
+	Local $vValue = __WinRT_AddHandler($pThis, 17, $pValue)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_AddHdlrBufferingStarted($pThis, $pValue)
+	Local $vValue = __WinRT_AddHandler($pThis, 13, $pValue)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_AddHdlrDownloadProgressChanged($pThis, $pValue)
+	Local $vValue = __WinRT_AddHandler($pThis, 19, $pValue)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_AddHdlrNaturalDurationChanged($pThis, $pValue)
+	Local $vValue = __WinRT_AddHandler($pThis, 21, $pValue)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_AddHdlrNaturalVideoSizeChanged($pThis, $pValue)
+	Local $vValue = __WinRT_AddHandler($pThis, 25, $pValue)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_AddHdlrPlaybackRateChanged($pThis, $pValue)
+	Local $vValue = __WinRT_AddHandler($pThis, 9, $pValue)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_AddHdlrPlaybackStateChanged($pThis, $pValue)
+	Local $vValue = __WinRT_AddHandler($pThis, 7, $pValue)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_AddHdlrPositionChanged($pThis, $pValue)
+	Local $vValue = __WinRT_AddHandler($pThis, 23, $pValue)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_AddHdlrSeekCompleted($pThis, $pValue)
+	Local $vValue = __WinRT_AddHandler($pThis, 11, $pValue)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_GetBufferingProgress($pThis)
+	Local $vValue = __WinRT_GetProperty_Number($pThis, 37, "double")
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_GetCanPause($pThis)
+	Local $vValue = __WinRT_GetProperty_Bool($pThis, 33)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_GetCanSeek($pThis)
+	Local $vValue = __WinRT_GetProperty_Bool($pThis, 32)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_GetDownloadProgress($pThis)
+	Local $vValue = __WinRT_GetProperty_Number($pThis, 38, "double")
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_GetIsProtected($pThis)
+	Local $vValue = __WinRT_GetProperty_Bool($pThis, 34)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_GetMediaPlayer($pThis)
+	Local $vValue = __WinRT_GetProperty_Ptr($pThis, 27)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_GetNaturalDuration($pThis)
+	Local $vValue = __WinRT_GetProperty_Number($pThis, 28, "int64")
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_GetNaturalVideoHeight($pThis)
+	Local $vValue = __WinRT_GetProperty_Number($pThis, 39, "ulong")
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_GetNaturalVideoWidth($pThis)
+	Local $vValue = __WinRT_GetProperty_Number($pThis, 40, "ulong")
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_GetNormalizedSourceRect($pThis)
+	Local $tagValue = "float;float;float;float;"
+	Local $tValue = DllStructCreate($tagValue)
+	__WinRT_GetProperty_Struct($pThis, 41, $tValue)
+	Return SetError(@error, @extended, $tValue)
+EndFunc
+
+Func IMediaPlaybackSession_GetPlaybackRate($pThis)
+	Local $vValue = __WinRT_GetProperty_Number($pThis, 35, "double")
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_GetPlaybackState($pThis)
+	Local $vValue = __WinRT_GetProperty_Number($pThis, 31, "ulong")
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_GetPosition($pThis)
+	Local $vValue = __WinRT_GetProperty_Number($pThis, 29, "int64")
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_GetStereoscopicVideoPackingMode($pThis)
+	Local $vValue = __WinRT_GetProperty_Number($pThis, 43, "ulong")
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_RemoveHdlrBufferingEnded($pThis, $iToken)
+	Local $vValue = __WinRT_RemoveHandler($pThis, 16, $iToken)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_RemoveHdlrBufferingProgressChanged($pThis, $iToken)
+	Local $vValue = __WinRT_RemoveHandler($pThis, 18, $iToken)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_RemoveHdlrBufferingStarted($pThis, $iToken)
+	Local $vValue = __WinRT_RemoveHandler($pThis, 14, $iToken)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_RemoveHdlrDownloadProgressChanged($pThis, $iToken)
+	Local $vValue = __WinRT_RemoveHandler($pThis, 20, $iToken)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_RemoveHdlrNaturalDurationChanged($pThis, $iToken)
+	Local $vValue = __WinRT_RemoveHandler($pThis, 22, $iToken)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_RemoveHdlrNaturalVideoSizeChanged($pThis, $iToken)
+	Local $vValue = __WinRT_RemoveHandler($pThis, 26, $iToken)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_RemoveHdlrPlaybackRateChanged($pThis, $iToken)
+	Local $vValue = __WinRT_RemoveHandler($pThis, 10, $iToken)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_RemoveHdlrPlaybackStateChanged($pThis, $iToken)
+	Local $vValue = __WinRT_RemoveHandler($pThis, 8, $iToken)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_RemoveHdlrPositionChanged($pThis, $iToken)
+	Local $vValue = __WinRT_RemoveHandler($pThis, 24, $iToken)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_RemoveHdlrSeekCompleted($pThis, $iToken)
+	Local $vValue = __WinRT_RemoveHandler($pThis, 12, $iToken)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_SetNormalizedSourceRect($pThis, $tValue)
+	Local $vValue = __WinRT_SetProperty_Struct($pThis, 42, $tValue)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_SetPlaybackRate($pThis, $fValue)
+	Local $vValue = __WinRT_SetProperty_Number($pThis, 36, "double", $fValue)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_SetPosition($pThis, $iValue)
+	Local $vValue = __WinRT_SetProperty_Number($pThis, 30, "int64", $iValue)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession_SetStereoscopicVideoPackingMode($pThis, $iValue)
+	Local $vValue = __WinRT_SetProperty_Number($pThis, 44, "ulong", $iValue)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession2_AddHdlrBufferedRangesChanged($pThis, $pValue)
+	Local $vValue = __WinRT_AddHandler($pThis, 7, $pValue)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession2_AddHdlrPlayedRangesChanged($pThis, $pValue)
+	Local $vValue = __WinRT_AddHandler($pThis, 9, $pValue)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession2_AddHdlrSeekableRangesChanged($pThis, $pValue)
+	Local $vValue = __WinRT_AddHandler($pThis, 11, $pValue)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession2_AddHdlrSupportedPlaybackRatesChanged($pThis, $pValue)
+	Local $vValue = __WinRT_AddHandler($pThis, 13, $pValue)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession2_GetBufferedRanges($pThis)
+	Local $vFailVal = Ptr(0)
+	Local $pFunc = __WinRT_GetFuncAddress($pThis, 18)
+	If @error Then Return SetError(@error, @extended, $vFailVal)
+	Local $aCall = DllCallAddress("long", $pFunc, "ptr", $pThis, "ptr*", 0)
+	If @error Then Return SetError(__WinRT_GetDllError(), 0, $vFailVal)
+	Return SetError($aCall[0], 0, $aCall[2])
+EndFunc
+
+Func IMediaPlaybackSession2_GetIsMirroring($pThis)
+	Local $vValue = __WinRT_GetProperty_Bool($pThis, 16)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession2_GetPlayedRanges($pThis)
+	Local $vFailVal = Ptr(0)
+	Local $pFunc = __WinRT_GetFuncAddress($pThis, 19)
+	If @error Then Return SetError(@error, @extended, $vFailVal)
+	Local $aCall = DllCallAddress("long", $pFunc, "ptr", $pThis, "ptr*", 0)
+	If @error Then Return SetError(__WinRT_GetDllError(), 0, $vFailVal)
+	Return SetError($aCall[0], 0, $aCall[2])
+EndFunc
+
+Func IMediaPlaybackSession2_GetSeekableRanges($pThis)
+	Local $vFailVal = Ptr(0)
+	Local $pFunc = __WinRT_GetFuncAddress($pThis, 20)
+	If @error Then Return SetError(@error, @extended, $vFailVal)
+	Local $aCall = DllCallAddress("long", $pFunc, "ptr", $pThis, "ptr*", 0)
+	If @error Then Return SetError(__WinRT_GetDllError(), 0, $vFailVal)
+	Return SetError($aCall[0], 0, $aCall[2])
+EndFunc
+
+Func IMediaPlaybackSession2_GetSphericalVideoProjection($pThis)
+	Local $vValue = __WinRT_GetProperty_Ptr($pThis, 15)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession2_IsSupportedPlaybackRateRange($pThis, $fRate1, $fRate2)
+	Local $vFailVal = Null
+	Local $pFunc = __WinRT_GetFuncAddress($pThis, 21)
+	If @error Then Return SetError(@error, @extended, $vFailVal)
+	If ($fRate1) And (Not IsNumber($fRate1)) Then Return SetError($ERROR_INVALID_PARAMETER, 0, $vFailVal)
+	If ($fRate2) And (Not IsNumber($fRate2)) Then Return SetError($ERROR_INVALID_PARAMETER, 0, $vFailVal)
+	Local $aCall = DllCallAddress("long", $pFunc, "ptr", $pThis, "double", $fRate1, "double", $fRate2, "bool*", 0)
+	If @error Then Return SetError(__WinRT_GetDllError(), 0, $vFailVal)
+	Return SetError($aCall[0], 0, $aCall[4])
+EndFunc
+
+Func IMediaPlaybackSession2_RemoveHdlrBufferedRangesChanged($pThis, $iToken)
+	Local $vValue = __WinRT_RemoveHandler($pThis, 8, $iToken)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession2_RemoveHdlrPlayedRangesChanged($pThis, $iToken)
+	Local $vValue = __WinRT_RemoveHandler($pThis, 10, $iToken)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession2_RemoveHdlrSeekableRangesChanged($pThis, $iToken)
+	Local $vValue = __WinRT_RemoveHandler($pThis, 12, $iToken)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession2_RemoveHdlrSupportedPlaybackRatesChanged($pThis, $iToken)
+	Local $vValue = __WinRT_RemoveHandler($pThis, 14, $iToken)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession2_SetIsMirroring($pThis, $bValue)
+	Local $vValue = __WinRT_SetProperty_Bool($pThis, 17, $bValue)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession3_GetOutputDegradationPolicyState($pThis)
+	Local $vFailVal = Ptr(0)
+	Local $pFunc = __WinRT_GetFuncAddress($pThis, 9)
+	If @error Then Return SetError(@error, @extended, $vFailVal)
+	Local $aCall = DllCallAddress("long", $pFunc, "ptr", $pThis, "ptr*", 0)
+	If @error Then Return SetError(__WinRT_GetDllError(), 0, $vFailVal)
+	Return SetError($aCall[0], 0, $aCall[2])
+EndFunc
+
+Func IMediaPlaybackSession3_GetPlaybackRotation($pThis)
+	Local $vValue = __WinRT_GetProperty_Number($pThis, 7, "ulong")
+	Return SetError(@error, @extended, $vValue)
+EndFunc
+
+Func IMediaPlaybackSession3_SetPlaybackRotation($pThis, $iValue)
+	Local $vValue = __WinRT_SetProperty_Number($pThis, 8, "ulong", $iValue)
+	Return SetError(@error, @extended, $vValue)
+EndFunc
