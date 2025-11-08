@@ -1,7 +1,8 @@
-# ImmersiveUX
+# Immersive UX
 Immersive UX is for Windows 11 (build 22621+) only and allows enabling DWM features on Win32 apps. It features a single portable binary for the processing engine and a single portable binary for the GUI. The GUI features an easy way to install the processing engine as a scheduled task. If the GUI is run as Admin, you can upgrade the task to run with highest privileges to allow Immersive UX to apply features to elevated apps as well. 
 
-<img width="859" height="633" alt="image" src="https://github.com/user-attachments/assets/31573c81-c3a9-45f8-b284-560f58335c51" />
+<img width="870" height="654" alt="image" src="https://github.com/user-attachments/assets/59160262-d295-457a-883e-588636efa0a1" />
+
 
 
 ## Features:
