@@ -1,5 +1,8 @@
 # Immersive UX
-Immersive UX is for Windows 11 (build 22621+) only and allows enabling DWM features on Win32 apps. It features a single portable binary for the processing engine and a single portable binary for the GUI. The GUI features an easy way to install the processing engine as a scheduled task. If the GUI is run as Admin, you can upgrade the task to run with highest privileges to allow Immersive UX to apply features to elevated apps as well. 
+Immersive UX is for Windows 11 (build 22621+) and allows enabling DWM features on Win32 apps. It features a single portable binary for the processing engine and a single portable binary for the GUI. The GUI features an easy way to install the processing engine as a scheduled task. If the GUI is run as Admin, you can upgrade the task to run with highest privileges to allow Immersive UX to apply features to elevated apps as well.
+
+For performance reasons, the engine will run as multi-process for specific options that require a high level of precision timing. The LED Strobe Effects border option and the Live Wallpaper feature run as separate processes.
+
 
 <img width="870" height="654" alt="image" src="https://github.com/user-attachments/assets/59160262-d295-457a-883e-588636efa0a1" />
 
@@ -15,6 +18,8 @@ Immersive UX is for Windows 11 (build 22621+) only and allows enabling DWM featu
 - Extend frame into client area
 - Backdrop materials: Mica, Acrylic, Mica Alt (Tabbed)
 - Blur Behind with optional color tint blend and intensity level
+- Custom inactive window state for Blur Behind
+- LED Strobe Effects option
 
 
 All features can be applied globally to all apps or on a per-app / per-class basis. So each app can have its own set of colors and options. The custom per-app / per-class rules take priority over the global rules. If you have a custom rule that has some options left blank (or selected Global), those options will fall back to global options if the relevant global option is set.
