@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.9.0
+#AutoIt3Wrapper_Res_Fileversion=1.9.1
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.9.0
+#AutoIt3Wrapper_Res_ProductVersion=1.9.1
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=N
@@ -47,7 +47,8 @@ Global $iGlobalBlurTintColor, $dGlobalBlurTintColor, $iGlobalBlurOpacity
 Global $dTerminalBorderColor, $dTerminalBackdrop, $bWindowsTerminalHandling, $dVSStudioBorderColor, $bWindowsTerminalBlur
 Global $dVSCodiumBackdrop, $dVSCodeBackdrop
 Global $bLiveEnabled, $bLoopEnabled
-Global $iDuration, $iDurationMs, $oWinStart, $iDurationPause
+Global $iDuration, $iDurationMs, $oWinStart, $iDurationPause, $sStart
+Global $iMediaRatio, $iMonitorRatio, $aGUI_Handles, $aGUI_Ratio
 Global $bMediaOpened = False
 ;Global $hActiveWnd
 Global Static $hLEDWndLast
@@ -1411,7 +1412,6 @@ Func _ImmersiveLiveProcess()
 		Next
 	EndIf
 
-	Local $aPlayer[$aMonitor[0][0]]
 	Local $iPlayerCount = $aMonitor[0][0]
 	_ArrayDelete($aMonitor, 0)
 
@@ -1428,6 +1428,11 @@ Func _ImmersiveLiveProcess()
 			Until UBound($aMonitor) = 1
 		EndIf
 	EndIf
+
+	$iMonitorCount = UBound($aMonitor)
+	Local $aPlayer[$iMonitorCount]
+	Global $aGUI_Handles[$iMonitorCount]
+	Global $aGUI_Ratio[$iMonitorCount]
 
 	OnAutoItExitRegister(DoCleanUpLive)
 	Local $hLiveWnd = _GetHwndFromPID(@AutoItPID)
@@ -1487,13 +1492,23 @@ Func _ImmersiveLiveProcess()
 		If Not IsObj($oDesktop) Then Exit ConsoleWrite("$oDesktop ERR" & @CRLF)
 		;ConsoleWrite("$oDesktop OK" & @CRLF)
 
+		; Get Start button
+		Local $pCondition, $pStart, $oStart
+		$oUIAutomation.CreatePropertyCondition($UIA_AutomationIdPropertyId, "StartButton", $pCondition)
+		$oDesktop.FindFirst($TreeScope_Descendants, $pCondition, $pStart)
+		$oStart = ObjCreateInterface($pStart, $sIID_IUIAutomationElement, $dtag_IUIAutomationElement)
+		If Not IsObj($oStart) Then Exit ConsoleWrite("$oStart ERR" & @CRLF)
+		;ConsoleWrite("$oStart OK" & @CRLF)
+		$oStart.GetCurrentPropertyValue($UIA_NamePropertyId, $sStart)
+		ConsoleWrite($sStart & @CRLF)
+
 		UIAEH_AutomationEventHandlerCreate()
 		If Not IsObj($oUIAEH_AutomationEventHandler) Then Exit ConsoleWrite("$oUIAEH_AutomationEventHandler ERR" & @CRLF)
 		;ConsoleWrite("$oUIAEH_AutomationEventHandler OK" & @CRLF)
 
 		$oUIAutomation.AddAutomationEventHandler($UIA_Window_WindowOpenedEventId, $pDesktop, $TreeScope_Subtree, 0, $oUIAEH_AutomationEventHandler)
 
-		Local $hWndStart, $bTreated
+		Local $hWndStart
 	EndIf
 
 	; GUI section (multi-monitor)
@@ -1505,7 +1520,6 @@ Func _ImmersiveLiveProcess()
 	;
 	For $i = 0 To UBound($aMonitor) -1
 		$hLiveGUI = GUICreate("Live Wallpaper - " & $i, $aMonitor[$i][3], $aMonitor[$i][4], $aMonitor[$i][1], $aMonitor[$i][2], $WS_POPUP, $WS_EX_TOOLWINDOW)
-		GUISetBkColor(0xff00ff) ; temp for testing screen placement
 
 		_WinAPI_SetParent($hLiveGUI, $hWorkerW)
 		_WinAPI_SetWindowPos($hLiveGUI, $HWND_BOTTOM, 0, 0, 0, 0, BitOR($SWP_NOMOVE, $SWP_NOSIZE, $SWP_NOACTIVATE))
@@ -1519,37 +1533,44 @@ Func _ImmersiveLiveProcess()
 
 		; build array for player index
 		$aPlayer[$i] = $hPlayer
-		;_ArrayDisplay($aPlayer, 'Player Index')
 
+		; build array for GUI handles
+		$aGUI_Handles[$i] = $hLiveGUI
+
+		; build array for GUI ratio
+		$aGUI_Ratio[$i] = Round($aMonitor[$i][3] / $aMonitor[$i][4], 2)
+
+		;_MediaPlayer_RegMediaOpenedProc($hPlayer, "MediaOpened")
 		_MediaPlayer_LoadFromStorage($hPlayer, $sLiveWallpaperFile)
 
-		If $bLoopEnabled Then _MediaPlayer_SetIsLooping($hPlayer, True)
-		_MediaPlayer_SetAutoPlay($hPlayer, True)
+		$iMonitorRatio = Round($aMonitor[$i][3] / $aMonitor[$i][4], 2)
+		ConsoleWrite("Monitor Ratio: " & $iMonitorRatio & @CRLF)
 
-		GUISetState(@SW_SHOWNOACTIVATE, $hLiveGUI)
+		If $bLoopEnabled Then _MediaPlayer_SetIsLooping($hPlayer, True)
+		;_MediaPlayer_SetAutoPlay($hPlayer, True)
+
+		;GUISetState(@SW_SHOWNOACTIVATE, $hLiveGUI)
 	Next
 	;
 	; GUI section (multi-monitor)
 
-	AdlibRegister("_IsMediaOpened")
+	AdlibRegister("_IsMediaOpenedAdlib", 10)
 
 	While 1
 		If $bTriggerStartButton Then
 			If IsObj($oWinStart) Then
-				If Not $bTreated Then
-					; Start button has been pushed or Win button has activated Start menu
-					$bTreated = True
-					$oWinStart.GetCurrentPropertyValue($UIA_NativeWindowHandlePropertyId, $hWndStart)
-					For $i = 0 To UBound($aPlayer) -1
-						_MediaPlayer_SetPosition($aPlayer[$i], 0)
-						_MediaPlayer_Play($aPlayer[$i])
-					Next
-				ElseIf Not WinExists($hWndStart) Then
-					$oWinStart.Release()
-					$oWinStart = 0
-					$bTreated = False
-					$hWndStart = 0
-					;ConsoleWrite("Start window closed" & @CRLF)
+				If Not $hWndStart Then
+				; Start button has been pushed or Win button has activated Start menu
+				$oWinStart.GetCurrentPropertyValue($UIA_NativeWindowHandlePropertyId, $hWndStart)
+				For $i = 0 To UBound($aPlayer) -1
+					_MediaPlayer_SetPosition($aPlayer[$i], 0)
+					_MediaPlayer_Play($aPlayer[$i])
+				Next
+			ElseIf Not WinExists($hWndStart) Then
+				$oWinStart.Release()
+				$oWinStart = 0
+				$hWndStart = 0
+				;ConsoleWrite("Start window closed" & @CRLF)
 				EndIf
 			EndIf
 		EndIf
@@ -1557,7 +1578,6 @@ Func _ImmersiveLiveProcess()
 			$iDurationTemp = _MediaPlayer_GetPosition(1)/10000000
 			$iDurationDiff = $iDuration - $iDurationTemp
 			If $iDurationDiff < 0.3 Then
-				ConsoleWrite("media is open, small diff" & @CRLF)
 				For $i = 0 To UBound($aPlayer) -1
 					If Not $bLoopEnabled Then
 						_MediaPlayer_Pause($aPlayer[$i])
@@ -1750,13 +1770,24 @@ Func _WinAPI_GetAncestor_mod($hWnd, $iFlags = $GA_PARENT)
 	Return $aCall[0]
 EndFunc   ;==>_WinAPI_GetAncestor_mod
 
-Func _IsMediaOpened()
+Func _IsMediaOpenedAdlib()
 	$iDuration = _MediaPlayer_GetDuration(1)/10000000
 	If $iDuration <> 0 Then
 		$bMediaOpened = True
 		$iDurationMs = Round($iDuration * 1000)
 		$iDurationPause = ($iDuration - 0.3) * 10000000
-		AdlibUnRegister("_IsMediaOpened")
+		$iMediaRatio = Round(_MediaPlayer_GetMediaWidth(1) / _MediaPlayer_GetMediaHeight(1), 2)
+		; show GUI window(s) once video is loaded
+		For $i = 0 To UBound($aGUI_Handles) -1
+			If $iMediaRatio = $aGUI_Ratio[$i] Then
+				_MediaPlayer_SetStretch($i + 1, "Uniform")
+			ElseIf $iMediaRatio <> $aGUI_Ratio[$i] Then
+				_MediaPlayer_SetStretch($i + 1, "UniformToFill")
+			EndIf
+			_MediaPlayer_Play($i + 1)
+			GUISetState(@SW_SHOWNOACTIVATE, $aGUI_Handles[$i])
+		Next
+		AdlibUnRegister("_IsMediaOpenedAdlib")
 	EndIf
 EndFunc
 
@@ -1832,7 +1863,7 @@ Func UIAEH_AutomationEventHandler_HandleAutomationEvent($pSelf, $pSender, $iEven
 	$oSender.GetCurrentPropertyValue($UIA_NamePropertyId, $sTitle)
 	$oSender.GetCurrentPropertyValue($UIA_ClassNamePropertyId, $sClass)
 
-	If $sTitle = "Start" And $sClass = "Windows.UI.Core.CoreWindow" Then $oWinStart = $oSender
+	If $sTitle = $sStart And $sClass = "Windows.UI.Core.CoreWindow" Then $oWinStart = $oSender
 EndFunc   ;==>UIAEH_AutomationEventHandler_HandleAutomationEvent
 
 #cs
