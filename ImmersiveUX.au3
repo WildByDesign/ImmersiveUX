@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX GUI
-#AutoIt3Wrapper_Res_Fileversion=1.9.1
+#AutoIt3Wrapper_Res_Fileversion=2.0.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX GUI
-#AutoIt3Wrapper_Res_ProductVersion=1.9.1
+#AutoIt3Wrapper_Res_ProductVersion=2.0.0
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -16,7 +16,7 @@
 #AutoIt3Wrapper_res_Compatibility=Win10
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
-Global $iVersion = '1.9.1'
+Global $iVersion = '2.0.0'
 
 #include <MsgBoxConstants.au3>
 #include <WinAPIFiles.au3>
@@ -33,20 +33,17 @@ Global $iVersion = '1.9.1'
 #include <WinAPIProc.au3>
 #include <File.au3>
 #include <GuiMenu.au3>
-
 #include <WinAPIDiag.au3>
 
 #include "include\StringSize.au3"
 #include "include\RoundGUI.au3"
 #include "include\GuiFlatButton.au3"
-;#include "include\ModernMenuRaw.au3"
-
 #include "include\GUIComboBoxColor.au3"
-;#include "include\GUIComboBoxFont.au3"
 #include "include\_WinAPI_DPI.au3"
 #include "include\TaskScheduler.au3"
 #include "include\ExtMsgBox.au3"
 #include "include\JSON.au3"
+#include "include\WCD_IPC.au3"
 
 Global $aCustomRules[0][17]
 
@@ -70,7 +67,7 @@ Opt("TrayMenuMode", 3)
 Opt("TrayAutoPause", 0)
 Opt("TrayOnEventMode", 1)
 
-Global $hGUI, $FontHeight, $iHitTestHeight, $idLiveMenu
+Global $hGUI, $FontHeight, $iHitTestHeight, $idLiveMenu, $bShowInTray
 Global $GUI_BackColor, $GUI_FontColor, $GUI_InputBackColor, $GUI_StatusBackColor, $GUI_StatusLineColor
 Global $GUI_MenubarBackColor, $GUI_MenubarLineColor, $GUI_AdvancedLineColor
 Global $dGlobalBlurTintColorInactive, $iGlobalColorIntensityInactive
@@ -89,7 +86,7 @@ Global $TaskIntegrity, $TaskInstalled, $TaskRunning
 Global $aProcessRunning, $IsRunFromTS, $bProcessRunning
 Global $idBorderOpt0, $idBorderOpt1, $idBorderOpt2, $idBorderOpt3
 Global $idTaskOpt0, $idTaskOpt1, $idTaskOpt2, $idTaskOpt3
-Global $idClickOpt0, $idClickOpt1, $idClickOpt2
+Global $idClickOpt0, $idClickOpt1, $idClickOpt2, $idShowInTray
 Global $idOpacityOpt0, $idOpacityOpt1, $idOpacityOpt2, $idOpacityOpt3, $idOpacityOpt4, $idOpacityOpt5, $idOpacityOpt6
 Global $idOpacityOpt7, $idOpacityOpt8, $idOpacityOpt9, $idOpacityOpt10
 Global $sWatchBorderColorInput, $sWatchTitlebarColorInput, $sWatchBlurColorIntensitySliderInact, $sWatchBlurColorIntensitySlider
@@ -97,10 +94,11 @@ Global $sWatchTitlebarTextColorInput, $sWatchBlurTintColorInputInact, $sWatchBlu
 Global $sWatchidInputDarkTitle, $sWatchidInputTitleBarBackdrop, $sWatchidInputCornerPreference, $sWatchidInputExtendFrame
 Global $sWatchidInputBlurBehind, $sWatchidInputRuleEnabled
 Global $idLiveOpt0, $idLiveOpt1, $idLiveOpt2, $idLiveOpt3, $idTriggerOpt0
+Global $hWndClient, $hWndServer
 Global $bWatchSaveChanges = False, $bPendingChanges = False
 Global $sTargetLast = ""
 Global $bHideGUI = False
-Global $TRAY_EVENT_PRIMARYDOWN = -7
+;Global $TRAY_EVENT_PRIMARYDOWN = -7
 Global $DWMWA_COLOR_NONE = 0xFFFFFFFE
 Global $DWMWA_COLOR_DEFAULT = 0xFFFFFFFF
 Global Const $TRBN_THUMBPOSCHANGING = -1502
@@ -115,34 +113,37 @@ Global $iDPI2 = $iDPI_def / $iDPI
 
 If StringInStr($CmdLineRaw, "hidegui") Then $bHideGUI = True
 
-If Not StringInStr($CmdLineRaw, "elevate") Then
-    If _Singleton($sProdName, 1) = 0 Then
-        ; handle situation when engine process is elevated and GUI process is not
-        Local $bElevated = _ToBoolean(IniRead($IniFile, "StartupInfoOnly", "Elevated", "False"))
-        If $bElevated And Not IsAdmin() Then
-            $sMsg = "Immersive UX is already running in the system tray." & @CRLF & @CRLF
-            $sMsg &= "To avoid mismatching of integrity levels between engine process" & @CRLF
-            $sMsg &= "and GUI process, please start Immersive UX GUI from the system" & @CRLF
-            $sMsg &= "tray menu." & @CRLF
-            _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
-            Exit
-        ElseIf Not $bElevated And IsAdmin() Then
-            ; allow upgrading non-admin task to admin task
-            ; need to close all
-            If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
-            If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
-            If WinExists("Immersive UX GUI") Then WinClose("Immersive UX GUI")
-            If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
-
-            ShellExecute(@ScriptDir & "\" & $sProdName & ".exe", "elevate", @ScriptDir, $SHEX_OPEN)
-            Exit
-        Else
-            ; show and activate the GUI window
-            $hWnd = WinGetHandle("Immersive UX")
-            _WinAPI_ShowWindow($hWnd, @SW_SHOW)
-            _WinAPI_SetForegroundWindow($hWnd)
-            Exit
+If _Singleton($sProdName, 1) = 0 Then
+    If IsAdmin() Then
+        $hWndServer = _WCD_GetServerHandle()
+        If WinExists("Immersive UX Engine") Then
+            If Not IsProcessElevated(WinGetProcess("Immersive UX Engine")) Then
+                _WCD_Send($hWndClient, $hWndServer, 1, "exit")
+                WinWaitCloseEx("Immersive UX Engine")
+            EndIf
         EndIf
+        If WinExists("Immersive UX LED") Then
+            If Not IsProcessElevated(WinGetProcess("Immersive UX LED")) Then
+                _WCD_Send($hWndClient, $hWndServer, 2, "exit")
+                WinWaitCloseEx("Immersive UX LED")
+            EndIf
+        EndIf
+        If WinExists("Immersive UX Broker") Then
+            If Not IsProcessElevated(WinGetProcess("Immersive UX Broker")) Then
+                _WCD_Send($hWndClient, $hWndServer, 4, "exit")
+                WinWaitCloseEx("Immersive UX Broker")
+            EndIf
+        EndIf
+        If WinExists("Immersive UX GUI") Then WinClose("Immersive UX GUI")
+        ;_WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        ;WinWaitCloseEx("Immersive UX Live")
+    EndIf
+    If Not IsAdmin() Then
+        ; show and activate the GUI window
+        $hWnd = WinGetHandle("Immersive UX")
+        _WinAPI_ShowWindow($hWnd, @SW_SHOW)
+        _WinAPI_SetForegroundWindow($hWnd)
+        Exit
     EndIf
 EndIf
 
@@ -187,9 +188,8 @@ Func _StartGUI()
     If Not $TaskIntegrity Then $TaskIntegrity = "No"
 
     ; run engine if running from au3 sources only
-    If Not @Compiled Then
-        Local $iPID = Int(IniRead($IniFile, "StartupInfoOnly", "PID", ""))
-        If $iPID = "" Then ShellExecute(@ScriptDir & "\" & $sEngName & ".au3")
+    If Not @Compiled And Not $bProcessRunning Then
+        ShellExecute(@ScriptDir & "\" & $sEngName & ".au3")
     EndIf
 
     ; start Immersive UX engine if not running and no task installed
@@ -231,6 +231,7 @@ Func _StartGUI()
     EndIf
 
     $hGUI = GUICreate("Immersive UX", $iW * $iDPI1, $iH * $iDPI1, -1, -1, -1, $WS_EX_COMPOSITED)
+    If IsAdmin() Then WinSetTitle($hGUI, "", "Immersive UX - Administrator")
 
     Local $idFileMenu = _GUICtrlCreateODTopMenu(" &File", $hGUI)
     Local $idSettingsMenu = _GUICtrlCreateODTopMenu(" &Options", $hGUI)
@@ -310,6 +311,11 @@ Func _StartGUI()
     GUICtrlSetOnEvent(-1, "_ClickOpt2")
 
     _UpdateLiveMenu()
+
+    $idShowInTray = GUICtrlCreateMenuItem("Show Tray Icon", $idSettingsMenu)
+    GUICtrlSetOnEvent(-1, "_ShowInTray")
+    If $bShowInTray Then GUICtrlSetState($idShowInTray, $GUI_CHECKED)
+    If Not $bShowInTray Then GUICtrlSetState($idShowInTray, $GUI_UNCHECKED)
 
     $idTaskOpt0 = GUICtrlCreateMenuItem("Install Task (Admin)", $idTaskMenu)
     GUICtrlSetOnEvent(-1, "_TaskInstallAdmin")
@@ -396,20 +402,16 @@ Func _StartGUI()
     $idPart1 = GUICtrlCreateLabel("Engine Running:", 20, $aClientSize[1] - $iMenubarHeight + $iStatusTextAlign, 164 * $iDPI1, $iMenubarHeight, $SS_CENTERIMAGE)
     GUICtrlSetBkColor(-1, $GUI_BKCOLOR_TRANSPARENT)
 
-
-    $idPart2 = GUICtrlCreateLabel("Task Installed: " & $TaskInstalled, $idStatusBarDiv + 20, $aClientSize[1] - $iMenubarHeight + $iStatusTextAlign, 164 * $iDPI1, $iMenubarHeight, $SS_CENTERIMAGE)
+    $idPart2 = GUICtrlCreateLabel("Task Installed: " & $TaskInstalled, ($idStatusBarDiv * 2) + 20, $aClientSize[1] - $iMenubarHeight + $iStatusTextAlign, 164 * $iDPI1, $iMenubarHeight, $SS_CENTERIMAGE)
     GUICtrlSetBkColor(-1, $GUI_BKCOLOR_TRANSPARENT)
 
-
-    $idPart3 = GUICtrlCreateLabel("Elevated:", ($idStatusBarDiv * 2) + 20, $aClientSize[1] - $iMenubarHeight + $iStatusTextAlign, 164 * $iDPI1, $iMenubarHeight, $SS_CENTERIMAGE)
+    $idPart3 = GUICtrlCreateLabel("Engine Elevated:", $idStatusBarDiv + 20, $aClientSize[1] - $iMenubarHeight + $iStatusTextAlign, 164 * $iDPI1, $iMenubarHeight, $SS_CENTERIMAGE)
     GUICtrlSetBkColor(-1, $GUI_BKCOLOR_TRANSPARENT)
 
     $idPart4 = GUICtrlCreateLabel("Unsaved Changes", ($idStatusBarDiv * 3) + 20, $aClientSize[1] - $iMenubarHeight + $iStatusTextAlign, 164 * $iDPI1, $iMenubarHeight, $SS_CENTERIMAGE)
     GUICtrlSetBkColor(-1, $GUI_BKCOLOR_TRANSPARENT)
 
     GUICtrlSetState($idPart4, $GUI_HIDE)
-
-    ;EndIf
 
     $idStatusBarDiv1 = GUICtrlCreateLabel(" ", $idStatusBarDiv, $aClientSize[1] - $iMenubarHeight - 1, 1, $iMenubarHeight + 2)
     GUICtrlSetBkColor(-1, $GUI_StatusLineColor)
@@ -1096,14 +1098,12 @@ Func _StartGUI()
     GUIRegisterMsg($WM_NCPAINT, "WM_NCPAINT")
     GUIRegisterMsg($WM_ACTIVATE, "WM_ACTIVATE_Handler")
 
-    ;If $bHideGUI Then GUISetState(@SW_HIDE, $hGUI)
-    If $bHideGUI Then WinSetTrans($hGUI, "", 0)
-    If $bHideGUI Then GUISetState(@SW_SHOW, $hGUI)
+    ;If $bHideGUI Then WinSetTrans($hGUI, "", 0)
+    ;If $bHideGUI Then GUISetState(@SW_SHOW, $hGUI)
     If $bHideGUI Then WinSetState($hGUI, "", @SW_HIDE)
-    If $bHideGUI Then WinSetTrans($hGUI, "", 255)
-    ;If $bHideGUI Then WinSetState($hGUI, "", @SW_HIDE)
+    ;;If $bHideGUI Then GUISetState(@SW_HIDE, $hGUI)
+    ;If $bHideGUI Then WinSetTrans($hGUI, "", 255)
     If Not $bHideGUI Then GUISetState(@SW_SHOW, $hGUI)
-    ;If Not $bHideGUI Then WinSetState($hGUI, "", @SW_SHOW)
 
     $idGUI = TrayCreateItem("Immersive UX")
     TrayItemSetOnEvent($idGUI, "idGUI")
@@ -1121,7 +1121,21 @@ Func _StartGUI()
     EndIf
     TraySetToolTip("Immersive UX")
 
-    ; Just idle around
+    If $bShowInTray Then
+        ; set tray stuff
+    ElseIf Not $bShowInTray Then
+        TraySetState($TRAY_ICONSTATE_HIDE)
+    EndIf
+
+    ; make sure IPC server is up first
+    If Not WinExists("WCDServer") Then
+        WinWait("WCDServer", "", 5)
+    EndIf
+
+    ; setup IPC client
+    $hWndClient = _WCD_CreateClient("WCD_Client")
+    $hWndServer = _WCD_GetServerHandle()
+
     While 1
         Sleep(100)
     WEnd
@@ -1131,7 +1145,12 @@ EndFunc
 Func SpecialEvents()
     Select
         Case @GUI_CtrlId = $GUI_EVENT_CLOSE
-            WinSetState($hGUI, "", @SW_HIDE)
+            If $bShowInTray = True Then
+                WinSetState($hGUI, "", @SW_HIDE)
+            Else
+                GUIDelete($hGUI)
+                Exit
+            EndIf
     EndSelect
 EndFunc
 
@@ -2170,6 +2189,13 @@ Func _GetIniDetails()
     $dGlobalBlurTintColorInactive = IniRead($IniFile, "GlobalRules", "GlobalBlurTintColorInactive", "missing")
     $iGlobalColorIntensityInactive = IniRead($IniFile, "GlobalRules", "GlobalColorIntensityInactive", "missing")
 
+    ; Close to tray
+    $bShowInTray = _ToBoolean(IniRead($IniFile, "Configuration", "ShowInTray", "missing"))
+    If $bShowInTray = "missing" Then
+        IniWrite($IniFile, "Configuration", "ShowInTray", "True")
+        $bShowInTray = True
+    EndIf
+
     ; Immersive Live rules
     Local $bLiveEnabled = IniRead($IniFile, "ImmersiveLive", "Enabled", "missing")
 	Local $sLiveWallpaperFile = IniRead($IniFile, "ImmersiveLive", "LiveWallpaperFile", "missing")
@@ -2694,19 +2720,14 @@ Func _IsTaskRunning()
 EndFunc
 
 Func _RestartTask()
-    If @Compiled Then
-        If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
-        If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
-        Sleep(200)
-        ShellExecute(@ScriptDir & "\" & $sEngName & ".exe")
-    ElseIf Not @Compiled Then
-        If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
-        If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
-        Sleep(200)
-        ShellExecute(@ScriptDir & "\" & $sEngName & ".au3")
-    EndIf
+    _WCD_Send($hWndClient, $hWndServer, 1, "exit")
+    WinWaitCloseEx("Immersive UX Engine")
+    _WCD_Send($hWndClient, $hWndServer, 2, "exit")
+    WinWaitCloseEx("Immersive UX LED")
+    _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+    WinWaitCloseEx("Immersive UX Live")
+    ; start engine again from broker process
+    _WCD_Send($hWndClient, $hWndServer, 1, "start")
 EndFunc
 
 Func _UninstallTask()
@@ -2924,19 +2945,21 @@ Func _IsEngineProcRunning()
             If $bElevated Then
                 ; engine is running as admin
                 $sEngineStatus = "Engine Running: Yes"
-                $sElevatedStatus = "Elevated: Yes"
+                $sElevatedStatus = "Engine Elevated: Yes"
                 GUICtrlSetData($idPart1, $sEngineStatus)
                 GUICtrlSetData($idPart3, $sElevatedStatus)
             ElseIf Not $bElevated Then
                 ; engine is running
                 $sEngineStatus = "Engine Running: Yes"
-                $sElevatedStatus = "Elevated: No"
+                $sElevatedStatus = "Engine Elevated: No"
                 GUICtrlSetData($idPart1, $sEngineStatus)
                 GUICtrlSetData($idPart3, $sElevatedStatus)
             EndIf
         Else
             $sEngineStatus = "Engine Running: No"
+            $sElevatedStatus = "Engine Elevated: No"
             GUICtrlSetData($idPart1, $sEngineStatus)
+            GUICtrlSetData($idPart3, $sElevatedStatus)
         EndIf
     EndIf
 
@@ -2947,19 +2970,19 @@ Func _IsEngineProcRunning()
             If $bElevated Then
                 ; engine is running as admin
                 $sEngineStatus = "Engine Running: Yes"
-                $sElevatedStatus = "Elevated: Yes"
+                $sElevatedStatus = "Engine Elevated: Yes"
                 GUICtrlSetData($idPart1, $sEngineStatus)
                 GUICtrlSetData($idPart3, $sElevatedStatus)
             ElseIf Not $bElevated Then
                 ; engine is running
                 $sEngineStatus = "Engine Running: Yes"
-                $sElevatedStatus = "Elevated: No"
+                $sElevatedStatus = "Engine Elevated: No"
                 GUICtrlSetData($idPart1, $sEngineStatus)
                 GUICtrlSetData($idPart3, $sElevatedStatus)
             EndIf
         ElseIf $iPID = "" Then
             $sEngineStatus = "Engine Running: No"
-            $sElevatedStatus = "Elevated: No"
+            $sElevatedStatus = "Engine Elevated: No"
             GUICtrlSetData($idPart1, $sEngineStatus)
             GUICtrlSetData($idPart3, $sElevatedStatus)
         EndIf
@@ -3427,7 +3450,14 @@ EndFunc ;==>_StringCompareVersions
 
 Func idGUI()
     ; get GUI window state and show GUI window when clicking on tray icon
-    If Not BitAND(WinGetState($hGUI), $WIN_STATE_VISIBLE) Then _WinAPI_ShowWindow($hGUI, @SW_SHOW)
+    Local Static $bHitOnce = False
+    If Not $bHideGUI Then $bHitOnce = True
+    If Not $bHitOnce Then
+        If Not BitAND(WinGetState($hGUI), $WIN_STATE_VISIBLE) Then GUISetState(@SW_SHOW, $hGUI)
+        $bHitOnce = True
+    ElseIf $bHitOnce Then
+        If Not BitAND(WinGetState($hGUI), $WIN_STATE_VISIBLE) Then _WinAPI_ShowWindow($hGUI, @SW_SHOW)
+    EndIf
     _WinAPI_SetForegroundWindow($hGUI)
 EndFunc
 
@@ -3438,11 +3468,21 @@ Func _About()
 EndFunc
 
 Func _Exit()
-    If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
-    If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
-    If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+    _WCD_Send($hWndClient, $hWndServer, 1, "exit")
+    WinWaitCloseEx("Immersive UX Engine")
+    _WCD_Send($hWndClient, $hWndServer, 2, "exit")
+    WinWaitCloseEx("Immersive UX LED")
+    _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+    WinWaitCloseEx("Immersive UX Live")
+    _WCD_Send($hWndClient, $hWndServer, 4, "exit")
+    WinWaitCloseEx("Immersive UX Broker")
 
     Exit
+EndFunc
+
+Func WinWaitCloseEx($sWindow)
+	While WinExists($sWindow) And Sleep(5)
+	WEnd
 EndFunc
 
 Func WM_NCPAINT($hWnd, $iMsg, $wParam, $lParam)
@@ -3514,16 +3554,14 @@ EndFunc
 Func _TriggerOpt0()
     ; Start button trigger
     If IniRead($IniFile, "ImmersiveLive", "TriggerStartButton", "") = "True" Then
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
         IniWrite($IniFile, "ImmersiveLive", "TriggerStartButton", "False")
     Else
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
         IniWrite($IniFile, "ImmersiveLive", "TriggerStartButton", "True")
-        If @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
-        ElseIf Not @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
-        EndIf
+        _WCD_Send($hWndClient, $hWndServer, 3, "start")
     EndIf
 
     _UpdateLiveMenu()
@@ -3539,33 +3577,41 @@ Func _LiveOpt0()
     Else
         FileChangeDir(@ScriptDir)
         $sFileOpenDialog = StringReplace($sFileOpenDialog, "|", @CRLF)
-        ConsoleWrite("You chose the following files:" & @CRLF & $sFileOpenDialog & @CRLF)
         ; write new value to config file and restart live wallpaper process
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
         IniWrite($IniFile, "ImmersiveLive", "LiveWallpaperFile", $sFileOpenDialog)
-        If @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
-        ElseIf Not @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
-        EndIf
+        _WCD_Send($hWndClient, $hWndServer, 3, "start")
         ; update menu items
         _UpdateLiveMenu()
     EndIf
 EndFunc
 
+Func _ShowInTray()
+    If IniRead($IniFile, "Configuration", "ShowInTray", "") = "True" Then
+        IniWrite($IniFile, "Configuration", "ShowInTray", "False")
+        $bShowInTray = False
+        TraySetState($TRAY_ICONSTATE_HIDE)
+    Else
+        IniWrite($IniFile, "Configuration", "ShowInTray", "True")
+        $bShowInTray = True
+        TraySetState($TRAY_ICONSTATE_SHOW)
+    EndIf
+    If $bShowInTray Then GUICtrlSetState($idShowInTray, $GUI_CHECKED)
+    If Not $bShowInTray Then GUICtrlSetState($idShowInTray, $GUI_UNCHECKED)
+EndFunc
+
 Func _LiveOpt1()
     ; live wallpaper enabled
     If IniRead($IniFile, "ImmersiveLive", "Enabled", "") = "True" Then
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
         IniWrite($IniFile, "ImmersiveLive", "Enabled", "False")
     Else
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
         IniWrite($IniFile, "ImmersiveLive", "Enabled", "True")
-        If @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
-        ElseIf Not @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
-        EndIf
+        _WCD_Send($hWndClient, $hWndServer, 3, "start")
     EndIf
 
     _UpdateLiveMenu()
@@ -3574,23 +3620,15 @@ EndFunc
 Func _LiveOpt2()
     ; live wallpaper loop
     If IniRead($IniFile, "ImmersiveLive", "LoopEnabled", "") = "True" Then
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
         IniWrite($IniFile, "ImmersiveLive", "LoopEnabled", "False")
-            If IniRead($IniFile, "ImmersiveLive", "Enabled", "") = "True" Then
-                If @Compiled Then
-                ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
-            ElseIf Not @Compiled Then
-                ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
-            EndIf
-        EndIf
+        _WCD_Send($hWndClient, $hWndServer, 3, "start")
     Else
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
         IniWrite($IniFile, "ImmersiveLive", "LoopEnabled", "True")
-        If @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
-        ElseIf Not @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
-        EndIf
+        _WCD_Send($hWndClient, $hWndServer, 3, "start")
     EndIf
 
     _UpdateLiveMenu()
@@ -3599,23 +3637,15 @@ EndFunc
 Func _LiveOpt3()
     ; multi-monitor enable/disable
     If IniRead($IniFile, "ImmersiveLive", "MultiMonitorEnabled", "") = "True" Then
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
         IniWrite($IniFile, "ImmersiveLive", "MultiMonitorEnabled", "False")
-            If IniRead($IniFile, "ImmersiveLive", "Enabled", "") = "True" Then
-                If @Compiled Then
-                ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
-            ElseIf Not @Compiled Then
-                ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
-            EndIf
-        EndIf
+        _WCD_Send($hWndClient, $hWndServer, 3, "start")
     Else
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
         IniWrite($IniFile, "ImmersiveLive", "MultiMonitorEnabled", "True")
-        If @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
-        ElseIf Not @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
-        EndIf
+        _WCD_Send($hWndClient, $hWndServer, 3, "start")
     EndIf
 
     _UpdateLiveMenu()
@@ -3629,12 +3659,9 @@ Func _ClickOpt0()
         ; set value
         IniWrite($IniFile, "ImmersiveLive", "MediaControlsClick", "1")
         GUICtrlSetState($idClickOpt0, $GUI_CHECKED)
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
-        If @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
-        ElseIf Not @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
-        EndIf
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
+        _WCD_Send($hWndClient, $hWndServer, 3, "start")
     EndIf
 EndFunc
 
@@ -3646,12 +3673,9 @@ Func _ClickOpt1()
         ; set value
         IniWrite($IniFile, "ImmersiveLive", "MediaControlsClick", "2")
         GUICtrlSetState($idClickOpt1, $GUI_CHECKED)
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
-        If @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
-        ElseIf Not @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
-        EndIf
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
+        _WCD_Send($hWndClient, $hWndServer, 3, "start")
     EndIf
 EndFunc
 
@@ -3663,12 +3687,9 @@ Func _ClickOpt2()
         ; set value
         IniWrite($IniFile, "ImmersiveLive", "MediaControlsClick", "0")
         GUICtrlSetState($idClickOpt2, $GUI_CHECKED)
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
-        If @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
-        ElseIf Not @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
-        EndIf
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
+        _WCD_Send($hWndClient, $hWndServer, 3, "start")
     EndIf
 EndFunc
 
@@ -3782,50 +3803,103 @@ EndFunc
 
 Func _TaskInstallAdmin()
     ; Install Task (Admin)
-    If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
-    If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
-    If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+    _WCD_Send($hWndClient, $hWndServer, 1, "exit")
+    WinWaitCloseEx("Immersive UX Engine")
+    _WCD_Send($hWndClient, $hWndServer, 2, "exit")
+    WinWaitCloseEx("Immersive UX LED")
+    _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+    WinWaitCloseEx("Immersive UX Live")
+    _WCD_Send($hWndClient, $hWndServer, 4, "exit")
+    WinWaitCloseEx("Immersive UX Broker")
     Sleep(200)
     _InstallTask()
     Sleep(500)
     ; start task
-    ShellExecute(@ScriptDir & "\" & $sEngName & ".exe", "starttask", @ScriptDir, $SHEX_OPEN, @SW_HIDE)
+    ShellExecute(@ScriptDir & "\" & $sEngName & ".exe", "", @ScriptDir, $SHEX_OPEN, @SW_HIDE)
     Sleep(500)
     _TaskStatusUpdate()
     _IsEngineProcRunning()
     _UpdateTaskMenu()
     _UpdateLiveMenu()
+    ; make sure IPC server is up first
+    If Not WinExists("WCDServer") Then
+        WinWait("WCDServer", "", 5)
+    EndIf
+    ; obtain new IPC server handle
+    $hWndServer = _WCD_GetServerHandle()
 EndFunc
 
 Func _TaskInstall()
     ; Install Task
-    If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
-    If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
-    If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+    _WCD_Send($hWndClient, $hWndServer, 1, "exit")
+    WinWaitCloseEx("Immersive UX Engine")
+    _WCD_Send($hWndClient, $hWndServer, 2, "exit")
+    WinWaitCloseEx("Immersive UX LED")
+    _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+    WinWaitCloseEx("Immersive UX Live")
+    _WCD_Send($hWndClient, $hWndServer, 4, "exit")
+    WinWaitCloseEx("Immersive UX Broker")
     Sleep(200)
     _InstallTask()
     Sleep(500)
     ; start task
-    ShellExecute(@ScriptDir & "\" & $sEngName & ".exe", "starttask", @ScriptDir, $SHEX_OPEN, @SW_HIDE)
+    ShellExecute(@ScriptDir & "\" & $sEngName & ".exe", "", @ScriptDir, $SHEX_OPEN, @SW_HIDE)
     Sleep(500)
     _TaskStatusUpdate()
     _IsEngineProcRunning()
     _UpdateTaskMenu()
     _UpdateLiveMenu()
+    ; make sure IPC server is up first
+    If Not WinExists("WCDServer") Then
+        WinWait("WCDServer", "", 5)
+    EndIf
+    ; obtain new IPC server handle
+    $hWndServer = _WCD_GetServerHandle()
 EndFunc
 
 Func _TaskUninstall()
-    ; Uninstall Task
-    If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
-    If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
-    If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
-    Sleep(200)
-    _UninstallTask()
-    Sleep(500)
-    _TaskStatusUpdate()
-    _IsEngineProcRunning()
-    _UpdateTaskMenu()
-    _UpdateLiveMenu()
+    ; deal with case when task is Admin and GUI is not
+    If $TaskIntegrity = "Yes" And Not IsAdmin() Then
+        If WinExists("Immersive UX Broker") And IsProcessElevated(WinGetProcess("Immersive UX Broker")) Then
+            ; if broker is elevated then use it to uninstall task
+            _WCD_Send($hWndClient, $hWndServer, 6, "uninstalltask")
+            _WCD_Send($hWndClient, $hWndServer, 1, "exit")
+            WinWaitCloseEx("Immersive UX Engine")
+            _WCD_Send($hWndClient, $hWndServer, 2, "exit")
+            WinWaitCloseEx("Immersive UX LED")
+            _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+            WinWaitCloseEx("Immersive UX Live")
+            _WCD_Send($hWndClient, $hWndServer, 4, "exit")
+            WinWaitCloseEx("Immersive UX Broker")
+            Sleep(1000)
+            _TaskStatusUpdate()
+            _IsEngineProcRunning()
+            _UpdateTaskMenu()
+            _UpdateLiveMenu()
+            Return
+        Else
+            ; otherwise notify user to start GUI as admin
+            MsgBox(0, "Error", "Need to run as Admin to uninstall Admin level task.")
+            Return
+        EndIf
+    Else
+        ; Uninstall Task
+        _WCD_Send($hWndClient, $hWndServer, 1, "exit")
+        WinWaitCloseEx("Immersive UX Engine")
+        _WCD_Send($hWndClient, $hWndServer, 2, "exit")
+        WinWaitCloseEx("Immersive UX LED")
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
+        _WCD_Send($hWndClient, $hWndServer, 4, "exit")
+        WinWaitCloseEx("Immersive UX Broker")
+        Sleep(200)
+        _UninstallTask()
+        Sleep(500)
+        _TaskStatusUpdate()
+        _IsEngineProcRunning()
+        _UpdateTaskMenu()
+        _UpdateLiveMenu()
+    EndIf
 EndFunc
 
 Func _TaskRestart()
@@ -3849,12 +3923,10 @@ Func _OpacityOpt0()
     If $sOpacityLevel <> "0" Then
         IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "0")
         GUICtrlSetState($idOpacityOpt0, $GUI_CHECKED)
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
-        If @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
-        ElseIf Not @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
-        EndIf
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
+        ; start engine again from broker process
+        _WCD_Send($hWndClient, $hWndServer, 3, "start")
     EndIf
 EndFunc
 
@@ -3863,12 +3935,10 @@ Func _OpacityOpt1()
     If $sOpacityLevel <> "10" Then
         IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "10")
         GUICtrlSetState($idOpacityOpt1, $GUI_CHECKED)
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
-        If @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
-        ElseIf Not @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
-        EndIf
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
+        ; start engine again from broker process
+        _WCD_Send($hWndClient, $hWndServer, 3, "start")
     EndIf
 EndFunc
 
@@ -3877,12 +3947,10 @@ Func _OpacityOpt2()
     If $sOpacityLevel <> "20" Then
         IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "20")
         GUICtrlSetState($idOpacityOpt2, $GUI_CHECKED)
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
-        If @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
-        ElseIf Not @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
-        EndIf
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
+        ; start engine again from broker process
+        _WCD_Send($hWndClient, $hWndServer, 3, "start")
     EndIf
 EndFunc
 
@@ -3891,12 +3959,10 @@ Func _OpacityOpt3()
     If $sOpacityLevel <> "30" Then
         IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "30")
         GUICtrlSetState($idOpacityOpt3, $GUI_CHECKED)
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
-        If @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
-        ElseIf Not @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
-        EndIf
+       _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
+        ; start engine again from broker process
+        _WCD_Send($hWndClient, $hWndServer, 3, "start")
     EndIf
 EndFunc
 
@@ -3905,12 +3971,10 @@ Func _OpacityOpt4()
     If $sOpacityLevel <> "40" Then
         IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "40")
         GUICtrlSetState($idOpacityOpt4, $GUI_CHECKED)
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
-        If @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
-        ElseIf Not @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
-        EndIf
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
+        ; start engine again from broker process
+        _WCD_Send($hWndClient, $hWndServer, 3, "start")
     EndIf
 EndFunc
 
@@ -3919,12 +3983,10 @@ Func _OpacityOpt5()
     If $sOpacityLevel <> "50" Then
         IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "50")
         GUICtrlSetState($idOpacityOpt5, $GUI_CHECKED)
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
-        If @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
-        ElseIf Not @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
-        EndIf
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
+        ; start engine again from broker process
+        _WCD_Send($hWndClient, $hWndServer, 3, "start")
     EndIf
 EndFunc
 
@@ -3933,12 +3995,10 @@ Func _OpacityOpt6()
     If $sOpacityLevel <> "60" Then
         IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "60")
         GUICtrlSetState($idOpacityOpt6, $GUI_CHECKED)
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
-        If @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
-        ElseIf Not @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
-        EndIf
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
+        ; start engine again from broker process
+        _WCD_Send($hWndClient, $hWndServer, 3, "start")
     EndIf
 EndFunc
 
@@ -3947,12 +4007,10 @@ Func _OpacityOpt7()
     If $sOpacityLevel <> "70" Then
         IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "70")
         GUICtrlSetState($idOpacityOpt7, $GUI_CHECKED)
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
-        If @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
-        ElseIf Not @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
-        EndIf
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
+        ; start engine again from broker process
+        _WCD_Send($hWndClient, $hWndServer, 3, "start")
     EndIf
 EndFunc
 
@@ -3961,12 +4019,10 @@ Func _OpacityOpt8()
     If $sOpacityLevel <> "80" Then
         IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "80")
         GUICtrlSetState($idOpacityOpt8, $GUI_CHECKED)
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
-        If @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
-        ElseIf Not @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
-        EndIf
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
+        ; start engine again from broker process
+        _WCD_Send($hWndClient, $hWndServer, 3, "start")
     EndIf
 EndFunc
 
@@ -3975,12 +4031,10 @@ Func _OpacityOpt9()
     If $sOpacityLevel <> "90" Then
         IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "90")
         GUICtrlSetState($idOpacityOpt9, $GUI_CHECKED)
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
-        If @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
-        ElseIf Not @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
-        EndIf
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
+        ; start engine again from broker process
+        _WCD_Send($hWndClient, $hWndServer, 3, "start")
     EndIf
 EndFunc
 
@@ -3989,12 +4043,10 @@ Func _OpacityOpt10()
     If $sOpacityLevel <> "100" Then
         IniWrite($IniFile, "ImmersiveLive", "OpacityLevel", "100")
         GUICtrlSetState($idOpacityOpt10, $GUI_CHECKED)
-        If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
-        If @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
-        ElseIf Not @Compiled Then
-            ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
-        EndIf
+        _WCD_Send($hWndClient, $hWndServer, 3, "exit")
+        WinWaitCloseEx("Immersive UX Live")
+        ; start engine again from broker process
+        _WCD_Send($hWndClient, $hWndServer, 3, "start")
     EndIf
 EndFunc
 
@@ -4089,3 +4141,20 @@ Func _WinAPI_SetWindowText_mod($hWnd, $sText)
 
 	Return $aCall[0]
 EndFunc   ;==>_WinAPI_SetWindowText_mod
+
+Func IsProcessElevated($iPID)
+	Local $aRet, $iError = 0
+	Local $hProcess = _WinAPI_OpenProcess($PROCESS_QUERY_LIMITED_INFORMATION, False, $iPID, True)
+	If Not $hProcess Then Return SetError(1, 0, False)
+	Local $hToken = _WinAPI_OpenProcessToken($TOKEN_QUERY, $hProcess)
+	If Not $hToken Then
+    	$iError = 2
+	Else
+    	$aRet = DllCall('advapi32.dll', 'bool', 'GetTokenInformation', 'handle', $hToken, 'uint', 20, 'uint*', 0, 'dword', 4, 'dword*', 0) ; TOKEN_ELEVATION
+    	If @error Or Not $aRet[0] Then $iError = 3
+	EndIf
+	_WinAPI_CloseHandle($hToken)
+	_WinAPI_CloseHandle($hProcess)
+	If $iError Then Return SetError($iError, 0, False)
+	Return $aRet[3] = 1
+EndFunc   ;==>IsProcessElevated

@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=1.9.1
+#AutoIt3Wrapper_Res_Fileversion=2.0.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=1.9.1
+#AutoIt3Wrapper_Res_ProductVersion=2.0.0
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=N
@@ -23,6 +23,7 @@
 #include <WindowsConstants.au3>
 #include <WinAPIvkeysConstants.au3>
 
+#include "include\WCD_IPC.au3"
 #include "include\MediaPlayerUDF.au3"
 #include "include\UIAEH_AutomationEventHandler.au3"
 
@@ -49,9 +50,8 @@ Global $dVSCodiumBackdrop, $dVSCodeBackdrop
 Global $bLiveEnabled, $bLoopEnabled
 Global $iDuration, $iDurationMs, $oWinStart, $iDurationPause, $sStart
 Global $iMediaRatio, $iMonitorRatio, $aGUI_Handles, $aGUI_Ratio
+Global $hHookFunc, $hWinHook
 Global $bMediaOpened = False
-;Global $hActiveWnd
-Global Static $hLEDWndLast
 Global $bEnable = False
 Global $bBoot = True
 Global $bIsAnyBlurEnabled = False
@@ -117,77 +117,182 @@ If StringInStr($CmdLineRaw, "removeall") Then
 	Exit
 EndIf
 
-Global $g_iIsTaskSchedInstalled = _TaskSched_AlreadyInstalled()
-Global $g_iIsTaskSchedRun = False
-If StringInStr($CmdLineRaw, 'runtask') Then $g_iIsTaskSchedRun = True
+; determine whether system just booted or not
+$Uptime = _WinAPI_StrFromTimeInterval(_WinAPI_GetTickCount64_mod())
+If StringInStr($Uptime, "min") Then
+	$bBoot = False
+EndIf
 
-; if scheduled task is installed but not running, run the task instead
-If $g_iIsTaskSchedInstalled And Not $g_iIsTaskSchedRun Then
-	_TaskSched_Run()
+If StringInStr($CmdLineRaw, "hookproc") Then
+	_HookProcess()
 	Exit
 EndIf
 
-; ensure that only one instance is running
-If _Singleton($sEngName, 1) = 0 Then
-        $sMsg = $sProdName & " is already running." & @CRLF
-		MsgBox($MB_ICONERROR + $MB_SYSTEMMODAL, "Error", $sMsg & @CRLF)
-        Exit
+Local $g_iIsTaskSchedInstalled = _TaskSched_AlreadyInstalled()
+Local $g_iIsTaskSchedRun = False
+If StringInStr($CmdLineRaw, 'runtask') Then $g_iIsTaskSchedRun = True
+
+; if scheduled task is installed but not running, run the task instead
+If @Compiled Then
+	If $g_iIsTaskSchedInstalled And Not $g_iIsTaskSchedRun Then
+		_TaskSched_Run()
+		Exit
+	EndIf
 EndIf
 
-If IsAdmin() Then $bElevated = True
+If Not WinExists("Immersive UX Engine") Then
+	If @Compiled Then
+		ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "hookproc", @ScriptDir, $SHEX_OPEN)
+	ElseIf Not @Compiled Then
+		ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "hookproc")
+	EndIf
+EndIf
 
-Global $aSectionTS[4][2] = [[3, ""], ["StartedByTask", $g_iIsTaskSchedRun], ["PID", @AutoItPID], ["Elevated", $bElevated]]
-IniWriteSection($IniFile, "StartupInfoOnly", $aSectionTS)
+If WinExists("Immersive UX Engine") Then
+	; start GUI/tray process
+	idGUI()
+ElseIf Not WinExists("Immersive UX Engine") Then
+	WinWait("Immersive UX Engine", "", 5)
+	If WinExists("Immersive UX Engine") Then
+		; start GUI/tray process
+		idGUI()
+	EndIf
+EndIf
 
-Opt("SetExitCode", 1)
+_BrokerProcess()
 
-OnAutoItExitRegister(DoCleanUp)
+Func _BrokerProcess()
+	Local $hWnd = _GetHwndFromPID(@AutoItPID)
+	_WinAPI_SetWindowText_mod($hWnd, "Immersive UX Broker")
 
-Local $hWnd = _GetHwndFromPID(@AutoItPID)
-_WinAPI_SetWindowText_mod($hWnd, "Immersive UX Engine")
+	Local $hServer = _WCD_CreateServer()
+	Local $aReq, $iData
 
-Global $hHookFunc = DllCallbackRegister('_WinEventProc', 'none', 'ptr;uint;hwnd;int;int;uint;uint')
-Global $hWinHook = _WinAPI_SetWinEventHook_mod($EVENT_SYSTEM_FOREGROUND, $EVENT_OBJECT_NAMECHANGE, DllCallbackGetPtr($hHookFunc))
+	While True
+		If _WCD_Server_IsRequestAvail() Then
+			$aReq = _WCD_Server_GetRequest()
+			$iData = @extended
+
+			Switch $iData
+				Case 1
+					Select
+						Case $aReq[1] = "start"
+							If @Compiled Then
+								ShellExecute(@ScriptDir & "\" & $sEngName & ".exe", "hookproc", @ScriptDir)
+							ElseIf Not @Compiled Then
+								ShellExecute(@ScriptDir & "\" & $sEngName & ".au3", "hookproc", @ScriptDir)
+							EndIf
+						Case $aReq[1] = "exit"
+							If WinExists("Immersive UX Engine") Then WinClose("Immersive UX Engine")
+					EndSelect
+				Case 2
+					Select
+						Case $aReq[1] = "start"
+							; start
+						Case $aReq[1] = "exit"
+							If WinExists("Immersive UX LED") Then WinClose("Immersive UX LED")
+					EndSelect
+				Case 3
+					Select
+						Case $aReq[1] = "start"
+							If @Compiled Then
+								RunLow("", @ScriptDir & "\ImmersiveEngine.exe" & " live", @ScriptDir)
+							ElseIf Not @Compiled Then
+								ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+							EndIf
+						Case $aReq[1] = "exit"
+							If WinExists("Immersive UX Live") Then WinClose("Immersive UX Live")
+					EndSelect
+				Case 4
+					Select
+						Case $aReq[1] = "start"
+							; start
+						Case $aReq[1] = "exit"
+							Exit
+					EndSelect
+				Case 5
+					Select
+						Case $aReq[1] = "start"
+							If @Compiled Then
+								ShellExecute(@ScriptDir & "\ImmersiveUX.exe", "", @ScriptDir)
+							ElseIf Not @Compiled Then
+								ShellExecute(@ScriptDir & "\ImmersiveUX.au3", "", @ScriptDir)
+							EndIf
+						Case $aReq[1] = "exit"
+							If WinExists("Immersive UX GUI") Then WinClose("Immersive UX GUI")
+					EndSelect
+				Case 6
+					Select
+						Case $aReq[1] = "uninstalltask"
+							; uninstall task here
+							Run('schtasks.exe /Delete /F /TN ImmersiveUX', '', @SW_HIDE)
+					EndSelect
+			EndSwitch
+		EndIf
+		Sleep(20)
+	WEnd
+EndFunc
+
+Func _HookProcess()
+	Local $g_iIsTaskSchedRun = False
+	If StringInStr($CmdLineRaw, 'runtask') Then $g_iIsTaskSchedRun = True
+
+	; ensure that only one instance is running
+	If _Singleton($sEngName, 1) = 0 Then
+			$sMsg = $sProdName & " is already running." & @CRLF
+			MsgBox($MB_ICONERROR + $MB_SYSTEMMODAL, "Error", $sMsg & @CRLF)
+			Exit
+	EndIf
+
+	If IsAdmin() Then $bElevated = True
+
+	Local $aSectionTS[4][2] = [[3, ""], ["StartedByTask", $g_iIsTaskSchedRun], ["PID", @AutoItPID], ["Elevated", $bElevated]]
+	IniWriteSection($IniFile, "StartupInfoOnly", $aSectionTS)
+
+	Opt("SetExitCode", 1)
+
+	OnAutoItExitRegister(DoCleanUp)
+
+	Local $hWnd = _GetHwndFromPID(@AutoItPID)
+	_WinAPI_SetWindowText_mod($hWnd, "Immersive UX Engine")
+
+	$hHookFunc = DllCallbackRegister('_WinEventProc', 'none', 'ptr;uint;hwnd;int;int;uint;uint')
+	$hWinHook = _WinAPI_SetWinEventHook_mod($EVENT_SYSTEM_FOREGROUND, $EVENT_OBJECT_NAMECHANGE, DllCallbackGetPtr($hHookFunc))
+
+	; don't apply to all during boot as there is no need
+	If $bBoot = False Then SetBorderColor_apply2all()
+
+	; set process priority
+	ProcessSetPriority(@AutoItPID, 4)
+
+	; start ImmersiveLED border effects if configured
+	If $iBorderColorOptions = "2" And Not WinExists("Immersive UX LED") Then
+		If @Compiled Then
+			ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "bordereffects", @ScriptDir, $SHEX_OPEN)
+		ElseIf Not @Compiled Then
+			ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "bordereffects")
+		EndIf
+	EndIf
+
+	; start Immersive UX Live if configured
+	If $bLiveEnabled And Not WinExists("Immersive UX Live") Then
+		If @Compiled Then
+			;ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
+			RunLow("", @ScriptDir & "\ImmersiveEngine.exe" & " live", @ScriptDir)
+		ElseIf Not @Compiled Then
+			ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
+		EndIf
+	EndIf
+
+	While 1
+		Sleep(10000)
+	WEnd
+EndFunc
+
 
 Func _ToBoolean($sString)
     Return (StringStripWS(StringUpper($sString), 8) = "TRUE" ? True : False)
 EndFunc   ;==>_ToBoolean
-
-; don't apply to all during boot as there is no need
-$Uptime = _WinAPI_StrFromTimeInterval(_WinAPI_GetTickCount64_mod())
-If StringInStr($Uptime, "min") Then
-	$bBoot = False
-	; apply settings to all currently running apps
-	SetBorderColor_apply2all()
-EndIf
-
-; set process priority
-ProcessSetPriority(@AutoItPID, 4)
-
-; start GUI/tray process
-idGUI()
-
-; start ImmersiveLED border effects if configured
-If $iBorderColorOptions = "2" Then
-	If @Compiled Then
-		ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "bordereffects", @ScriptDir, $SHEX_OPEN)
-	ElseIf Not @Compiled Then
-		ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "bordereffects")
-	EndIf
-EndIf
-
-; start Immersive UX Live if configured
-If $bLiveEnabled Then
-	If @Compiled Then
-		ShellExecute(@ScriptDir & "\ImmersiveEngine.exe", "live", @ScriptDir, $SHEX_OPEN)
-	ElseIf Not @Compiled Then
-		ShellExecute(@ScriptDir & "\ImmersiveEngine.au3", "live")
-	EndIf
-EndIf
-
-While 1
-    Sleep(10000)
-WEnd
 
 Func DoCleanUp()
     SetBorderColor_removeall()
@@ -868,12 +973,14 @@ Func idGUI()
 	; only start GUI if not already running
 	If @Compiled Then
 		If $bBoot Then
-			ShellExecute(@ScriptDir & "\" & $sProdName & ".exe", "hidegui", @ScriptDir, $SHEX_OPEN)
+			;ShellExecute(@ScriptDir & "\" & $sProdName & ".exe", "hidegui", @ScriptDir, $SHEX_OPEN, @SW_HIDE)
+			RunLow("", @ScriptDir & "\" & $sProdName & ".exe" & " hidegui", @ScriptDir)
 			Return
 		EndIf
 
 		Local $iPID = ProcessExists("ImmersiveUX.exe")
 		If ProcessExists("ImmersiveUX.exe") Then
+			#cs
 			If IsAdmin() Then
 				Local $iElev = _WinAPI_IsElevated_PID($iPID)
 				If Not $iElev Then
@@ -883,9 +990,11 @@ Func idGUI()
 				EndIf
 				Return
 			EndIf
+			#ce
 		Else
 			; start gui hidden
-			ShellExecute(@ScriptDir & "\" & $sProdName & ".exe", "hidegui", @ScriptDir, $SHEX_OPEN)
+			;ShellExecute(@ScriptDir & "\" & $sProdName & ".exe", "hidegui", @ScriptDir, $SHEX_OPEN, @SW_HIDE)
+			RunLow("", @ScriptDir & "\" & $sProdName & ".exe" & " hidegui", @ScriptDir)
 			; since gui was hidden, bring original active window to foreground
 			$hProcess = WinWait("Immersive UX", "", 10)
 			$iPID = _WinAPI_GetProcessID_mod($hProcess)
@@ -910,7 +1019,7 @@ Func idGUI()
 				Return
 			EndIf
 		Next
-		If Not $bAu3Running Then ShellExecute(@ScriptDir & "\" & $sProdName & ".au3", "hidegui")
+		If Not $bAu3Running Then ShellExecute(@ScriptDir & "\" & $sProdName & ".au3", "hidegui", @ScriptDir, "", @SW_HIDE)
 		; since gui was hidden, bring original active window to foreground
 		$hProcess = WinWait("Immersive UX", "", 10)
 		$iPID = _WinAPI_GetProcessID_mod($hProcess)
@@ -1500,7 +1609,6 @@ Func _ImmersiveLiveProcess()
 		If Not IsObj($oStart) Then Exit ConsoleWrite("$oStart ERR" & @CRLF)
 		;ConsoleWrite("$oStart OK" & @CRLF)
 		$oStart.GetCurrentPropertyValue($UIA_NamePropertyId, $sStart)
-		ConsoleWrite($sStart & @CRLF)
 
 		UIAEH_AutomationEventHandlerCreate()
 		If Not IsObj($oUIAEH_AutomationEventHandler) Then Exit ConsoleWrite("$oUIAEH_AutomationEventHandler ERR" & @CRLF)
@@ -1676,8 +1784,11 @@ Func DoCleanUpLive()
 EndFunc
 
 Func _BorderEffectsProcess()
+	Local Static $hLEDWndLast
+	Local $hLEDWnd
 	Local $hWnd = _GetHwndFromPID(@AutoItPID)
 	_WinAPI_SetWindowText_mod($hWnd, "Immersive UX LED")
+	OnAutoItExitRegister(DoCleanUpLED)
 
 	ProcessSetPriority(@AutoItPID, 4)
 
@@ -1691,6 +1802,12 @@ Func _BorderEffectsProcess()
 			If _WinAPI_IsWindowVisible_mod($hLEDWnd) Then _BorderEffects($hLEDWnd)
 		EndIf
 	WEnd
+EndFunc
+
+Func DoCleanUpLED()
+	Local $hLEDWnd
+	$hLEDWnd = _WinAPI_GetForegroundWindow_mod()
+	_WinAPI_DwmSetWindowAttribute__($hLEDWnd, 34, $DWMWA_COLOR_NONE)
 EndFunc
 
 Func _BorderEffects($hWnd)
@@ -1865,6 +1982,24 @@ Func UIAEH_AutomationEventHandler_HandleAutomationEvent($pSelf, $pSender, $iEven
 
 	If $sTitle = $sStart And $sClass = "Windows.UI.Core.CoreWindow" Then $oWinStart = $oSender
 EndFunc   ;==>UIAEH_AutomationEventHandler_HandleAutomationEvent
+
+Func RunLow($sPath, $sCmd = "", $sDir = "")
+	Local $hProcess = _WinAPI_OpenProcess($PROCESS_QUERY_INFORMATION, False, ProcessExists("explorer.exe"))
+	Local $hToken = _WinAPI_OpenProcessToken($TOKEN_DUPLICATE, $hProcess)
+	Local $hDupToken = _WinAPI_DuplicateTokenEx($hToken, $TOKEN_ALL_ACCESS, $SECURITYIMPERSONATION)
+
+	Local $tSTARTUPINFO = DllStructCreate($tagSTARTUPINFO)
+	$tSTARTUPINFO.Size = DllStructGetSize($tSTARTUPINFO)
+	Local $tPROCESS = DllStructCreate($tagPROCESS_INFORMATION)
+
+	_WinAPI_CreateProcessWithToken($sPath, $sCmd, 0, $tSTARTUPINFO, $tPROCESS, $hDupToken, 0, 0, $sDir)
+
+	_WinAPI_CloseHandle($hDupToken)
+	_WinAPI_CloseHandle($hToken)
+	_WinAPI_CloseHandle($hProcess)
+
+	Return $tPROCESS.ProcessID
+EndFunc   ;==>RunLow
 
 #cs
 Func WinListtest()
