@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX GUI
-#AutoIt3Wrapper_Res_Fileversion=2.0.0
+#AutoIt3Wrapper_Res_Fileversion=2.1.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX GUI
-#AutoIt3Wrapper_Res_ProductVersion=2.0.0
+#AutoIt3Wrapper_Res_ProductVersion=2.1.0
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -16,7 +16,7 @@
 #AutoIt3Wrapper_res_Compatibility=Win10
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
-Global $iVersion = '2.0.0'
+Global $iVersion = '2.1.0'
 
 #include <MsgBoxConstants.au3>
 #include <WinAPIFiles.au3>
@@ -77,11 +77,11 @@ Global $BorderColorInput, $colorlabelfill, $TitlebarColorInput, $TitlebarColorLa
 Global $TitlebarTextColorInput, $TitlebarTextColorLabel, $BlurTintColorInput, $BlurTintColorPickLabel
 Global $BlurTintColorInputInact, $BlurTintColorPickLabelInact, $BlurColorIntensitySliderInact
 Global $idInput, $RuleListCombo, $idInputRuleType, $RuleTypeCombo, $idInputDarkTitle, $idPart3
-Global $DarkTitleCombo, $idInputTitleBarBackdrop, $TitleBarBackdropCombo
+Global $DarkTitleCombo, $idInputTitleBarBackdrop, $TitleBarBackdropCombo, $TargetLabel
 Global $idInputCornerPreference, $CornerPreferenceCombo, $idInputExtendFrame, $ExtendFrameCombo
 Global $idInputBlurBehind, $BlurBehindCombo, $idInputRuleEnabled, $RuleEnabledCombo
 Global $TargetInput, $hBtnRuleType, $hBtnRuleEnabled, $DeleteButton, $SaveButton, $RevertButton
-Global $BlurColorIntensitySlider, $idPart2, $idPart1, $idPart4
+Global $BlurColorIntensitySlider, $idPart2, $idPart1, $idPart4, $hBtn
 Global $TaskIntegrity, $TaskInstalled, $TaskRunning
 Global $aProcessRunning, $IsRunFromTS, $bProcessRunning
 Global $idBorderOpt0, $idBorderOpt1, $idBorderOpt2, $idBorderOpt3
@@ -98,6 +98,8 @@ Global $hWndClient, $hWndServer
 Global $bWatchSaveChanges = False, $bPendingChanges = False
 Global $sTargetLast = ""
 Global $bHideGUI = False
+
+Global Const $tagNMCUSTOMDRAWINFO = $tagNMHDR & ";dword DrawStage;handle hdc;" & $tagRECT & ";dword_ptr ItemSpec;uint ItemState;lparam lItemParam;"
 ;Global $TRAY_EVENT_PRIMARYDOWN = -7
 Global $DWMWA_COLOR_NONE = 0xFFFFFFFE
 Global $DWMWA_COLOR_DEFAULT = 0xFFFFFFFF
@@ -154,6 +156,14 @@ TraySetClick(16)
 
 _GetIniDetails()
 
+Global $iBackColorDef = $GUI_BackColor
+Global $iBackColorHot = _WinAPI_ColorAdjustLuma($GUI_BackColor, 30)
+Global $iBackColorSel = _WinAPI_ColorAdjustLuma($GUI_BackColor, 10)
+Global $iBackColorDis = _WinAPI_ColorAdjustLuma($GUI_BackColor, -30)
+Global $iBackColorRev = $GUI_StatusBackColor
+Global $iTextColorDef = $GUI_FontColor
+Global $iTextColorDis = _WinAPI_ColorAdjustLuma($GUI_FontColor, -50)
+
 Global $hSolidBrush = _WinAPI_CreateBrushIndirect($BS_SOLID, $GUI_MenubarLineColor)
 
 _SetMenuBkColor($GUI_MenubarBackColor)
@@ -168,6 +178,8 @@ _StartGUI()
 Func _StartGUI()
     Local $hGuiWnd = _GetHwndFromPID(@AutoItPID)
     _WinAPI_SetWindowText_mod($hGuiWnd, "Immersive UX GUI")
+
+    Local $sFluentFont = "Segoe Fluent Icons"
 
     If WinExists("Immersive UX Engine") Then
         $bProcessRunning = True
@@ -367,19 +379,21 @@ Func _StartGUI()
         Global $FontSize = 9
         GUISetFont($FontSize, $FW_NORMAL, -1, $MainFont)
             $aStringSize = _StringSize("This is just a TEST.", $FontSize, 400, 0, $MainFont)
-            $FontHeight = $aStringSize[1] + 3
+            ;$FontHeight = $aStringSize[1] + 3
+            $FontHeight = $aStringSize[1]
             ;ConsoleWrite("$FontHeight " & $FontHeight & @CRLF)
     Else
         Global $MainFont = "Segoe UI"
         Global $FontSize = 9
         GUISetFont($FontSize, $FW_NORMAL, -1, $MainFont)
             $aStringSize = _StringSize("This is just a TEST.", $FontSize, 400, 0, $MainFont)
-            $FontHeight = $aStringSize[1] + 3
+            ;$FontHeight = $aStringSize[1] + 3
+            $FontHeight = $aStringSize[1]
             ;ConsoleWrite("$FontHeight " & $FontHeight & @CRLF)
     EndIf
     GUISetOnEvent($GUI_EVENT_CLOSE, "SpecialEvents")
     GUISetBkColor($GUI_BackColor)
-    GUICtrlSetDefColor($GUI_FontColor)
+    ;GUICtrlSetDefColor($GUI_FontColor)
 
     Local $hToolTip2 = _GUIToolTip_Create(0)
     _GUIToolTip_SetMaxTipWidth($hToolTip2, 400)
@@ -397,21 +411,19 @@ Func _StartGUI()
 
     $idStatusBarDiv = Round($aClientSize[0] / 4)
 
-    GUICtrlSetState(-1, $GUI_HIDE)
+    ;GUICtrlSetState(-1, $GUI_HIDE)
 
     $idPart1 = GUICtrlCreateLabel("Engine Running:", 20, $aClientSize[1] - $iMenubarHeight + $iStatusTextAlign, 164 * $iDPI1, $iMenubarHeight, $SS_CENTERIMAGE)
     GUICtrlSetBkColor(-1, $GUI_BKCOLOR_TRANSPARENT)
+    GUICtrlSetColor(-1, $GUI_FontColor)
 
     $idPart2 = GUICtrlCreateLabel("Task Installed: " & $TaskInstalled, ($idStatusBarDiv * 2) + 20, $aClientSize[1] - $iMenubarHeight + $iStatusTextAlign, 164 * $iDPI1, $iMenubarHeight, $SS_CENTERIMAGE)
     GUICtrlSetBkColor(-1, $GUI_BKCOLOR_TRANSPARENT)
+    GUICtrlSetColor(-1, $GUI_FontColor)
 
     $idPart3 = GUICtrlCreateLabel("Engine Elevated:", $idStatusBarDiv + 20, $aClientSize[1] - $iMenubarHeight + $iStatusTextAlign, 164 * $iDPI1, $iMenubarHeight, $SS_CENTERIMAGE)
     GUICtrlSetBkColor(-1, $GUI_BKCOLOR_TRANSPARENT)
-
-    $idPart4 = GUICtrlCreateLabel("Unsaved Changes", ($idStatusBarDiv * 3) + 20, $aClientSize[1] - $iMenubarHeight + $iStatusTextAlign, 164 * $iDPI1, $iMenubarHeight, $SS_CENTERIMAGE)
-    GUICtrlSetBkColor(-1, $GUI_BKCOLOR_TRANSPARENT)
-
-    GUICtrlSetState($idPart4, $GUI_HIDE)
+    GUICtrlSetColor(-1, $GUI_FontColor)
 
     $idStatusBarDiv1 = GUICtrlCreateLabel(" ", $idStatusBarDiv, $aClientSize[1] - $iMenubarHeight - 1, 1, $iMenubarHeight + 2)
     GUICtrlSetBkColor(-1, $GUI_StatusLineColor)
@@ -428,17 +440,23 @@ Func _StartGUI()
     $idStatusBarLine = GUICtrlCreateLabel(" ", 0, $aClientSize[1] - $iMenubarHeight - 1, $iW * $iDPI1, 1)
     GUICtrlSetBkColor(-1, $GUI_StatusLineColor)
     GUICtrlSetState(-1, $GUI_DISABLE)
-    $idStatusBar = GUICtrlCreateLabel(" ", 0, $aClientSize[1] - $iMenubarHeight, $iW * $iDPI1, $iMenubarHeight)
-    GUICtrlSetBkColor(-1, $GUI_StatusBackColor)
-    GUICtrlSetState(-1, $GUI_DISABLE)
 
     _IsEngineProcRunning()
+
+    ; measure button
+    GUISetFont(10, $FW_NORMAL, $GUI_FONTNORMAL, $sFluentFont)
+    $hBtnTest = GUICtrlCreateButton(ChrW(0xE70D), 10, 10, -1, -1)
+    $aPos = ControlGetPos($hGUI, "", $hBtnTest)
+    Local $iButtonSize = $aPos[3]
+    GUICtrlSetState($hBtnTest, $GUI_HIDE)
 
     $aStringSizeBig = _StringSize("CASCADIA_HOSTING_WINDOW_CLASS", $FontSize, 400, 0, $MainFont)
     ;100 * $iDPI1Big = $aStringSizeBig[2] + 50
 
+    GUISetFont($FontSize, $FW_NORMAL, $GUI_FONTNORMAL, $MainFont)
+
     $RuleListLabel = GUICtrlCreateLabel("Rules List:", 20, 20, -1, -1)
-    
+    GUICtrlSetColor(-1, $GUI_FontColor)
 
     $aPos = ControlGetPos($hGUI, "", $RuleListLabel)
 
@@ -456,7 +474,7 @@ Func _StartGUI()
     ;$hRuleListCombo = GUICtrlGetHandle($RuleListCombo)
 
     ;Global $idInput = GUICtrlCreateInput("Select a rule", 20, 40, 100 * $iDPI1Big, $FontHeight, $ES_READONLY, 0)
-    $idInput = _RGUI_RoundInput("Select a rule", $GUI_FontColor, 20, $RuleListLabelPosV, 260 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1, $ES_READONLY)
+    $idInput = _RGUI_RoundInput("Select a rule", $GUI_FontColor, 20, $RuleListLabelPosV - 2, 260 * $iDPI1, $iButtonSize, $GUI_InputBackColor, $GUI_InputBackColor, 0, 4, $ES_READONLY)
     ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
@@ -500,23 +518,19 @@ Func _StartGUI()
         -1, $GUI_FontColor, -1]		; selected 	: Background, Text, Border
     ;GuiFlatButton_SetDefaultColorsEx($aColorsEx)
 
-    $hBtn = GuiFlatButton_Create(ChrW(0xE70D), $RuleListComboPosH + 4, $RuleListLabelPosV + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
-    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
+	GUISetFont(10, $FW_NORMAL, $GUI_FONTNORMAL, $sFluentFont)
+    $hBtn = GUICtrlCreateButton(ChrW(0xE70D), $RuleListComboPosH + 4, $RuleListLabelPosV, $iButtonSize, $iButtonSize)
     GUICtrlSetOnEvent(-1, "hBtn")
-    GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
-    
+
 
     $aPos = ControlGetPos($hGUI, "", $hBtn)
-
 
     $hBtnPosV = $aPos[1] + $aPos[3]
     $hBtnPosH = $aPos[0] + $aPos[2]
 
-    $AddRuleButton = GuiFlatButton_Create(ChrW(0xE710), $hBtnPosH + 10, $RuleListLabelPosV + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
-    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
+	GUISetFont(10, $FW_NORMAL, $GUI_FONTNORMAL, $sFluentFont)
+    $AddRuleButton = GUICtrlCreateButton(ChrW(0xE710), $hBtnPosH + 10, $RuleListLabelPosV, $iButtonSize, $iButtonSize)
     GUICtrlSetOnEvent(-1, "hBtnAddRule")
-    GUICtrlSetFont(-1, 9, 200, -1, "Segoe MDL2 Assets")
-    
 
     _GUIToolTip_AddTool($hToolTip2, $hGUI, "Add Custom Rule", GUICtrlGetHandle($AddRuleButton))
 
@@ -526,11 +540,9 @@ Func _StartGUI()
     $AddRuleButtonPosV = $aPos[1] + $aPos[3]
     $AddRuleButtonPosH = $aPos[0] + $aPos[2]
 
-    ;$AddRuleButton = GUICtrlCreateLabel(ChrW(0xE710), $hBtnPosH + 10, 42 + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
-    $SaveButton = GuiFlatButton_Create(ChrW(0xE105), $AddRuleButtonPosH + 10, $RuleListLabelPosV + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
-    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
+	GUISetFont(10, $FW_NORMAL, $GUI_FONTNORMAL, $sFluentFont)
+    $SaveButton = GUICtrlCreateButton(ChrW(0xE105), $AddRuleButtonPosH + 10, $RuleListLabelPosV, $iButtonSize, $iButtonSize)
     GUICtrlSetOnEvent(-1, "_WriteIniSection")
-    GUICtrlSetFont(-1, 10, 200, -1, "Segoe Fluent Icons")
     
     GUICtrlSetState($SaveButton, $GUI_DISABLE)
 
@@ -541,12 +553,11 @@ Func _StartGUI()
     $SaveButtonPosV = $aPos[1] + $aPos[3]
     $SaveButtonPosH = $aPos[0] + $aPos[2]
 
-    $DeleteButton = GuiFlatButton_Create(ChrW(0xE107), $SaveButtonPosH + 10, $RuleListLabelPosV + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
-    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
+	GUISetFont(10, $FW_NORMAL, $GUI_FONTNORMAL, $sFluentFont)
+    $DeleteButton = GUICtrlCreateButton(ChrW(0xE107), $SaveButtonPosH + 10, $RuleListLabelPosV, $iButtonSize, $iButtonSize)
     GUICtrlSetOnEvent(-1, "hBtnDeleteRule")
-    GUICtrlSetFont(-1, 10, 200, -1, "Segoe Fluent Icons")
     
-    GuiFlatButton_SetState($DeleteButton, $GUI_DISABLE)
+    GUICtrlSetState($DeleteButton, $GUI_DISABLE)
 
     _GUIToolTip_AddTool($hToolTip2, $hGUI, "Delete Custom Rule", GUICtrlGetHandle($DeleteButton))
 
@@ -555,10 +566,9 @@ Func _StartGUI()
     $DeleteButtonPosV = $aPos[1] + $aPos[3]
     $DeleteButtonPosH = $aPos[0] + $aPos[2]
 
-    $ReloadButton = GuiFlatButton_Create(ChrW(0xE149), $DeleteButtonPosH + 10, $RuleListLabelPosV + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
-    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
+	GUISetFont(10, $FW_NORMAL, $GUI_FONTNORMAL, $sFluentFont)
+    $ReloadButton = GUICtrlCreateButton(ChrW(0xE149), $DeleteButtonPosH + 10, $RuleListLabelPosV, $iButtonSize, $iButtonSize)
     GUICtrlSetOnEvent(-1, "hBtnReloadRules")
-    GUICtrlSetFont(-1, 10, 200, -1, "Segoe Fluent Icons")
 
     $aPos = ControlGetPos($hGUI, "", $ReloadButton)
 
@@ -567,18 +577,31 @@ Func _StartGUI()
 
     _GUIToolTip_AddTool($hToolTip2, $hGUI, "Reload & Refresh Rules", GUICtrlGetHandle($ReloadButton))
 
-    $RevertButton = GuiFlatButton_Create(ChrW(0xE248), $aClientSize[0] - ($FontHeight * 2), $aClientSize[1] - $iMenubarHeight + ($FontHeight / 2) - 3, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
+    GUISetFont(10, $FW_NORMAL, $GUI_FONTNORMAL, "Segoe MDL2 Assets")
+    $RevertButton = GUICtrlCreateButton(ChrW(0xE248), $aClientSize[0] - ($iButtonSize * 2), $aClientSize[1] - $iMenubarHeight + (($iMenubarHeight - $iButtonSize) / 2), $iButtonSize, $iButtonSize)
+    ;$RevertButton = GuiFlatButton_Create(ChrW(0xE248), $aClientSize[0] - ($FontHeight * 2), $aClientSize[1] - $iMenubarHeight + ($FontHeight / 2) - 3, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
     ;GuiFlatButton_SetColorsEx(-1, $aColorsEx)
     ;GuiFlatButton_SetBkColor(-1, $GUI_StatusBackColor)
-    GuiFlatButton_SetColors(-1, $GUI_StatusBackColor, $GUI_FontColor, $GUI_StatusBackColor)
+    ;GuiFlatButton_SetColors(-1, $GUI_StatusBackColor, $GUI_FontColor, $GUI_StatusBackColor)
     GUICtrlSetOnEvent(-1, "hBtnRevertChanges")
-    GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
-    GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+    ;GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
+    GUICtrlSetState($RevertButton, $GUI_HIDE)
 
     _GUIToolTip_AddTool($hToolTip2, $hGUI, "Revert Unsaved Changes", GUICtrlGetHandle($RevertButton))
 
+    GUISetFont($FontSize, $FW_NORMAL, $GUI_FONTNORMAL, $MainFont)
+    $idPart4 = GUICtrlCreateLabel("Unsaved Changes", ($idStatusBarDiv * 3) + 20, $aClientSize[1] - $iMenubarHeight + $iStatusTextAlign, 164 * $iDPI1, $iMenubarHeight, $SS_CENTERIMAGE)
+    GUICtrlSetBkColor(-1, $GUI_BKCOLOR_TRANSPARENT)
+    GUICtrlSetColor(-1, $GUI_FontColor)
+    GUICtrlSetState($idPart4, $GUI_HIDE)
+
+    $idStatusBar = GUICtrlCreateLabel(" ", 0, $aClientSize[1] - $iMenubarHeight, $iW * $iDPI1, $iMenubarHeight)
+    GUICtrlSetBkColor(-1, $GUI_StatusBackColor)
+    GUICtrlSetState(-1, $GUI_DISABLE)
+
+    GUISetFont($FontSize, $FW_NORMAL, $GUI_FONTNORMAL, $MainFont)
     $TargetLabel = GUICtrlCreateLabel("Target:", 20, $RuleListComboPosV + 20, -1, -1)
-    
+    GUICtrlSetColor(-1, $GUI_FontColor)
     $aPos = ControlGetPos($hGUI, "", $TargetLabel)
 
 
@@ -586,7 +609,7 @@ Func _StartGUI()
 
 
     ;$TargetInput = GUICtrlCreateInput("", 20, $TargetLabelPosV, 100 * $iDPI1Big, $FontHeight, -1, 0)
-    $TargetInput = _RGUI_RoundInput("", $GUI_FontColor, 20, $TargetLabelPosV, 260 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1)
+    $TargetInput = _RGUI_RoundInput("", $GUI_FontColor, 20, $TargetLabelPosV - 2, 260 * $iDPI1, $iButtonSize, $GUI_InputBackColor, $GUI_InputBackColor, 0, 4)
     GUICtrlSetResizing(-1, $GUI_DOCKALL)
     ;GUICtrlSetBkColor(-1, 0x202020)
 
@@ -596,11 +619,10 @@ Func _StartGUI()
     $TargetInputPosV = $aPos[1] + $aPos[3]
     $TargetInputPosH = $aPos[0] + $aPos[2]
 
-    ;#cs
+    GUISetFont($FontSize, $FW_NORMAL, $GUI_FONTNORMAL, $MainFont)
     $RuleTypeLabel = GUICtrlCreateLabel("Rule Type:", $TargetInputPosH + 30, $RuleListComboPosV + 20, -1, -1)
-    
+    GUICtrlSetColor(-1, $GUI_FontColor)
     $aPos = ControlGetPos($hGUI, "", $RuleTypeLabel)
-
 
     $RuleTypeLabelPosV = $aPos[1] + $aPos[3]
 
@@ -614,7 +636,7 @@ Func _StartGUI()
     GUICtrlSetState(-1, $GUI_HIDE)
 
     ;$idInputRuleType = GUICtrlCreateInput("", $TargetInputPosH + 20, $RuleTypeLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $idInputRuleType = _RGUI_RoundInput("", $GUI_FontColor, $TargetInputPosH + 30, $RuleTypeLabelPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1, $ES_READONLY)
+    $idInputRuleType = _RGUI_RoundInput("", $GUI_FontColor, $TargetInputPosH + 30, $RuleTypeLabelPosV - 2, 100 * $iDPI1, $iButtonSize, $GUI_InputBackColor, $GUI_InputBackColor, 0, 4, $ES_READONLY)
     ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
@@ -623,24 +645,19 @@ Func _StartGUI()
 
     $RuleTypeComboPosV = $aPos[1] + $aPos[3]
     $RuleTypeComboPosH = $aPos[0] + $aPos[2]
-    ;#ce
 
-    ;$hBtnRuleType = GUICtrlCreateLabel(ChrW(0xE70D), $RuleTypeComboPosH + 4, $RuleTypeLabelPosV + 4, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
-    $hBtnRuleType = GuiFlatButton_Create(ChrW(0xE70D), $RuleTypeComboPosH + 4, $RuleTypeLabelPosV + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
-    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
-    
+    GUISetFont(10, $FW_NORMAL, $GUI_FONTNORMAL, $sFluentFont)
+    $hBtnRuleType = GUICtrlCreateButton(ChrW(0xE70D), $RuleTypeComboPosH + 4, $RuleTypeLabelPosV, $iButtonSize, $iButtonSize)
     GUICtrlSetOnEvent(-1, "hBtnRuleType")
-    GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
 
     $aPos = ControlGetPos($hGUI, "", $hBtnRuleType)
-
 
     $hBtnRuleTypePosV = $aPos[1] + $aPos[3]
     $hBtnRuleTypePosH = $aPos[0] + $aPos[2]
 
-    ;
+    GUISetFont($FontSize, $FW_NORMAL, $GUI_FONTNORMAL, $MainFont)
     $RuleEnabledLabel = GUICtrlCreateLabel("Enabled:", $hBtnRuleTypePosH + 20, $RuleListComboPosV + 20, -1, -1)
-    
+    GUICtrlSetColor(-1, $GUI_FontColor)
     $aPos = ControlGetPos($hGUI, "", $RuleEnabledLabel)
 
 
@@ -656,7 +673,7 @@ Func _StartGUI()
     GUICtrlSetState(-1, $GUI_HIDE)
 
     ;$idInputRuleType = GUICtrlCreateInput("", $TargetInputPosH + 20, $RuleTypeLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $idInputRuleEnabled = _RGUI_RoundInput("", $GUI_FontColor, $hBtnRuleTypePosH + 20, $RuleTypeLabelPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1, $ES_READONLY)
+    $idInputRuleEnabled = _RGUI_RoundInput("", $GUI_FontColor, $hBtnRuleTypePosH + 20, $RuleTypeLabelPosV - 2, 100 * $iDPI1, $iButtonSize, $GUI_InputBackColor, $GUI_InputBackColor, 0, 4, $ES_READONLY)
     ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
@@ -667,16 +684,13 @@ Func _StartGUI()
     $RuleEnabledComboPosH = $aPos[0] + $aPos[2]
     ;#ce
 
-    ;$hBtnRuleType = GUICtrlCreateLabel(ChrW(0xE70D), $RuleTypeComboPosH + 4, $RuleTypeLabelPosV + 4, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
-    $hBtnRuleEnabled = GuiFlatButton_Create(ChrW(0xE70D), $RuleEnabledComboPosH + 4, $RuleTypeLabelPosV + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
-    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
-    
+    GUISetFont(10, $FW_NORMAL, $GUI_FONTNORMAL, $sFluentFont)
+    $hBtnRuleEnabled = GUICtrlCreateButton(ChrW(0xE70D), $RuleEnabledComboPosH + 4, $RuleTypeLabelPosV, $iButtonSize, $iButtonSize)
     GUICtrlSetOnEvent(-1, "hBtnRuleEnabled")
-    GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
-    ;
 
+    GUISetFont($FontSize, $FW_NORMAL, $GUI_FONTNORMAL, $MainFont)
     $DarkTitleLabel = GUICtrlCreateLabel("Dark Titlebar:", 20, $TargetInputPosV + 20 + 20 + 16, -1, -1)
-    
+    GUICtrlSetColor(-1, $GUI_FontColor)
     $aPos = ControlGetPos($hGUI, "", $DarkTitleLabel)
 
 
@@ -695,15 +709,13 @@ Func _StartGUI()
     $DarkTitleComboPosV = $aPos[1] + $aPos[3]
     $DarkTitleComboPosH = $aPos[0] + $aPos[2]
 
-    ;$hBtnDarkTitle = GUICtrlCreateLabel(ChrW(0xE70D), $DarkTitleComboPosH + 4, $DarkTitleLabelPosV + 4, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
-    $hBtnDarkTitle = GuiFlatButton_Create(ChrW(0xE70D), $DarkTitleComboPosH + 4, $DarkTitleLabelPosV + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
-    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
-    GUICtrlSetOnEvent(-1, "hBtnDarkTitle")
-    GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
-    
+    GUISetFont(10, $FW_NORMAL, $GUI_FONTNORMAL, $sFluentFont)
+    $hBtnDarkTitle = GUICtrlCreateButton(ChrW(0xE70D), $DarkTitleComboPosH + 4, $DarkTitleLabelPosV, $iButtonSize, $iButtonSize)
+    GUICtrlSetOnEvent(-1, "hBtnDarkTitle")    
 
+    GUISetFont($FontSize, $FW_NORMAL, $GUI_FONTNORMAL, $MainFont)
     ;$idInputDarkTitle = GUICtrlCreateInput("", 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $idInputDarkTitle = _RGUI_RoundInput("", $GUI_FontColor, 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1, $ES_READONLY)
+    $idInputDarkTitle = _RGUI_RoundInput("", $GUI_FontColor, 20, $DarkTitleLabelPosV - 2, 100 * $iDPI1, $iButtonSize, $GUI_InputBackColor, $GUI_InputBackColor, 0, 4, $ES_READONLY)
     ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
@@ -712,8 +724,9 @@ Func _StartGUI()
     $idInputDarkTitlePosV = $aPos[1] + $aPos[3]
     $idInputDarkTitlePosH = $aPos[0] + $aPos[2]
 
+    GUISetFont($FontSize, $FW_NORMAL, $GUI_FONTNORMAL, $MainFont)
     $TitleBarBackdropLabel = GUICtrlCreateLabel("Backdrop Material:", 20, $idInputDarkTitlePosV + 20, -1, -1)
-    
+    GUICtrlSetColor(-1, $GUI_FontColor)
     $aPos = ControlGetPos($hGUI, "", $TitleBarBackdropLabel)
 
     $TitleBarBackdropLabelPosV = $aPos[1] + $aPos[3]
@@ -730,7 +743,7 @@ Func _StartGUI()
     $TitleBarBackdropComboPosH = $aPos[0] + $aPos[2]
 
     ;$idInputTitleBarBackdrop = GUICtrlCreateInput("", 20, $TitleBarBackdropLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $idInputTitleBarBackdrop = _RGUI_RoundInput("", $GUI_FontColor, 20, $TitleBarBackdropLabelPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1, $ES_READONLY)
+    $idInputTitleBarBackdrop = _RGUI_RoundInput("", $GUI_FontColor, 20, $TitleBarBackdropLabelPosV - 2, 100 * $iDPI1, $iButtonSize, $GUI_InputBackColor, $GUI_InputBackColor, 0, 4, $ES_READONLY)
     ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
@@ -740,14 +753,13 @@ Func _StartGUI()
     $idInputTitleBarBackdropPosH = $aPos[0] + $aPos[2]
     $idInputTitleBarBackdropPosV2 = $aPos[1]
 
-    $hBtnTitleBarBackdrop = GuiFlatButton_Create(ChrW(0xE70D), $TitleBarBackdropComboPosH + 4, $idInputTitleBarBackdropPosV2 + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
-    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
-    
+    GUISetFont(10, $FW_NORMAL, $GUI_FONTNORMAL, $sFluentFont)
+    $hBtnTitleBarBackdrop = GUICtrlCreateButton(ChrW(0xE70D), $TitleBarBackdropComboPosH + 4, $TitleBarBackdropLabelPosV, $iButtonSize, $iButtonSize)
     GUICtrlSetOnEvent(-1, "hBtnTitleBarBackdrop")
-    GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
 
+    GUISetFont($FontSize, $FW_NORMAL, $GUI_FONTNORMAL, $MainFont)
     $CornerPreferenceLabel = GUICtrlCreateLabel("Corner Preference:", 20, $idInputTitleBarBackdropPosV + 20, -1, -1)
-    
+    GUICtrlSetColor(-1, $GUI_FontColor)
     $aPos = ControlGetPos($hGUI, "", $CornerPreferenceLabel)
 
     $CornerPreferenceLabelPosV = $aPos[1] + $aPos[3]
@@ -763,14 +775,13 @@ Func _StartGUI()
     $CornerPreferenceComboPosV = $aPos[1] + $aPos[3]
     $CornerPreferenceComboPosH = $aPos[0] + $aPos[2]
 
-    $hBtnCornerPreference = GuiFlatButton_Create(ChrW(0xE70D), $CornerPreferenceComboPosH + 4, $CornerPreferenceLabelPosV + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
-    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
-    
+    GUISetFont(10, $FW_NORMAL, $GUI_FONTNORMAL, $sFluentFont)
+    $hBtnCornerPreference = GUICtrlCreateButton(ChrW(0xE70D), $CornerPreferenceComboPosH + 4, $CornerPreferenceLabelPosV, $iButtonSize, $iButtonSize)
     GUICtrlSetOnEvent(-1, "hBtnCornerPreference")
-    GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
 
+    GUISetFont($FontSize, $FW_NORMAL, $GUI_FONTNORMAL, $MainFont)
     ;$idInputCornerPreference = GUICtrlCreateInput("", 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $idInputCornerPreference = _RGUI_RoundInput("", $GUI_FontColor, 20, $CornerPreferenceLabelPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1, $ES_READONLY)
+    $idInputCornerPreference = _RGUI_RoundInput("", $GUI_FontColor, 20, $CornerPreferenceLabelPosV - 2, 100 * $iDPI1, $iButtonSize, $GUI_InputBackColor, $GUI_InputBackColor, 0, 4, $ES_READONLY)
     ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
@@ -779,15 +790,16 @@ Func _StartGUI()
     $idInputCornerPreferencePosV = $aPos[1] + $aPos[3]
     $idInputCornerPreferencePosH = $aPos[0] + $aPos[2]
 
+    GUISetFont($FontSize, $FW_NORMAL, $GUI_FONTNORMAL, $MainFont)
     $BorderColorLabel = GUICtrlCreateLabel("Border Color:", $idInputDarkTitlePosH + $FontHeight + 40, $TargetInputPosV + 20 + 20 + 16, -1, -1)
-    
+    GUICtrlSetColor(-1, $GUI_FontColor)
     $aPos = ControlGetPos($hGUI, "", $BorderColorLabel)
 
     $BorderColorLabelPosV = $aPos[1] + $aPos[3]
     $BorderColorLabelPosV2 = $aPos[1]
 
     ;$BorderColorInput = GUICtrlCreateInput("", 20, $BorderColorLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $BorderColorInput = _RGUI_RoundInput("", $GUI_FontColor, $idInputDarkTitlePosH + $FontHeight + 40, $BorderColorLabelPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1)
+    $BorderColorInput = _RGUI_RoundInput("", $GUI_FontColor, $idInputDarkTitlePosH + $FontHeight + 40, $BorderColorLabelPosV - 2, 100 * $iDPI1, $iButtonSize, $GUI_InputBackColor, $GUI_InputBackColor, 0, 4)
     GUICtrlSetResizing(-1, $GUI_DOCKALL)
     ;GUICtrlSetBkColor(-1, 0x202020)
 
@@ -798,7 +810,7 @@ Func _StartGUI()
     $BorderColorInputPosV2 = $aPos[1]
 
     ;$colorlabelfill = GUICtrlCreateLabel(" ", $BorderColorInputPosH + 14, $BorderColorInputPosV2, $FontHeight, $FontHeight, $WS_BORDER)
-    $colorlabelfill = GuiFlatButton_Create(" ", $BorderColorInputPosH + 14, $BorderColorInputPosV2, $FontHeight - 1, $FontHeight - 1)
+    $colorlabelfill = GuiFlatButton_Create(" ", $BorderColorInputPosH + 10, $BorderColorInputPosV2, $iButtonSize - 4, $iButtonSize - 4)
     GuiFlatButton_SetBkColor(-1, $GUI_BackColor)
 
     GUICtrlSetOnEvent(-1, "ColorPicker")
@@ -811,23 +823,22 @@ Func _StartGUI()
     $colorlabelfillPosV = $aPos[1] + $aPos[3]
     $colorlabelfillPosH = $aPos[0] + $aPos[2]
 
-    $hBtnNoBorder = GuiFlatButton_Create(ChrW(0xED62), $BorderColorInputPosH + 14, $BorderColorLabelPosV2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
-    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
-    
+    GUISetFont(10, $FW_NORMAL, $GUI_FONTNORMAL, $sFluentFont)
+    $hBtnNoBorder = GUICtrlCreateButton(ChrW(0xED62), $BorderColorInputPosH + 8, $BorderColorLabelPosV2 - 4, $iButtonSize, $iButtonSize)
     GUICtrlSetOnEvent(-1, "hBtnNoBorder")
-    GUICtrlSetFont(-1, 10, 200, -1, "Segoe Fluent Icons")
 
     _GUIToolTip_AddTool($hToolTip2, $hGUI, "No Border", GUICtrlGetHandle($hBtnNoBorder))
 
+    GUISetFont($FontSize, $FW_NORMAL, $GUI_FONTNORMAL, $MainFont)
     $TitlebarColorLabel = GUICtrlCreateLabel("Titlebar Color:", $idInputDarkTitlePosH + $FontHeight + 40, $BorderColorInputPosV + 20, -1, -1)
-    
+    GUICtrlSetColor(-1, $GUI_FontColor)
     $aPos = ControlGetPos($hGUI, "", $TitlebarColorLabel)
 
     $TitlebarColorLabelPosV = $aPos[1] + $aPos[3]
     $TitlebarColorLabelPosV2 = $aPos[1]
 
     ;$TitlebarColorInput = GUICtrlCreateInput("", 20, $TitlebarColorLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $TitlebarColorInput = _RGUI_RoundInput("", $GUI_FontColor, $idInputDarkTitlePosH + $FontHeight + 40, $TitlebarColorLabelPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1)
+    $TitlebarColorInput = _RGUI_RoundInput("", $GUI_FontColor, $idInputDarkTitlePosH + $FontHeight + 40, $TitlebarColorLabelPosV - 2, 100 * $iDPI1, $iButtonSize, $GUI_InputBackColor, $GUI_InputBackColor, 0, 4)
     GUICtrlSetResizing(-1, $GUI_DOCKALL)
     ;GUICtrlSetBkColor(-1, 0x202020)
 
@@ -839,21 +850,22 @@ Func _StartGUI()
     $TitlebarColorInputPosV2 = $aPos[1]
 
     ;$TitlebarColorLabel = GUICtrlCreateLabel(" ", $TitlebarColorInputPosH + 14, $TitlebarColorInputPosV2, $FontHeight, $FontHeight, $WS_BORDER)
-    $TitlebarColorLabel = GuiFlatButton_Create(" ", $TitlebarColorInputPosH + 14, $TitlebarColorInputPosV2, $FontHeight - 1, $FontHeight - 1)
+    $TitlebarColorLabel = GuiFlatButton_Create(" ", $TitlebarColorInputPosH + 10, $TitlebarColorInputPosV2, $iButtonSize - 4, $iButtonSize - 4)
     GuiFlatButton_SetBkColor(-1, $GUI_BackColor)
 
     _GUIToolTip_AddTool($hToolTip2, $hGUI, "Change Color", GUICtrlGetHandle($TitlebarColorLabel))
     GUICtrlSetOnEvent(-1, "ColorPickerTitlebar")
 
+    GUISetFont($FontSize, $FW_NORMAL, $GUI_FONTNORMAL, $MainFont)
     $TitlebarTextColorLabel = GUICtrlCreateLabel("Titlebar Text Color:", $idInputDarkTitlePosH + $FontHeight + 40, $TitlebarColorInputPosV + 20, -1, -1)
-    
+    GUICtrlSetColor(-1, $GUI_FontColor)
     $aPos = ControlGetPos($hGUI, "", $TitlebarTextColorLabel)
 
     $TitlebarTextColorLabelPosV = $aPos[1] + $aPos[3]
     $TitlebarTextColorLabelPosV2 = $aPos[1]
 
     ;$TitlebarTextColorInput = GUICtrlCreateInput("", 20, $TitlebarTextColorLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $TitlebarTextColorInput = _RGUI_RoundInput("", $GUI_FontColor, $idInputDarkTitlePosH + $FontHeight + 40, $TitlebarTextColorLabelPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1)
+    $TitlebarTextColorInput = _RGUI_RoundInput("", $GUI_FontColor, $idInputDarkTitlePosH + $FontHeight + 40, $TitlebarTextColorLabelPosV - 2, 100 * $iDPI1, $iButtonSize, $GUI_InputBackColor, $GUI_InputBackColor, 0, 4)
     GUICtrlSetResizing(-1, $GUI_DOCKALL)
     ;GUICtrlSetBkColor(-1, 0x202020)
 
@@ -864,7 +876,7 @@ Func _StartGUI()
     $TitlebarTextColorInputPosV2 = $aPos[1]
 
     ;$TitlebarTextColorLabel = GUICtrlCreateLabel(" ", $TitlebarColorInputPosH + 14, $TitlebarTextColorInputPosV2, $FontHeight, $FontHeight, $WS_BORDER)
-    $TitlebarTextColorLabel = GuiFlatButton_Create(" ", $TitlebarColorInputPosH + 14, $TitlebarTextColorInputPosV2, $FontHeight - 1, $FontHeight - 1)
+    $TitlebarTextColorLabel = GuiFlatButton_Create(" ", $TitlebarColorInputPosH + 10, $TitlebarTextColorInputPosV2, $iButtonSize - 4, $iButtonSize - 4)
     GuiFlatButton_SetBkColor(-1, $GUI_BackColor)
 
     _GUIToolTip_AddTool($hToolTip2, $hGUI, "Change Color", GUICtrlGetHandle($TitlebarTextColorLabel))
@@ -873,7 +885,9 @@ Func _StartGUI()
     $measureadvwidth = $DarkTitleLabelPosH + $colorlabelfillPosH
     $measureadvheight = $TitlebarTextColorInputPosV - $BorderColorLabelPosV2
 
+    GUISetFont($FontSize, $FW_NORMAL, $GUI_FONTNORMAL, $MainFont)
     $ExtendFrameLabel = GUICtrlCreateLabel("Extend Frame To Client:", $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $BorderColorLabelPosV2, -1, -1)
+    GUICtrlSetColor(-1, $GUI_FontColor)
     $aPos = ControlGetPos($hGUI, "", $ExtendFrameLabel)
     
 
@@ -893,6 +907,7 @@ Func _StartGUI()
     Else
         $InfoButton = GUICtrlCreateLabel(ChrW(0xE946), $ExtendFrameLabelPosH2 + $AdvancedWidth, $BorderColorLabelPosV2 - 30, -1, -1, $SS_CENTER)
     EndIf
+    GUICtrlSetColor(-1, $GUI_FontColor)
 
     ;GUICtrlSetBkColor($InfoButton, 0x000000)
 
@@ -926,7 +941,7 @@ Func _StartGUI()
     $ExtendFrameComboPosH = $aPos[0] + $aPos[2]
 
     ;$idInputDarkTitle = GUICtrlCreateInput("", 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $idInputExtendFrame = _RGUI_RoundInput("", $GUI_FontColor, $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $ExtendFrameLabelPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1, $ES_READONLY)
+    $idInputExtendFrame = _RGUI_RoundInput("", $GUI_FontColor, $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $ExtendFrameLabelPosV - 2, 100 * $iDPI1, $iButtonSize, $GUI_InputBackColor, $GUI_InputBackColor, 0, 4, $ES_READONLY)
     ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
@@ -935,13 +950,13 @@ Func _StartGUI()
     $idInputExtendFramePosV = $aPos[1] + $aPos[3]
     $idInputExtendFramePosH = $aPos[0] + $aPos[2]
 
-    $hBtnExtendFrame = GuiFlatButton_Create(ChrW(0xE70D), $ExtendFrameComboPosH + 4, $ExtendFrameLabelPosV + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
-    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
-    
+    GUISetFont(10, $FW_NORMAL, $GUI_FONTNORMAL, $sFluentFont)
+    $hBtnExtendFrame = GUICtrlCreateButton(ChrW(0xE70D), $ExtendFrameComboPosH + 4, $ExtendFrameLabelPosV, $iButtonSize, $iButtonSize)
     GUICtrlSetOnEvent(-1, "hBtnExtendFrame")
-    GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
 
+    GUISetFont($FontSize, $FW_NORMAL, $GUI_FONTNORMAL, $MainFont)
     $BlurBehindLabel = GUICtrlCreateLabel("Enable Blur Behind:", $idInputExtendFramePosH + $FontHeight + 40, $BorderColorLabelPosV2, -1, -1)
+    GUICtrlSetColor(-1, $GUI_FontColor)
     $aPos = ControlGetPos($hGUI, "", $BlurBehindLabel)
     
 
@@ -958,14 +973,13 @@ Func _StartGUI()
     $BlurBehindComboPosV = $aPos[1] + $aPos[3]
     $BlurBehindComboPosH = $aPos[0] + $aPos[2]
 
-    $hBtnBlurBehind = GuiFlatButton_Create(ChrW(0xE70D), $BlurBehindComboPosH + 4, $BlurBehindLabelPosV + 2, $FontHeight - 1, $FontHeight - 1, $SS_CENTER)
-    GuiFlatButton_SetColorsEx(-1, $aColorsEx)
-    
+    GUISetFont(10, $FW_NORMAL, $GUI_FONTNORMAL, $sFluentFont)
+    $hBtnBlurBehind = GUICtrlCreateButton(ChrW(0xE70D), $BlurBehindComboPosH + 4, $BlurBehindLabelPosV, $iButtonSize, $iButtonSize)
     GUICtrlSetOnEvent(-1, "hBtnBlurBehind")
-    GUICtrlSetFont(-1, 10, 200, -1, "Segoe MDL2 Assets")
 
+    GUISetFont($FontSize, $FW_NORMAL, $GUI_FONTNORMAL, $MainFont)
     ;$idInputDarkTitle = GUICtrlCreateInput("", 20, $DarkTitleLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $idInputBlurBehind = _RGUI_RoundInput("", $GUI_FontColor, $idInputExtendFramePosH + $FontHeight + 40, $BlurBehindLabelPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1, $ES_READONLY)
+    $idInputBlurBehind = _RGUI_RoundInput("", $GUI_FontColor, $idInputExtendFramePosH + $FontHeight + 40, $BlurBehindLabelPosV - 2, 100 * $iDPI1, $iButtonSize, $GUI_InputBackColor, $GUI_InputBackColor, 0, 4, $ES_READONLY)
     ;GUICtrlSetBkColor(-1, 0x202020)
     GUICtrlSetCursor(-1, $MCID_ARROW)
 
@@ -974,14 +988,15 @@ Func _StartGUI()
     $idInputBlurBehindPosV = $aPos[1] + $aPos[3]
     $idInputBlurBehindPosH = $aPos[0] + $aPos[2]
 
+    GUISetFont($FontSize, $FW_NORMAL, $GUI_FONTNORMAL, $MainFont)
     $BlurTintColorLabel = GUICtrlCreateLabel("Blur Tint Color (Active):", $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $TitlebarColorLabelPosV2, -1, -1)
-    
+    GUICtrlSetColor(-1, $GUI_FontColor)
     $aPos = ControlGetPos($hGUI, "", $BlurTintColorLabel)
 
     $BlurTintColorLabelPosV = $aPos[1] + $aPos[3]
 
     ;$TitlebarTextColorInput = GUICtrlCreateInput("", 20, $TitlebarTextColorLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $BlurTintColorInput = _RGUI_RoundInput("", $GUI_FontColor, $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $BlurTintColorLabelPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1)
+    $BlurTintColorInput = _RGUI_RoundInput("", $GUI_FontColor, $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $BlurTintColorLabelPosV - 2, 100 * $iDPI1, $iButtonSize, $GUI_InputBackColor, $GUI_InputBackColor, 0, 4)
     GUICtrlSetResizing(-1, $GUI_DOCKALL)
     ;GUICtrlSetBkColor(-1, 0x202020)
 
@@ -992,22 +1007,21 @@ Func _StartGUI()
     $BlurTintColorInputPosV2 = $aPos[1]
 
     ;$BlurTintColorPickLabel = GUICtrlCreateLabel(" ", $BlurTintColorInputPosH + 14, $BlurTintColorInputPosV2, $FontHeight, $FontHeight, $WS_BORDER)
-    $BlurTintColorPickLabel = GuiFlatButton_Create(" ", $BlurTintColorInputPosH + 14, $BlurTintColorInputPosV2, $FontHeight - 1, $FontHeight - 1)
+    $BlurTintColorPickLabel = GuiFlatButton_Create(" ", $BlurTintColorInputPosH + 10, $BlurTintColorInputPosV2, $iButtonSize - 4, $iButtonSize - 4)
     GuiFlatButton_SetBkColor(-1, $GUI_BackColor)
 
     _GUIToolTip_AddTool($hToolTip2, $hGUI, "Change Color", GUICtrlGetHandle($BlurTintColorPickLabel))
     GUICtrlSetOnEvent(-1, "ColorPickerBlurTintColor")
 
-    ;
-
+    GUISetFont($FontSize, $FW_NORMAL, $GUI_FONTNORMAL, $MainFont)
     $BlurTintColorLabelInact = GUICtrlCreateLabel("Blur Tint Color (Inactive):", $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $TitlebarTextColorLabelPosV2, -1, -1)
-    
+    GUICtrlSetColor(-1, $GUI_FontColor)
     $aPos = ControlGetPos($hGUI, "", $BlurTintColorLabelInact)
 
     $BlurTintColorLabelInactPosV = $aPos[1] + $aPos[3]
 
     ;$TitlebarTextColorInput = GUICtrlCreateInput("", 20, $TitlebarTextColorLabelPosV, 100 * $iDPI1, $FontHeight, -1, 0)
-    $BlurTintColorInputInact = _RGUI_RoundInput("", $GUI_FontColor, $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $BlurTintColorLabelInactPosV, 100 * $iDPI1, $FontHeight, $GUI_InputBackColor, $GUI_InputBackColor, 0, 1)
+    $BlurTintColorInputInact = _RGUI_RoundInput("", $GUI_FontColor, $BorderColorInputPosH + $FontHeight + 40 + $FontHeight, $BlurTintColorLabelInactPosV - 2, 100 * $iDPI1, $iButtonSize, $GUI_InputBackColor, $GUI_InputBackColor, 0, 4)
     GUICtrlSetResizing(-1, $GUI_DOCKALL)
     ;GUICtrlSetBkColor(-1, 0x202020)
 
@@ -1018,14 +1032,15 @@ Func _StartGUI()
     $BlurTintColorInputInactPosV2 = $aPos[1]
 
     ;$BlurTintColorPickLabel = GUICtrlCreateLabel(" ", $BlurTintColorInputPosH + 14, $BlurTintColorInputPosV2, $FontHeight, $FontHeight, $WS_BORDER)
-    $BlurTintColorPickLabelInact = GuiFlatButton_Create(" ", $BlurTintColorInputInactPosH + 14, $BlurTintColorInputInactPosV2, $FontHeight - 1, $FontHeight - 1)
+    $BlurTintColorPickLabelInact = GuiFlatButton_Create(" ", $BlurTintColorInputInactPosH + 10, $BlurTintColorInputInactPosV2, $iButtonSize - 4, $iButtonSize - 4)
     GuiFlatButton_SetBkColor(-1, $GUI_BackColor)
 
     _GUIToolTip_AddTool($hToolTip2, $hGUI, "Change Color", GUICtrlGetHandle($BlurTintColorPickLabelInact))
     GUICtrlSetOnEvent(-1, "ColorPickerBlurTintColorInact")
 
+    GUISetFont($FontSize, $FW_NORMAL, $GUI_FONTNORMAL, $MainFont)
     $BlurColorIntensityLabel = GUICtrlCreateLabel("Color Opacity (Active):", $idInputExtendFramePosH + $FontHeight + 40, $TitlebarColorLabelPosV2, -1, -1)
-    
+    GUICtrlSetColor(-1, $GUI_FontColor)
     $aPos = ControlGetPos($hGUI, "", $BlurColorIntensityLabel)
 
     $BlurColorIntensityLabelPosV = $aPos[1] + $aPos[3]
@@ -1044,8 +1059,9 @@ Func _StartGUI()
     $BlurColorIntensitySliderPosH = $aPos[0] + $aPos[2]
     $BlurColorIntensitySliderV2 = $aPos[1]
 
+    GUISetFont($FontSize, $FW_NORMAL, $GUI_FONTNORMAL, $MainFont)
     $BlurColorIntensityLabelInact = GUICtrlCreateLabel("Color Opacity (Inactive):", $idInputExtendFramePosH + $FontHeight + 40, $TitlebarTextColorLabelPosV2, -1, -1)
-    
+    GUICtrlSetColor(-1, $GUI_FontColor)
     $aPos = ControlGetPos($hGUI, "", $BlurColorIntensityLabelInact)
 
     $BlurColorIntensityLabelInactPosV = $aPos[1] + $aPos[3]
@@ -1058,6 +1074,8 @@ Func _StartGUI()
     GUICtrlSetLimit(-1, 100, 0)
     GUICtrlSetData($BlurColorIntensitySliderInact, 50)
 
+    GUISetFont($FontSize, $FW_NORMAL, $GUI_FONTNORMAL, $MainFont)
+
     If $iDPI1 = 1 Then
         $AdvancedButton = GUICtrlCreateLabel("Advanced", $ExtendFrameLabelPosH2 - 8, $BorderColorLabelPosV2 - 30, -1, -1, $SS_CENTER)
     ElseIf $iDPI1 = 1.25 Then
@@ -1067,6 +1085,8 @@ Func _StartGUI()
     Else
         $AdvancedButton = GUICtrlCreateLabel("Advanced", $ExtendFrameLabelPosH2 - 8, $BorderColorLabelPosV2 - 30 - 2, -1, -1, $SS_CENTER)
     EndIf
+
+    GUICtrlSetColor(-1, $GUI_FontColor)
 
     Local $idAdvancedLabel2 = GUICtrlCreateLabel(" ", $ExtendFrameLabelPosH2 - 20 + 1, $BorderColorLabelPosV2 + 8 - 30 + 1, $measureadvwidth - 2, $measureadvheight + 50 - 2)
     GUICtrlSetBkColor(-1, $GUI_BackColor)
@@ -1295,7 +1315,7 @@ Func ED_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
                         If $bWatchSaveChanges Then
                             If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
                                 GUICtrlSetState($idPart4, $GUI_HIDE)
-                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                                GUICtrlSetState($RevertButton, $GUI_HIDE)
                             EndIf
                         EndIf
                     EndIf
@@ -1315,7 +1335,7 @@ Func ED_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
                         If $bWatchSaveChanges Then
                             If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
                                 GUICtrlSetState($idPart4, $GUI_HIDE)
-                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                                GUICtrlSetState($RevertButton, $GUI_HIDE)
                             EndIf
                         EndIf
                     EndIf
@@ -1335,7 +1355,7 @@ Func ED_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
                         If $bWatchSaveChanges Then
                             If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
                                 GUICtrlSetState($idPart4, $GUI_HIDE)
-                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                                GUICtrlSetState($RevertButton, $GUI_HIDE)
                             EndIf
                         EndIf
                     EndIf
@@ -1355,7 +1375,7 @@ Func ED_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
                         If $bWatchSaveChanges Then
                             If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
                                 GUICtrlSetState($idPart4, $GUI_HIDE)
-                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                                GUICtrlSetState($RevertButton, $GUI_HIDE)
                             EndIf
                         EndIf
                     EndIf
@@ -1375,7 +1395,7 @@ Func ED_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
                         If $bWatchSaveChanges Then
                             If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
                                 GUICtrlSetState($idPart4, $GUI_HIDE)
-                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                                GUICtrlSetState($RevertButton, $GUI_HIDE)
                             EndIf
                         EndIf
                     EndIf
@@ -1395,7 +1415,7 @@ Func ED_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
                         If $bWatchSaveChanges Then
                             If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
                                 GUICtrlSetState($idPart4, $GUI_HIDE)
-                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                                GUICtrlSetState($RevertButton, $GUI_HIDE)
                             EndIf
                         EndIf
                     EndIf
@@ -1415,7 +1435,7 @@ Func ED_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
                         If $bWatchSaveChanges Then
                             If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
                                 GUICtrlSetState($idPart4, $GUI_HIDE)
-                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                                GUICtrlSetState($RevertButton, $GUI_HIDE)
                             EndIf
                         EndIf
                     EndIf
@@ -1435,7 +1455,7 @@ Func ED_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
                         If $bWatchSaveChanges Then
                             If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
                                 GUICtrlSetState($idPart4, $GUI_HIDE)
-                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                                GUICtrlSetState($RevertButton, $GUI_HIDE)
                             EndIf
                         EndIf
                     EndIf
@@ -1453,7 +1473,7 @@ Func ED_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
                         If $bWatchSaveChanges Then
                             If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
                                 GUICtrlSetState($idPart4, $GUI_HIDE)
-                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                                GUICtrlSetState($RevertButton, $GUI_HIDE)
                             EndIf
                         EndIf
                     EndIf
@@ -1471,7 +1491,7 @@ Func ED_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
                         If $bWatchSaveChanges Then
                             If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
                                 GUICtrlSetState($idPart4, $GUI_HIDE)
-                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                                GUICtrlSetState($RevertButton, $GUI_HIDE)
                             EndIf
                         EndIf
                     EndIf
@@ -1489,7 +1509,7 @@ Func ED_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
                         If $bWatchSaveChanges Then
                             If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
                                 GUICtrlSetState($idPart4, $GUI_HIDE)
-                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                                GUICtrlSetState($RevertButton, $GUI_HIDE)
                             EndIf
                         EndIf
                     EndIf
@@ -1507,7 +1527,7 @@ Func ED_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
                         If $bWatchSaveChanges Then
                             If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
                                 GUICtrlSetState($idPart4, $GUI_HIDE)
-                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                                GUICtrlSetState($RevertButton, $GUI_HIDE)
                             EndIf
                         EndIf
                     EndIf
@@ -1525,7 +1545,7 @@ Func ED_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
                         If $bWatchSaveChanges Then
                             If $b01 And $b02 And $b03 And $b04 And $b05 And $b06 And $b07 And $b08 And $b09 And $b10 And $b11 And $b12 And $b13 And $b14 And $b15 Then
                                 GUICtrlSetState($idPart4, $GUI_HIDE)
-                                GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+                                GUICtrlSetState($RevertButton, $GUI_HIDE)
                             EndIf
                         EndIf
                     EndIf
@@ -1539,8 +1559,8 @@ Func _SavedChangesStatus()
     If GUICtrlGetState($idPart4) = 96 Then
         GUICtrlSetState($idPart4, $GUI_SHOW)
     EndIf
-    If GuiFlatButton_GetState($RevertButton) = 96 Then
-        GuiFlatButton_SetState($RevertButton, $GUI_SHOW)
+    If GUICtrlGetState($RevertButton) = 96 Then
+        GUICtrlSetState($RevertButton, $GUI_SHOW)
     EndIf
 EndFunc
 
@@ -1628,9 +1648,71 @@ Func _RevertChanges()
     GUICtrlSetData($TitlebarTextColorInput, $sWatchTitlebarTextColorInput)
     GUICtrlSetData($BlurTintColorInput, $sWatchBlurTintColorInput)
     GUICtrlSetData($BlurTintColorInputInact, $sWatchBlurTintColorInputInact)
+    GUICtrlSetState($TargetLabel, $GUI_FOCUS)
 EndFunc
 
 Func WM_NOTIFY($hWnd, $iMsg, $wParam, $lParam)
+    Local $tInfo = DllStructCreate($tagNMCUSTOMDRAWINFO, $lParam)
+	If _WinAPI_GetClassName($tInfo.hWndFrom) = "Button" And IsString(GUICtrlRead($tInfo.IDFrom)) And $tInfo.Code = $NM_CUSTOMDRAW Then
+        Local $iReadButton = StringToBinary(GUICtrlRead($tInfo.IDFrom), $SB_UTF16LE)
+		Local $tRECT = DllStructCreate($tagRECT, DllStructGetPtr($tInfo, "left"))
+		Switch $tInfo.DrawStage
+		Case $CDDS_PREPAINT
+			If BitAND($tInfo.ItemState, $CDIS_HOT) Then
+				; set hot track back color
+				$hBrush = _WinAPI_CreateSolidBrush($iBackColorHot)
+			EndIf
+			If BitAND($tInfo.ItemState, $CDIS_SELECTED) Then
+				; set selected back color
+				$hBrush = _WinAPI_CreateSolidBrush($iBackColorSel)
+			EndIf
+			If BitAND($tInfo.ItemState, $CDIS_DISABLED) Then
+				; set disabled back color
+				$hBrush = _WinAPI_CreateSolidBrush($iBackColorDis)
+			EndIf
+			If Not BitAND($tInfo.ItemState, $CDIS_HOT) And Not BitAND($tInfo.ItemState, $CDIS_SELECTED) And Not BitAND($tInfo.ItemState, $CDIS_DISABLED) Then
+				If $iReadButton = 0xE248 Then
+					$hBrush = _WinAPI_CreateSolidBrush($iBackColorRev)
+				Else
+					$hBrush = _WinAPI_CreateSolidBrush($iBackColorDef)
+				EndIf
+			EndIf
+			_WinAPI_FillRect($tInfo.hDC, $tRECT, $hBrush)
+			_WinAPI_DeleteObject($hBrush)
+			Return $CDRF_NOTIFYPOSTPAINT
+		Case $CDDS_POSTPAINT
+			_WinAPI_InflateRect($tRECT, -4, -6)
+			If BitAND($tInfo.ItemState, $CDIS_HOT) Then
+				; set hot track back color
+				_WinAPI_SetBkColor($tInfo.hDC, $iBackColorHot)
+				; set default text color
+				_WinAPI_SetTextColor($tInfo.hDC, $iTextColorDef)
+			EndIf
+			If BitAND($tInfo.ItemState, $CDIS_SELECTED) Then
+				; set selected back color
+				_WinAPI_SetBkColor($tInfo.hDC, $iBackColorSel)
+				; set default text color
+				_WinAPI_SetTextColor($tInfo.hDC, $iTextColorDef)
+			EndIf
+			If BitAND($tInfo.ItemState, $CDIS_DISABLED) Then
+				; set disabled back color
+				_WinAPI_SetBkColor($tInfo.hDC, $iBackColorDis)
+				; set disabled text color
+				_WinAPI_SetTextColor($tInfo.hDC, $iTextColorDis)
+			EndIf
+			If Not BitAND($tInfo.ItemState, $CDIS_HOT) And Not BitAND($tInfo.ItemState, $CDIS_SELECTED) And Not BitAND($tInfo.ItemState, $CDIS_DISABLED) Then
+				If $iReadButton = 0xE248 Then
+					_WinAPI_SetBkColor($tInfo.hDC, $iBackColorRev)
+					_WinAPI_SetTextColor($tInfo.hDC, $iTextColorDef)
+				Else
+					_WinAPI_SetBkColor($tInfo.hDC, $iBackColorDef)
+					_WinAPI_SetTextColor($tInfo.hDC, $iTextColorDef)
+				EndIf
+			EndIf
+			_WinAPI_DrawText($tInfo.hDC, GUICtrlRead($tInfo.IDFrom), $tRECT, BitOR($DT_CENTER, $DT_VCENTER))
+		EndSwitch
+	EndIf
+
     ; $BlurColorIntensitySlider
     Local $tChange2 = DllStructCreate($tagTRBTHUMBPOSCHANGING, $lParam)
     If $tChange2.IDfrom = $BlurColorIntensitySlider And $tChange2.Code = $TRBN_THUMBPOSCHANGING Then
@@ -1669,6 +1751,7 @@ Func hBtnTitleBarBackdrop()
 EndFunc
 
 Func hBtnNoBorder()
+    _SavedChangesStatus()
     GUICtrlSetData($BorderColorInput, "0xFFFFFFFE")
     _UpdateColorBoxes()
 EndFunc
@@ -1777,7 +1860,7 @@ Func hBtnAddRule()
     GUICtrlSetState($RuleEnabledCombo, $GUI_ENABLE)
     GUICtrlSetState($idInputRuleEnabled, $GUI_ENABLE)
     GUICtrlSetState($hBtnRuleEnabled, $GUI_ENABLE)
-    GuiFlatButton_SetState($DeleteButton, $GUI_ENABLE)
+    GUICtrlSetState($DeleteButton, $GUI_ENABLE)
     GUICtrlSetState($SaveButton, $GUI_ENABLE)
     ; reset combos
     _ResetCombos()
@@ -1821,7 +1904,7 @@ Func hBtnAddRule()
     $sTargetLast = ""
 
     GUICtrlSetState($idPart4, $GUI_HIDE)
-    GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+    GUICtrlSetState($RevertButton, $GUI_HIDE)
 EndFunc
 
 Func hBtnAddRule_nofocus()
@@ -1832,7 +1915,7 @@ Func hBtnAddRule_nofocus()
     GUICtrlSetState($RuleEnabledCombo, $GUI_ENABLE)
     GUICtrlSetState($idInputRuleEnabled, $GUI_ENABLE)
     GUICtrlSetState($hBtnRuleEnabled, $GUI_ENABLE)
-    ;GuiFlatButton_SetState($DeleteButton, $GUI_ENABLE)
+    ;GUICtrlSetState($DeleteButton, $GUI_ENABLE)
     GUICtrlSetState($SaveButton, $GUI_ENABLE)
     ; reset combos
     _ResetCombos()
@@ -1944,14 +2027,14 @@ Func hBtnDeleteRule()
     _GUICtrlComboBox_InsertString($RuleListCombo, "Global Rules", 0)
     $sTargetLast = ""
 
-    ;GuiFlatButton_SetState($DeleteButton, $GUI_SHOW)
+    ;GUICtrlSetState($DeleteButton, $GUI_SHOW)
 EndFunc
 
 Func hBtnRevertChanges()
     _RevertChanges()
     _UpdateColorBoxes()
     GUICtrlSetState($idPart4, $GUI_HIDE)
-    GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+    GUICtrlSetState($RevertButton, $GUI_HIDE)
 EndFunc
 
 Func hBtnReloadRules()
@@ -1982,7 +2065,7 @@ Func hBtnReloadRules()
     $bWatchSaveChanges = False
     _WatchSaveChanges()
     GUICtrlSetState($idPart4, $GUI_HIDE)
-    GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+    GUICtrlSetState($RevertButton, $GUI_HIDE)
 EndFunc
 
 Func _IsEngineRunning()
@@ -2066,7 +2149,7 @@ Func _WriteIniSection()
         $bWatchSaveChanges = False
         _WatchSaveChanges()
         GUICtrlSetState($idPart4, $GUI_HIDE)
-        GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+        GUICtrlSetState($RevertButton, $GUI_HIDE)
 
         Return
     EndIf
@@ -2133,7 +2216,7 @@ Func _WriteIniSection()
     _ReloadRulesCombo()
     _UpdateColorBoxes()
 
-    GuiFlatButton_SetState($DeleteButton, $GUI_ENABLE)
+    GUICtrlSetState($DeleteButton, $GUI_ENABLE)
 
     GUICtrlSetData($idInput, $DisplayName)
     GUICtrlSetData($RuleListCombo, $DisplayName)
@@ -2144,7 +2227,7 @@ Func _WriteIniSection()
     $bWatchSaveChanges = False
     _WatchSaveChanges()
     GUICtrlSetState($idPart4, $GUI_HIDE)
-    GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+    GUICtrlSetState($RevertButton, $GUI_HIDE)
 EndFunc
 
 Func _SaveReloadRules()
@@ -2412,7 +2495,7 @@ Func _RuleList()
     ; reset values for save changes watch
     $bWatchSaveChanges = False
     GUICtrlSetState($idPart4, $GUI_HIDE)
-    GuiFlatButton_SetState($RevertButton, $GUI_HIDE)
+    GUICtrlSetState($RevertButton, $GUI_HIDE)
 
 	$IFEOname = GUICtrlRead($RuleListCombo)
 
@@ -2426,7 +2509,7 @@ Func _RuleList()
         GUICtrlSetState($RuleEnabledCombo, $GUI_DISABLE)
         GUICtrlSetState($idInputRuleEnabled, $GUI_DISABLE)
         GUICtrlSetState($hBtnRuleEnabled, $GUI_DISABLE)
-        GuiFlatButton_SetState($DeleteButton, $GUI_DISABLE)
+        GUICtrlSetState($DeleteButton, $GUI_DISABLE)
         GUICtrlSetState($SaveButton, $GUI_ENABLE)
         _ResetCombosGlobal()
     Else
@@ -2437,7 +2520,7 @@ Func _RuleList()
         GUICtrlSetState($RuleEnabledCombo, $GUI_ENABLE)
         GUICtrlSetState($idInputRuleEnabled, $GUI_ENABLE)
         GUICtrlSetState($hBtnRuleEnabled, $GUI_ENABLE)
-        GuiFlatButton_SetState($DeleteButton, $GUI_ENABLE)
+        GUICtrlSetState($DeleteButton, $GUI_ENABLE)
         GUICtrlSetState($SaveButton, $GUI_ENABLE)
         _ResetCombos()
     EndIf
