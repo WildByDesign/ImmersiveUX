@@ -1045,7 +1045,7 @@ Func _StartGUI()
 
     $BlurColorIntensityLabelPosV = $aPos[1] + $aPos[3]
 
-    $BlurColorIntensitySlider = GUICtrlCreateSlider($idInputExtendFramePosH + $FontHeight + 40 - 4, $BlurColorIntensityLabelPosV, 100 * $iDPI1 + 40, $FontHeight, BitOR($TBS_TOOLTIPS, $TBS_AUTOTICKS, $TBS_NOTIFYBEFOREMOVE))
+    $BlurColorIntensitySlider = GUICtrlCreateSlider($idInputExtendFramePosH + $FontHeight + 40 - 4, $BlurColorIntensityLabelPosV, 100 * $iDPI1 + 40, $iButtonSize - 2, BitOR($TBS_TOOLTIPS, $TBS_AUTOTICKS, $TBS_NOTIFYBEFOREMOVE))
     ;GUICtrlSetOnEvent(-1, "SliderFunction")
     $hWndTT = _GUICtrlSlider_GetToolTips($BlurColorIntensitySlider)
     _GUICtrlSlider_SetToolTips($BlurColorIntensitySlider, $hWndTT)
@@ -1066,7 +1066,7 @@ Func _StartGUI()
 
     $BlurColorIntensityLabelInactPosV = $aPos[1] + $aPos[3]
 
-    $BlurColorIntensitySliderInact = GUICtrlCreateSlider($idInputExtendFramePosH + $FontHeight + 40 - 4, $BlurColorIntensityLabelInactPosV, 100 * $iDPI1 + 40, $FontHeight, BitOR($TBS_TOOLTIPS, $TBS_AUTOTICKS, $TBS_NOTIFYBEFOREMOVE))
+    $BlurColorIntensitySliderInact = GUICtrlCreateSlider($idInputExtendFramePosH + $FontHeight + 40 - 4, $BlurColorIntensityLabelInactPosV, 100 * $iDPI1 + 40, $iButtonSize - 2, BitOR($TBS_TOOLTIPS, $TBS_AUTOTICKS, $TBS_NOTIFYBEFOREMOVE))
     ;GUICtrlSetOnEvent(-1, "SliderFunction")
     $hWndTT = _GUICtrlSlider_GetToolTips($BlurColorIntensitySliderInact)
     _GUICtrlSlider_SetToolTips($BlurColorIntensitySliderInact, $hWndTT)
