@@ -5,10 +5,10 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX Engine
-#AutoIt3Wrapper_Res_Fileversion=2.1.0
+#AutoIt3Wrapper_Res_Fileversion=2.2.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX Engine
-#AutoIt3Wrapper_Res_ProductVersion=2.1.0
-#AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
+#AutoIt3Wrapper_Res_ProductVersion=2.2.0
+#AutoIt3Wrapper_Res_LegalCopyright=@ 2026 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=N
 #AutoIt3Wrapper_Run_Au3Stripper=y
@@ -34,8 +34,8 @@
 ; use RequireAdmin to color all apps, otherwise only user-mode apps will be colored
 ;#RequireAdmin
 
-; Per-monitor V2 DPI awareness
-DllCall("User32.dll", "bool", "SetProcessDpiAwarenessContext" , "HWND", "DPI_AWARENESS_CONTEXT" -4)
+; DPI awareness
+DllCall("user32.dll", "bool", "SetProcessDpiAwarenessContext", @AutoItX64 ? "int64" : "int", -2)
 
 Global $iPID, $sINFO, $oService, $fSpeed = 4
 Global $IniFile = @ScriptDir & "\ImmersiveUX.ini"
@@ -381,7 +381,15 @@ Func MainColoringRemoval($hWnd, $sClassName, $sName)
 				;EndIf
 				If $dGlobalTitleBarColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 35, 0xFFFFFFFF)
 				If $dGlobalTitleBarTextColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, 0xFFFFFFFF)
-				If $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, 0)
+				If $iGlobalTitleBarBackdrop <> "" Then
+					If $sName = "VSCodium.exe" Or $sName = "Code.exe" Then
+						; prevent VSCodium and VSCode from being left completely transparent
+						_WinAPI_DwmSetWindowAttribute__($hWnd, 38, 4)
+						_WinAPI_DwmSetWindowAttribute__($hWnd, 34, 0x202020)
+					Else
+						_WinAPI_DwmSetWindowAttribute__($hWnd, 38, 0)
+					EndIf
+				EndIf
 				If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, 0)
 				If $iGlobalEnableBlurBehind Then _WinAPI_DwmEnableBlurBehindWindow11($hWnd, $ACCENT_DISABLED)
 				If $iGlobalExtendFrameIntoClient And Not $iGlobalEnableBlurBehind Then
@@ -397,7 +405,15 @@ Func MainColoringRemoval($hWnd, $sClassName, $sName)
 			; titlebar text color reset to default
 			If $aCustomRules[$i][5] Or $dGlobalTitleBarTextColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, 0xFFFFFFFF)
 			; titlebar backdrop reset to default
-			If $aCustomRules[$i][6] <> "" Or $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, 0)
+			If $aCustomRules[$i][6] <> "" Or $iGlobalTitleBarBackdrop <> "" Then
+				If $sName = "VSCodium.exe" Or $sName = "Code.exe" Then
+					; prevent VSCodium and VSCode from being left completely transparent
+					_WinAPI_DwmSetWindowAttribute__($hWnd, 38, 4)
+					_WinAPI_DwmSetWindowAttribute__($hWnd, 34, 0x202020)
+				Else
+					_WinAPI_DwmSetWindowAttribute__($hWnd, 38, 0)
+				EndIf
+			EndIf
 			; corner preference reset to default
 			If $aCustomRules[$i][7] <> "" Or $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, 0)
 			; blur behind removal
@@ -420,7 +436,15 @@ Func MainColoringRemoval($hWnd, $sClassName, $sName)
 		If $dGlobalBorderColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, 0xFFFFFFFF)
 		If $dGlobalTitleBarColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 35, 0xFFFFFFFF)
 		If $dGlobalTitleBarTextColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, 0xFFFFFFFF)
-		If $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, 0)
+		If $iGlobalTitleBarBackdrop <> "" Then
+			If $sName = "VSCodium.exe" Or $sName = "Code.exe" Then
+				; prevent VSCodium and VSCode from being left completely transparent
+				_WinAPI_DwmSetWindowAttribute__($hWnd, 38, 4)
+				_WinAPI_DwmSetWindowAttribute__($hWnd, 34, 0x202020)
+			Else
+				_WinAPI_DwmSetWindowAttribute__($hWnd, 38, 0)
+			EndIf
+		EndIf
 		If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, 0)
 		If $iGlobalEnableBlurBehind Then _WinAPI_DwmEnableBlurBehindWindow11($hWnd, $ACCENT_DISABLED)
 		If $iGlobalExtendFrameIntoClient And Not $iGlobalEnableBlurBehind Then
@@ -483,23 +507,37 @@ Func MainColoringContinue($hWnd, $sClassName, $sName)
 		If $sName = $aCustomRules[$i][1] Or $sClassName = $aCustomRules[$i][1] Then
 			; skip custom rules that are not Enabled
 			If Not $aCustomRules[$i][14] Then
-				If $bGlobalDarkTitleBar And $bIsDarkTitle Then _WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
-				If $iBorderColorOptions = "1" Then
-					If $dGlobalBorderColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dGlobalBorderColor))
-				EndIf
-				If $dGlobalTitleBarColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 35, _WinAPI_SwitchColor_mod($dGlobalTitleBarColor))
-				If $dGlobalTitleBarTextColor Then _WinAPI_DwmSetWindowAttribute__($hWnd, 36, _WinAPI_SwitchColor_mod($dGlobalTitleBarTextColor))
-				If $iGlobalTitleBarBackdrop <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 38, Int($iGlobalTitleBarBackdrop))
-				If $iGlobalCornerPreference <> "" Then _WinAPI_DwmSetWindowAttribute__($hWnd, 33, Int($iGlobalCornerPreference))
-				If $iGlobalEnableBlurBehind Then _EnableBlur11($hWnd, $sName, $sClassName, $dGlobalBlurTintColorInactive, $iGlobalColorIntensityInactive)
-				If Not $iGlobalEnableBlurBehind Then
-					; only enable ExtendFrameIntoClientArea if blur behind is not enabled
-					If $iGlobalExtendFrameIntoClient Then _DwmExtendFrameIntoClientArea($hWnd, $sName, $sClassName, $i)
-				EndIf
+				Select
+					Case $bGlobalDarkTitleBar And $bIsDarkTitle
+						_WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
+					Case $iBorderColorOptions = "1" And $dGlobalBorderColor
+						_WinAPI_DwmSetWindowAttribute__($hWnd, 34, _WinAPI_SwitchColor_mod($dGlobalBorderColor))
+					Case $dGlobalTitleBarColor
+						_WinAPI_DwmSetWindowAttribute__($hWnd, 35, _WinAPI_SwitchColor_mod($dGlobalTitleBarColor))
+					Case $dGlobalTitleBarTextColor
+						_WinAPI_DwmSetWindowAttribute__($hWnd, 36, _WinAPI_SwitchColor_mod($dGlobalTitleBarTextColor))
+					Case $iGlobalTitleBarBackdrop <> ""
+						_WinAPI_DwmSetWindowAttribute__($hWnd, 38, Int($iGlobalTitleBarBackdrop))
+					Case $iGlobalCornerPreference <> ""
+						_WinAPI_DwmSetWindowAttribute__($hWnd, 33, Int($iGlobalCornerPreference))
+					Case $iGlobalEnableBlurBehind
+						_EnableBlur11($hWnd, $sName, $sClassName, $dGlobalBlurTintColorInactive, $iGlobalColorIntensityInactive)
+					Case $iGlobalExtendFrameIntoClient And Not $iGlobalEnableBlurBehind
+						; only enable ExtendFrameIntoClientArea if blur behind is not enabled
+						_DwmExtendFrameIntoClientArea($hWnd, $sName, $sClassName, $i)
+				EndSelect
 
 				Return
 			EndIf
+
 			; dark mode titlebar, fallback to global if not set
+			Select
+				Case $aCustomRules[$i][2] = "True" And $bIsDarkTitle
+					_WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
+				Case $aCustomRules[$i][2] = "" And $bGlobalDarkTitleBar And $bIsDarkTitle
+					_WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
+			EndSelect
+
 			If $aCustomRules[$i][2] = "True" And $bIsDarkTitle Then
 				_WinAPI_DwmSetWindowAttribute__($hWnd, 20, 1)
 			EndIf
@@ -1543,7 +1581,6 @@ Func _ImmersiveLiveProcess()
 	Global $aGUI_Handles[$iMonitorCount]
 	Global $aGUI_Ratio[$iMonitorCount]
 
-	OnAutoItExitRegister(DoCleanUpLive)
 	Local $hLiveWnd = _GetHwndFromPID(@AutoItPID)
     _WinAPI_SetWindowText_mod($hLiveWnd, "Immersive UX Live")
 	ProcessSetPriority(@AutoItPID, 4)

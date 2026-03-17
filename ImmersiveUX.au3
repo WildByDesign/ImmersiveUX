@@ -5,10 +5,10 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX GUI
-#AutoIt3Wrapper_Res_Fileversion=2.1.0
+#AutoIt3Wrapper_Res_Fileversion=2.2.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX GUI
-#AutoIt3Wrapper_Res_ProductVersion=2.1.0
-#AutoIt3Wrapper_Res_LegalCopyright=@ 2025 WildByDesign
+#AutoIt3Wrapper_Res_ProductVersion=2.2.0
+#AutoIt3Wrapper_Res_LegalCopyright=@ 2026 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
 #AutoIt3Wrapper_Res_Icon_Add=app.ico
@@ -16,14 +16,13 @@
 #AutoIt3Wrapper_res_Compatibility=Win10
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
-Global $iVersion = '2.1.0'
+Global $iVersion = '2.2.0'
 
 #include <MsgBoxConstants.au3>
 #include <WinAPIFiles.au3>
 #include <Array.au3>
 #include <GUIConstantsEx.au3>
 #include <WindowsConstants.au3>
-;#include <WinAPIGdi.au3>
 #include <Misc.au3>
 #include <StaticConstants.au3>
 #include <EditConstants.au3>
@@ -44,6 +43,7 @@ Global $iVersion = '2.1.0'
 #include "include\ExtMsgBox.au3"
 #include "include\JSON.au3"
 #include "include\WCD_IPC.au3"
+#include "include\GUIDarkAPI.au3"
 
 Global $aCustomRules[0][17]
 
@@ -108,6 +108,15 @@ Global Const $tagTRBTHUMBPOSCHANGING = $tagNMHDR & ";dword Pos;int Reason"
 Global Const $TBS_NOTIFYBEFOREMOVE = 2048
 Global $iW = 658, $iH = 420
 
+; Structure for NM_CUSTOMDRAW notification
+Global Const $tagNMCUSTOMDRAW = $tagNMHDR & ";" & _                                    ; Contains NM_CUSTOMDRAW / NMHDR header among other things
+        "dword dwDrawStage;" & _                                                       ; Current drawing stage (CDDS_*)
+        "handle hdc;" & _                                                              ; Device Context Handle
+        "long left;long top;long right;long bottom;" & _                               ; Drawing rectangle
+        "dword_ptr dwItemSpec;" & _                                                    ; Item index or other info (depending on the control)
+        "uint uItemState;" & _                                                         ; State Flags (CDIS_SELECTED, CDIS_FOCUS etc.)
+        "lparam lItemlParam"                                                           ; lParam set by the item (e.g., via LVITEM.lParam)
+
 Global $iDPI = _WinAPI_SetDPIAwareness(), $iDPI_def = 96
 If $iDPI = 0 Then Exit MsgBox($MB_ICONERROR, "ERROR", "Unable to set DPI awareness!!!", 10)
 Global $iDPI1 = $iDPI / $iDPI_def
@@ -152,7 +161,8 @@ EndIf
 TraySetOnEvent($TRAY_EVENT_PRIMARYDOWN, 'idGUI')
 TraySetClick(16)
 
-#include "include\ModernMenuRaw.au3"
+;#include "include\ModernMenuRaw.au3"
+#include "include\GUIDarkMenu.au3"
 
 _GetIniDetails()
 
@@ -166,13 +176,7 @@ Global $iTextColorDis = _WinAPI_ColorAdjustLuma($GUI_FontColor, -50)
 
 Global $hSolidBrush = _WinAPI_CreateBrushIndirect($BS_SOLID, $GUI_MenubarLineColor)
 
-_SetMenuBkColor($GUI_MenubarBackColor)
-_SetMenuIconBkColor($GUI_MenubarBackColor)
-_SetMenuIconBkGrdColor(0x000000)
-_SetMenuSelectBkColor(0x202020)
-_SetMenuSelectRectColor(0x202020)
-_SetMenuSelectTextColor($GUI_FontColor)
-_SetMenuTextColor($GUI_FontColor)
+_GUIDarkMenu_SetColors($hGUI, $GUI_MenubarBackColor, __WinAPI_ColorAdjustLuma($GUI_MenubarBackColor, 20), __WinAPI_ColorAdjustLuma($GUI_MenubarBackColor, 10), $GUI_FontColor)
 
 _StartGUI()
 Func _StartGUI()
@@ -242,13 +246,13 @@ Func _StartGUI()
         $iW = 620
     EndIf
 
-    $hGUI = GUICreate("Immersive UX", $iW * $iDPI1, $iH * $iDPI1, -1, -1, -1, $WS_EX_COMPOSITED)
+    $hGUI = GUICreate("Immersive UX", $iW * $iDPI1, $iH * $iDPI1, -1, -1, -1)
     If IsAdmin() Then WinSetTitle($hGUI, "", "Immersive UX - Administrator")
 
-    Local $idFileMenu = _GUICtrlCreateODTopMenu(" &File", $hGUI)
-    Local $idSettingsMenu = _GUICtrlCreateODTopMenu(" &Options", $hGUI)
-    Local $idTaskMenu = _GUICtrlCreateODTopMenu(" &Startup Task", $hGUI)
-    Local $idSpecMenu = _GUICtrlCreateODTopMenu(" &Special Handling", $hGUI)
+    Local $idFileMenu = GUICtrlCreateMenu("&File")
+    Local $idSettingsMenu = GUICtrlCreateMenu("&Options")
+    Local $idTaskMenu = GUICtrlCreateMenu("&Startup Task")
+    Local $idSpecMenu = GUICtrlCreateMenu("&Special Handling")
 
     Local $idAboutItem = GUICtrlCreateMenuItem("&About", $idFileMenu, 0)
     GUICtrlSetOnEvent(-1, "_About")
@@ -397,11 +401,6 @@ Func _StartGUI()
 
     Local $hToolTip2 = _GUIToolTip_Create(0)
     _GUIToolTip_SetMaxTipWidth($hToolTip2, 400)
-
-    _WinAPI_SetWindowTheme($hToolTip2, "", "")
-    _GUIToolTip_SetTipBkColor($hToolTip2, 0x202020)
-    _GUIToolTip_SetTipTextColor($hToolTip2, 0xe0e0e0)
-    _GUIToolTip_SetMargin($hToolTip2, 4, 2, 4, 2)
 
     Local $iStatusTextAlign
     If $iDPI1 = 1 Then $iStatusTextAlign = - 2
@@ -598,6 +597,8 @@ Func _StartGUI()
     $idStatusBar = GUICtrlCreateLabel(" ", 0, $aClientSize[1] - $iMenubarHeight, $iW * $iDPI1, $iMenubarHeight)
     GUICtrlSetBkColor(-1, $GUI_StatusBackColor)
     GUICtrlSetState(-1, $GUI_DISABLE)
+
+    _WinAPI_SetWindowPos(GUICtrlGetHandle($idStatusBar), $HWND_TOP, 0, 0, 0, 0, BitOr($SWP_NOMOVE, $SWP_NOREDRAW, $SWP_NOSIZE))
 
     GUISetFont($FontSize, $FW_NORMAL, $GUI_FONTNORMAL, $MainFont)
     $TargetLabel = GUICtrlCreateLabel("Target:", 20, $RuleListComboPosV + 20, -1, -1)
@@ -1088,17 +1089,20 @@ Func _StartGUI()
 
     GUICtrlSetColor(-1, $GUI_FontColor)
 
-    Local $idAdvancedLabel2 = GUICtrlCreateLabel(" ", $ExtendFrameLabelPosH2 - 20 + 1, $BorderColorLabelPosV2 + 8 - 30 + 1, $measureadvwidth - 2, $measureadvheight + 50 - 2)
-    GUICtrlSetBkColor(-1, $GUI_BackColor)
-    GUICtrlSetState(-1, $GUI_DISABLE)
-
     Local $idAdvancedLabel = GUICtrlCreateLabel(" ", $ExtendFrameLabelPosH2 - 20, $BorderColorLabelPosV2 + 8 - 30, $measureadvwidth, $measureadvheight + 50)
     GUICtrlSetBkColor(-1, $GUI_AdvancedLineColor)
     GUICtrlSetState(-1, $GUI_DISABLE)
 
+    Local $idAdvancedLabel2 = GUICtrlCreateLabel(" ", $ExtendFrameLabelPosH2 - 20 + 1, $BorderColorLabelPosV2 + 8 - 30 + 1, $measureadvwidth - 2, $measureadvheight + 50 - 2)
+    GUICtrlSetBkColor(-1, $GUI_BackColor)
+    GUICtrlSetState(-1, $GUI_DISABLE)
+
+    _WinAPI_SetWindowPos(GUICtrlGetHandle($idAdvancedLabel2), $HWND_TOP, 0, 0, 0, 0, BitOr($SWP_NOMOVE, $SWP_NOREDRAW, $SWP_NOSIZE))
+    _WinAPI_SetWindowPos(GUICtrlGetHandle($idAdvancedLabel), $HWND_TOP, 0, 0, 0, 0, BitOr($SWP_NOMOVE, $SWP_NOREDRAW, $SWP_NOSIZE))
+
     _WinAPI_DwmSetWindowAttribute__($hGUI, 20, 1)
-    _WinAPI_DwmSetWindowAttribute__($hGUI, 38, 4)
-    _WinAPI_DwmExtendFrameIntoClientArea($hGUI, _WinAPI_CreateMargins(-1, -1, -1, -1))
+    ;_WinAPI_DwmSetWindowAttribute__($hGUI, 38, 4)
+    ;_WinAPI_DwmExtendFrameIntoClientArea($hGUI, _WinAPI_CreateMargins(-1, -1, -1, -1))
 
     GUICtrlSendMsg($DarkTitleCombo, $WM_CHANGEUISTATE, 65537, 0)
 
@@ -1115,8 +1119,15 @@ Func _StartGUI()
 
     GUIRegisterMsg($WM_NCHITTEST, "_MY_NCHITTEST")
     DarkMode($hGUI, True)
-    GUIRegisterMsg($WM_NCPAINT, "WM_NCPAINT")
-    GUIRegisterMsg($WM_ACTIVATE, "WM_ACTIVATE_Handler")
+    GUIRegisterMsg($WM_ACTIVATE, "_WM_ACTIVATE")
+    GUIRegisterMsg($WM_WINDOWPOSCHANGED, "_WM_WINDOWPOSCHANGED")
+
+    _GUIDarkMenu_Register($hGUI)
+
+    Local $aData = _WinAPI_EnumProcessWindows(0, False)
+    For $i = 1 To $aData[0][0]
+        If $aData[$i][1] = "tooltips_class32" Then _WinAPI_SetWindowTheme($aData[$i][0], 'DarkMode_Explorer', 'ToolTip')
+    Next
 
     ;If $bHideGUI Then WinSetTrans($hGUI, "", 0)
     ;If $bHideGUI Then GUISetState(@SW_SHOW, $hGUI)
@@ -1653,6 +1664,86 @@ EndFunc
 
 Func WM_NOTIFY($hWnd, $iMsg, $wParam, $lParam)
     Local $tInfo = DllStructCreate($tagNMCUSTOMDRAWINFO, $lParam)
+    Local $hWndFrom, $iIDFrom, $iCode, $tNMHDR, $tInfo, $tBuffer, $tBuffer2, $iCtrl
+    $tNMHDR = DllStructCreate($tagNMHDR, $lParam)
+    $hWndFrom = HWnd($tNMHDR.hWndFrom)
+    $iIDFrom = $tNMHDR.IDFrom
+    $iCode = $tNMHDR.Code
+
+    ; --- Slider (msctls_trackbar32) custom drawing ---
+    If $iCode = $NM_CUSTOMDRAW And StringLower(__WinAPI_GetClassName($hWndFrom)) = "msctls_trackbar32" Then
+        Local $tNMCD = DllStructCreate($tagNMCUSTOMDRAW, $lParam)
+        Local $dwStage = $tNMCD.dwDrawStage
+        Local $hDC = $tNMCD.hdc
+        Local $dwItemSpec = $tNMCD.dwItemSpec
+
+        Switch $dwStage
+            Case $CDDS_PREPAINT
+                ; Remove focus rectangle from slider
+                DllStructSetData($tNMCD, "ItemState", BitXOR(DllStructGetData($tNMCD, "ItemState"), $CDIS_FOCUS))
+                Return $CDRF_NOTIFYITEMDRAW ; request per-item notifications
+
+            Case $CDDS_ITEMPREPAINT
+                Local Const $TBCD_TICS = 0x0001    ; tick marks
+                Local Const $TBCD_THUMB = 0x0002   ; draggable thumb
+                Local Const $TBCD_CHANNEL = 0x0003 ; slider channel/track
+
+                Local $tRECT = DllStructCreate($tagRECT)
+                $tRECT.left = $tNMCD.left
+                $tRECT.top = $tNMCD.top
+                $tRECT.right = $tNMCD.right
+                $tRECT.bottom = $tNMCD.bottom
+
+                Switch $dwItemSpec
+                    Case $TBCD_TICS
+                        ; Let Windows draw tick marks normally
+                        Return $CDRF_DODEFAULT
+
+                    Case $TBCD_THUMB
+                        ; Draw thumb as a pentagon (rectangle + downward arrow)
+                        Local $iL = $tNMCD.left
+                        Local $iT = $tNMCD.top
+                        Local $iR = $tNMCD.right - 1     ; -1 to stay within bounds and avoid paint artifacts
+                        Local $iB = $tNMCD.bottom
+                        Local $iMid = ($iL + $iR) / 2         ; horizontal center (tip of arrow)
+                        Local $iSplit = $iB - ($iR - $iL) / 2 ; y-position where rectangle ends and arrow begins
+
+                        ; Pentagon points: top-left, top-right, right-middle, bottom-tip, left-middle
+                        Local $tPoints = DllStructCreate("int p[10]")
+                        $tPoints.p((1)) = $iL
+                        $tPoints.p((2)) = $iT
+                        $tPoints.p((3)) = $iR
+                        $tPoints.p((4)) = $iT
+                        $tPoints.p((5)) = $iR
+                        $tPoints.p((6)) = $iSplit
+                        $tPoints.p((7)) = $iMid
+                        $tPoints.p((8)) = $iB
+                        $tPoints.p((9)) = $iL
+                        $tPoints.p((10)) = $iSplit
+
+                        ; Fill and outline thumb with blue accent color
+                        Local $hBrush = __WinAPI_CreateSolidBrush(_ColorToCOLORREF(0x0078D4))
+                        Local $hPen = __WinAPI_CreatePen(0, 1, _ColorToCOLORREF($GUI_InputBackColor))
+                        Local $hOldBrush = __WinAPI_SelectObject($hDC, $hBrush)
+                        Local $hOldPen = __WinAPI_SelectObject($hDC, $hPen)
+                        DllCall($hGdi32Dll, "bool", "Polygon", "handle", $hDC, "struct*", $tPoints, "int", 5)
+                        __WinAPI_SelectObject($hDC, $hOldBrush)
+                        __WinAPI_SelectObject($hDC, $hOldPen)
+                        __WinAPI_DeleteObject($hBrush)
+                        __WinAPI_DeleteObject($hPen)
+                        Return $CDRF_SKIPDEFAULT ; skip default drawing
+
+                    Case $TBCD_CHANNEL
+                        ; Fill channel with border color
+                        Local $hBrush = __WinAPI_CreateSolidBrush(_ColorToCOLORREF($GUI_InputBackColor))
+                        __WinAPI_FillRect($hDC, $tRECT, $hBrush)
+                        __WinAPI_DeleteObject($hBrush)
+                        Return $CDRF_SKIPDEFAULT ; skip default drawing
+
+                EndSwitch
+        EndSwitch
+    EndIf
+
 	If _WinAPI_GetClassName($tInfo.hWndFrom) = "Button" And IsString(GUICtrlRead($tInfo.IDFrom)) And $tInfo.Code = $NM_CUSTOMDRAW Then
         Local $iReadButton = StringToBinary(GUICtrlRead($tInfo.IDFrom), $SB_UTF16LE)
 		Local $tRECT = DllStructCreate($tagRECT, DllStructGetPtr($tInfo, "left"))
@@ -1660,56 +1751,69 @@ Func WM_NOTIFY($hWnd, $iMsg, $wParam, $lParam)
 		Case $CDDS_PREPAINT
 			If BitAND($tInfo.ItemState, $CDIS_HOT) Then
 				; set hot track back color
-				$hBrush = _WinAPI_CreateSolidBrush($iBackColorHot)
+                $hBrush = __WinAPI_CreateSolidBrush($iBackColorHot)
 			EndIf
 			If BitAND($tInfo.ItemState, $CDIS_SELECTED) Then
 				; set selected back color
-				$hBrush = _WinAPI_CreateSolidBrush($iBackColorSel)
+                $hBrush = __WinAPI_CreateSolidBrush($iBackColorSel)
 			EndIf
 			If BitAND($tInfo.ItemState, $CDIS_DISABLED) Then
 				; set disabled back color
-				$hBrush = _WinAPI_CreateSolidBrush($iBackColorDis)
+				$hBrush = __WinAPI_CreateSolidBrush($iBackColorDis)
 			EndIf
 			If Not BitAND($tInfo.ItemState, $CDIS_HOT) And Not BitAND($tInfo.ItemState, $CDIS_SELECTED) And Not BitAND($tInfo.ItemState, $CDIS_DISABLED) Then
 				If $iReadButton = 0xE248 Then
-					$hBrush = _WinAPI_CreateSolidBrush($iBackColorRev)
+					$hBrush = __WinAPI_CreateSolidBrush($iBackColorRev)
 				Else
-					$hBrush = _WinAPI_CreateSolidBrush($iBackColorDef)
+                    If $hWnd = $hGUI Then
+					    $hBrush = __WinAPI_CreateSolidBrush($iBackColorDef)
+                    Else
+                        $hBrush = __WinAPI_CreateSolidBrush(__WinAPI_ColorAdjustLuma($iBackColorDef, 10))
+                    EndIf
 				EndIf
 			EndIf
-			_WinAPI_FillRect($tInfo.hDC, $tRECT, $hBrush)
-			_WinAPI_DeleteObject($hBrush)
+			__WinAPI_FillRect($tInfo.hDC, $tRECT, $hBrush)
+			__WinAPI_DeleteObject($hBrush)
 			Return $CDRF_NOTIFYPOSTPAINT
 		Case $CDDS_POSTPAINT
-			_WinAPI_InflateRect($tRECT, -4, -6)
+			If $hWnd = $hGUI Then
+                __WinAPI_InflateRect($tRECT, -4, -6)
+            Else
+                __WinAPI_InflateRect($tRECT, -4, -2)
+            EndIf
 			If BitAND($tInfo.ItemState, $CDIS_HOT) Then
 				; set hot track back color
-				_WinAPI_SetBkColor($tInfo.hDC, $iBackColorHot)
+				__WinAPI_SetBkColor($tInfo.hDC, $iBackColorHot)
 				; set default text color
-				_WinAPI_SetTextColor($tInfo.hDC, $iTextColorDef)
+				__WinAPI_SetTextColor($tInfo.hDC, $iTextColorDef)
 			EndIf
 			If BitAND($tInfo.ItemState, $CDIS_SELECTED) Then
 				; set selected back color
-				_WinAPI_SetBkColor($tInfo.hDC, $iBackColorSel)
+				__WinAPI_SetBkColor($tInfo.hDC, $iBackColorSel)
 				; set default text color
-				_WinAPI_SetTextColor($tInfo.hDC, $iTextColorDef)
+				__WinAPI_SetTextColor($tInfo.hDC, $iTextColorDef)
 			EndIf
 			If BitAND($tInfo.ItemState, $CDIS_DISABLED) Then
 				; set disabled back color
-				_WinAPI_SetBkColor($tInfo.hDC, $iBackColorDis)
+				__WinAPI_SetBkColor($tInfo.hDC, $iBackColorDis)
 				; set disabled text color
-				_WinAPI_SetTextColor($tInfo.hDC, $iTextColorDis)
+				__WinAPI_SetTextColor($tInfo.hDC, $iTextColorDis)
 			EndIf
 			If Not BitAND($tInfo.ItemState, $CDIS_HOT) And Not BitAND($tInfo.ItemState, $CDIS_SELECTED) And Not BitAND($tInfo.ItemState, $CDIS_DISABLED) Then
 				If $iReadButton = 0xE248 Then
-					_WinAPI_SetBkColor($tInfo.hDC, $iBackColorRev)
-					_WinAPI_SetTextColor($tInfo.hDC, $iTextColorDef)
+					__WinAPI_SetBkColor($tInfo.hDC, $iBackColorRev)
+					__WinAPI_SetTextColor($tInfo.hDC, $iTextColorDef)
 				Else
-					_WinAPI_SetBkColor($tInfo.hDC, $iBackColorDef)
-					_WinAPI_SetTextColor($tInfo.hDC, $iTextColorDef)
+                    If $hWnd = $hGUI Then
+                        __WinAPI_SetBkColor($tInfo.hDC, $iBackColorDef)
+                        __WinAPI_SetTextColor($tInfo.hDC, $iTextColorDef)
+                    Else
+                        __WinAPI_SetBkColor($tInfo.hDC, _WinAPI_ColorAdjustLuma($iBackColorDef, 10))
+                        __WinAPI_SetTextColor($tInfo.hDC, $iTextColorDef)
+                    EndIf
 				EndIf
 			EndIf
-			_WinAPI_DrawText($tInfo.hDC, GUICtrlRead($tInfo.IDFrom), $tRECT, BitOR($DT_CENTER, $DT_VCENTER))
+			__WinAPI_DrawText($tInfo.hDC, GUICtrlRead($tInfo.IDFrom), $tRECT, BitOR($DT_CENTER, $DT_VCENTER))
 		EndSwitch
 	EndIf
 
@@ -3224,11 +3328,12 @@ Func _VSCode_mod_install($sVSCodePath)
     Local $sIndexPath = $sVSCodePath & "\resources\app\out\vscode-immersiveux-mod\index.cjs"
 	Local $sIndexPath2 = StringReplace($sIndexPath, "\", "/")
 
-    Local $sMainJSFind = "experimentalDarkMode"
-    Local $sMainJSReplace = "frame:false,transparent:true,experimentalDarkMode"
+    Local $sMainJSFind = "transparent:true,"
+    ;Local $sMainJSReplace = "frame:false,transparent:true,experimentalDarkMode"
+    Local $sMainJSReplace = ""
 
     Local $sMainJSRead = FileRead($sMainjsPath)
-    If Not StringInStr($sMainJSRead, "transparent:true") And Not StringInStr($sMainJSRead, "VSCODE-VIBRANCY-START") Then
+    If Not StringInStr($sMainJSRead, "VSCODE-VIBRANCY-START") Then
         ; backup original file
         If Not FileExists($sMainjsPath & ".backup") Then FileCopy($sMainjsPath, $sMainjsPath & ".backup")
         _ReplaceStringInFile($sMainjsPath, $sMainJSFind, $sMainJSReplace)
@@ -3559,7 +3664,6 @@ Func _Exit()
     WinWaitCloseEx("Immersive UX Live")
     _WCD_Send($hWndClient, $hWndServer, 4, "exit")
     WinWaitCloseEx("Immersive UX Broker")
-
     Exit
 EndFunc
 
@@ -3568,71 +3672,44 @@ Func WinWaitCloseEx($sWindow)
 	WEnd
 EndFunc
 
-Func WM_NCPAINT($hWnd, $iMsg, $wParam, $lParam)
-    If $hWnd <> $hGUI Then Return $GUI_RUNDEFMSG
-    _WinAPI_DefWindowProc($hWnd, $iMsg, $wParam, $lParam)
-    _drawUAHMenuNCBottomLine($hWnd)
-    Return 0
-EndFunc   ;==>WM_NCPAINT
-
 Func _drawUAHMenuNCBottomLine($hWnd)
-    ;$aMenuBarInfo = _GUICtrlMenu_GetMenuBarInfo($hWnd, 0, 1)
-    ;_ArrayDisplay($aMenuBarInfo)
-    $rcClient = _WinAPI_GetClientRect($hWnd)
-    ;_WinAPI_DisplayStruct($rcClient, $tagRECT, "rcClinet before")
-
-    Local $aCall = DllCall("user32.dll", "int", "MapWindowPoints", _
+    $rcClient = __WinAPI_GetClientRect($hWnd)
+    Local $aCall = DllCall($hUser32Dll, "int", "MapWindowPoints", _
         "hwnd", $hWnd, _ ; hWndFrom
         "hwnd", 0, _     ; hWndTo
         "ptr", DllStructGetPtr($rcClient), _
         "uint", 2)       ;number of points - 2 for RECT structure
 
-    If @error Then
-        ;MsgBox($MB_ICONERROR, "Error", @error)
-        Exit
-    EndIf
-    ;_WinAPI_DisplayStruct($rcClient, $tagRECT, "rcClinet after")
-
-    $rcWindow = _WinAPI_GetWindowRect($hWnd)
-
-    _WinAPI_OffsetRect($rcClient, -$rcWindow.left, -$rcWindow.top)
+    $rcWindow = __WinAPI_GetWindowRect($hWnd)
+    __WinAPI_OffsetRect($rcClient, -$rcWindow.left, -$rcWindow.top)
 
     $rcAnnoyingLine = DllStructCreate($tagRECT)
     $rcAnnoyingLine.left = $rcClient.left
     $rcAnnoyingLine.top = $rcClient.top
     $rcAnnoyingLine.right = $rcClient.right
     $rcAnnoyingLine.bottom = $rcClient.bottom
-;~  _WinAPI_DisplayStruct($rcAnnoyingLine, $tagRECT)
 
     $rcAnnoyingLine.bottom = $rcAnnoyingLine.top
     $rcAnnoyingLine.top = $rcAnnoyingLine.top - 1
-;~  _WinAPI_DisplayStruct($rcAnnoyingLine, $tagRECT,"annoying line")
 
+    $hRgn = __WinAPI_CreateRectRgn(0,0,8000,8000)
 
-;~  $rcAnnoyingLine.left = 0
-;~  $rcAnnoyingLine.top = 0
-;~  $rcAnnoyingLine.right = 100
-;~  $rcAnnoyingLine.bottom = 200
-
-    ;$hRgn=_WinAPI_CreateRectRgn(0,0,8000,8000)
-    $hRgn=_WinAPI_CreateRectRgn(0,0,8000,8000)
-
-;~  $hDC = _WinAPI_GetDC($hWnd)
-    $hDC=_WinAPI_GetDCEx($hWnd,$hRgn, BitOR($DCX_WINDOW,$DCX_INTERSECTRGN))
-    _WinAPI_FillRect($hDC, $rcAnnoyingLine, $hSolidBrush)
-    _WinAPI_ReleaseDC($hWnd, $hDC)
-
-    ;_WinAPI_DisplayStruct($rcAnnoyingLine, $tagRECT, "annoying line")
+    $hDC = __WinAPI_GetDCEx($hWnd,$hRgn, BitOR($DCX_WINDOW,$DCX_INTERSECTRGN))
+    __WinAPI_FillRect($hDC, $rcAnnoyingLine, $hSolidBrush)
+    __WinAPI_ReleaseDC($hWnd, $hDC)
 EndFunc   ;==>_drawUAHMenuNCBottomLine
 
-; ioa747
-Func WM_ACTIVATE_Handler($hWnd, $MsgID, $wParam, $lParam)
+Func _WM_ACTIVATE($hWnd, $iMsg, $wParam, $lParam)
     If $hWnd <> $hGUI Then Return $GUI_RUNDEFMSG
-    ;_WinAPI_DefWindowProc($hWnd, $MsgID, $wParam, $lParam)
-    _drawUAHMenuNCBottomLine($hWnd)
-
+    _drawUAHMenuNCBottomLine($hGUI)
     Return $GUI_RUNDEFMSG
-EndFunc
+EndFunc   ;==>_WM_ACTIVATE
+
+Func _WM_WINDOWPOSCHANGED($hWnd, $iMsg, $wParam, $lParam)
+    If $hWnd <> $hGUI Then Return $GUI_RUNDEFMSG
+    _drawUAHMenuNCBottomLine($hGUI)
+    Return $GUI_RUNDEFMSG
+EndFunc   ;==>_WM_WINDOWPOSCHANGED
 
 Func _TriggerOpt0()
     ; Start button trigger
@@ -4219,7 +4296,7 @@ Func _UpdateTaskMenu()
 EndFunc
 
 Func _WinAPI_SetWindowText_mod($hWnd, $sText)
-	Local $aCall = DllCall('user32.dll', "bool", "SetWindowTextW", "hwnd", $hWnd, "wstr", $sText)
+	Local $aCall = DllCall($hUser32Dll, "bool", "SetWindowTextW", "hwnd", $hWnd, "wstr", $sText)
 	If @error Then Return SetError(@error, @extended, False)
 
 	Return $aCall[0]
@@ -4241,3 +4318,10 @@ Func IsProcessElevated($iPID)
 	If $iError Then Return SetError($iError, 0, False)
 	Return $aRet[3] = 1
 EndFunc   ;==>IsProcessElevated
+
+Func _ColorToCOLORREF($iColor) ;RGB to BGR
+    Local $iR = BitAND(BitShift($iColor, 16), 0xFF)
+    Local $iG = BitAND(BitShift($iColor, 8), 0xFF)
+    Local $iB = BitAND($iColor, 0xFF)
+    Return BitOR(BitShift($iB, -16), BitShift($iG, -8), $iR)
+EndFunc   ;==>_ColorToCOLORREF
