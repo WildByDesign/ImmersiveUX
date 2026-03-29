@@ -57,6 +57,7 @@ Global Const $ODS_HOTLIGHT = 0x0040
 
 ; #INTERNAL_USE_ONLY GLOBAL VARIABLES # =========================================================================================
 Global $g_aMenuText = []
+Global $g_iDpiScale = 1
 Global $g_iDpi = 100
 Global $g_hGui
 Global $g_hMenuFont = 0
@@ -107,7 +108,8 @@ Func __GUIDarkMenu_WM_MEASUREITEM($hWnd, $iMsg, $wParam, $lParam)
 	__WinAPI_ReleaseDC($hWnd, $hDC)
 
 	; Set dimensions with padding (with high DPI)
-	$t.itemWidth = __GUIDarkMenu_CalcMenuWidth($g_iDpi, $iTextWidth)
+	;$t.itemWidth = __GUIDarkMenu_CalcMenuWidth($g_iDpi, $iTextWidth)
+	$t.itemWidth = $iTextWidth - (8 * $g_iDpiScale)
 	$t.itemHeight = $iTextHeight + 1
 
 	Return $GUI_RUNDEFMSG
@@ -206,8 +208,8 @@ Func __GUIDarkMenu_WM_DRAWITEM($hWnd, $iMsg, $wParam, $lParam)
 			$tEmptyArea = DllStructCreate($tagRECT)
 			With $tEmptyArea
 				.left = $right
-				.top = $top ;        argumentum ; replace magic numbers with it's parameter name when possible
-				.right = $iFullWidth + __WinAPI_GetSystemMetrics($SM_CXDLGFRAME) ; 7 = $SM_CXDLGFRAME
+				.top = $top
+				.right = $iFullWidth + __WinAPI_GetSystemMetrics($SM_CXDLGFRAME)
 				.bottom = $bottom
 			EndWith
 
@@ -250,16 +252,21 @@ Func __GUIDarkMenu_WM_DRAWITEM($hWnd, $iMsg, $wParam, $lParam)
 	; Draw text
 	Local $tTextRect = DllStructCreate($tagRECT)
 	With $tTextRect
+		#cs
 		.left = $left + 10
 		.top = $top + 4
 		.right = $right - 10
 		.bottom = $bottom - 4
+		#ce
+		.left = $left
+		.top = $top
+		.right = $right
+		.bottom = $bottom
 	EndWith
 
 	DllCall($hUser32Dll, "int", "DrawTextW", "handle", $hDC, "wstr", $sText, "int", -1, "ptr", _
-			DllStructGetPtr($tTextRect), "uint", BitOR($DT_SINGLELINE, $DT_VCENTER, $DT_LEFT))
-
-	;If $hOldFont Then __WinAPI_SelectObject($hDC, $hOldFont)
+			DllStructGetPtr($tTextRect), "uint", BitOR($DT_SINGLELINE, $DT_VCENTER, $DT_CENTER, $DT_NOCLIP))
+			;DllStructGetPtr($tTextRect), "uint", BitOR($DT_SINGLELINE, $DT_VCENTER, $DT_LEFT))
 
 	Return $GUI_RUNDEFMSG
 EndFunc   ;==>__GUIDarkMenu_WM_DRAWITEM
@@ -279,6 +286,8 @@ Func _GUIDarkMenu_Register($hWnd)
 	;$g_hMenuFont = __GUIDarkMenu_CreateFont("Segoe UI")
 
 	; get window DPI for measurement adjustments
+	$g_iDpiScale = Round(__WinAPI_GetDpiForWindow($g_hGui) / 96, 2)
+	If @error Then $g_iDpiScale = 1
 	$g_iDpi = Round(__WinAPI_GetDpiForWindow($g_hGui) / 96, 2) * 100
 	If @error Then $g_iDpi = 100
 
