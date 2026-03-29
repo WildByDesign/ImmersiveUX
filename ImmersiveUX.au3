@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX GUI
-#AutoIt3Wrapper_Res_Fileversion=2.2.0
+#AutoIt3Wrapper_Res_Fileversion=2.3.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX GUI
-#AutoIt3Wrapper_Res_ProductVersion=2.2.0
+#AutoIt3Wrapper_Res_ProductVersion=2.3.0
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2026 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -16,7 +16,7 @@
 #AutoIt3Wrapper_res_Compatibility=Win10
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
-Global $iVersion = '2.2.0'
+Global $iVersion = '2.3.0'
 
 #include <MsgBoxConstants.au3>
 #include <WinAPIFiles.au3>
@@ -40,10 +40,10 @@ Global $iVersion = '2.2.0'
 #include "include\GUIComboBoxColor.au3"
 #include "include\_WinAPI_DPI.au3"
 #include "include\TaskScheduler.au3"
-#include "include\ExtMsgBox.au3"
 #include "include\JSON.au3"
 #include "include\WCD_IPC.au3"
 #include "include\GUIDarkAPI.au3"
+#include "include\MsgBoxEx.au3"
 
 Global $aCustomRules[0][17]
 
@@ -53,12 +53,6 @@ Global $sEngName = "ImmersiveEngine"
 
 Global Const $sSegUIVar = @WindowsDir & "\fonts\SegUIVar.ttf"
 Global $SegUIVarExists = FileExists($sSegUIVar)
-
-If $SegUIVarExists Then
-    _ExtMsgBoxSet(1, 4, 0x000000, 0xffffff, -1, "Segoe UI Variable Display", 800)
-Else
-    _ExtMsgBoxSet(1, 4, 0x000000, 0xffffff, -1, "Segoe UI", 800)
-EndIf
 
 Opt("GUIOnEventMode", 1)
 Opt("WinTitleMatchMode", 3)
@@ -99,7 +93,7 @@ Global $bWatchSaveChanges = False, $bPendingChanges = False
 Global $sTargetLast = ""
 Global $bHideGUI = False
 
-Global Const $tagNMCUSTOMDRAWINFO = $tagNMHDR & ";dword DrawStage;handle hdc;" & $tagRECT & ";dword_ptr ItemSpec;uint ItemState;lparam lItemParam;"
+;Global Const $tagNMCUSTOMDRAWINFO = $tagNMHDR & ";dword DrawStage;handle hdc;" & $tagRECT & ";dword_ptr ItemSpec;uint ItemState;lparam lItemParam;"
 ;Global $TRAY_EVENT_PRIMARYDOWN = -7
 Global $DWMWA_COLOR_NONE = 0xFFFFFFFE
 Global $DWMWA_COLOR_DEFAULT = 0xFFFFFFFF
@@ -118,9 +112,11 @@ Global Const $tagNMCUSTOMDRAW = $tagNMHDR & ";" & _                             
         "lparam lItemlParam"                                                           ; lParam set by the item (e.g., via LVITEM.lParam)
 
 Global $iDPI = _WinAPI_SetDPIAwareness(), $iDPI_def = 96
-If $iDPI = 0 Then Exit MsgBox($MB_ICONERROR, "ERROR", "Unable to set DPI awareness!!!", 10)
+If $iDPI = 0 Then Exit MsgBoxEx($MB_ICONERROR, "ERROR", "Unable to set DPI awareness!!!", 10)
 Global $iDPI1 = $iDPI / $iDPI_def
 Global $iDPI2 = $iDPI_def / $iDPI
+
+_MsgBoxExSetColors(0x000000, 0x000000, 0x080808, Default, $DWMSBT_MAINWINDOW)
 
 If StringInStr($CmdLineRaw, "hidegui") Then $bHideGUI = True
 
@@ -161,7 +157,6 @@ EndIf
 TraySetOnEvent($TRAY_EVENT_PRIMARYDOWN, 'idGUI')
 TraySetClick(16)
 
-;#include "include\ModernMenuRaw.au3"
 #include "include\GUIDarkMenu.au3"
 
 _GetIniDetails()
@@ -246,17 +241,17 @@ Func _StartGUI()
         $iW = 620
     EndIf
 
-    $hGUI = GUICreate("Immersive UX", $iW * $iDPI1, $iH * $iDPI1, -1, -1, -1)
+    $hGUI = GUICreate("Immersive UX", $iW * $iDPI1, $iH * $iDPI1, -1, -1)
     If IsAdmin() Then WinSetTitle($hGUI, "", "Immersive UX - Administrator")
 
     Local $idFileMenu = GUICtrlCreateMenu("&File")
     Local $idSettingsMenu = GUICtrlCreateMenu("&Options")
     Local $idTaskMenu = GUICtrlCreateMenu("&Startup Task")
     Local $idSpecMenu = GUICtrlCreateMenu("&Special Handling")
+    Local $idHelpMenu = GUICtrlCreateMenu("&Help")
 
-    Local $idAboutItem = GUICtrlCreateMenuItem("&About", $idFileMenu, 0)
+    Local $idAboutItem = GUICtrlCreateMenuItem("&About", $idHelpMenu, 0)
     GUICtrlSetOnEvent(-1, "_About")
-    GUICtrlCreateMenuItem("", $idFileMenu, 1)
     Local $idExitItem = GUICtrlCreateMenuItem("&Exit", $idFileMenu, 2)
     GUICtrlSetOnEvent(-1, "_Exit")
 
@@ -1100,9 +1095,9 @@ Func _StartGUI()
     _WinAPI_SetWindowPos(GUICtrlGetHandle($idAdvancedLabel2), $HWND_TOP, 0, 0, 0, 0, BitOr($SWP_NOMOVE, $SWP_NOREDRAW, $SWP_NOSIZE))
     _WinAPI_SetWindowPos(GUICtrlGetHandle($idAdvancedLabel), $HWND_TOP, 0, 0, 0, 0, BitOr($SWP_NOMOVE, $SWP_NOREDRAW, $SWP_NOSIZE))
 
-    _WinAPI_DwmSetWindowAttribute__($hGUI, 20, 1)
-    ;_WinAPI_DwmSetWindowAttribute__($hGUI, 38, 4)
-    ;_WinAPI_DwmExtendFrameIntoClientArea($hGUI, _WinAPI_CreateMargins(-1, -1, -1, -1))
+    __WinAPI_DwmSetWindowAttribute($hGUI, 20, 1)
+    __WinAPI_DwmSetWindowAttribute($hGUI, 38, 2)
+    _WinAPI_DwmExtendFrameIntoClientArea($hGUI, _WinAPI_CreateMargins(-1, -1, -1, -1))
 
     GUICtrlSendMsg($DarkTitleCombo, $WM_CHANGEUISTATE, 65537, 0)
 
@@ -1575,22 +1570,19 @@ Func _SavedChangesStatus()
     EndIf
 EndFunc
 
-Func _SavedChangesMsgBox()
+Func _SavedChangesMsgBoxEx()
     If GUICtrlGetState($idPart4) = 80 Then
         ; show dialog if there are unsaved changes
         $sMsg = "There are unsaved changes to the currently displayed rule." & @CRLF & @CRLF
         $sMsg &= "Press OK to discard those changes and continue or press Cancel to return" & @CRLF
         $sMsg &= "so that you can save those changes." & @CRLF
-        $iRetValue = _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 1, $sProdName, $sMsg)
+        $iRetValue = MsgBoxEx(BitOR($MB_TOPMOST, $MB_OKCANCEL), "Immersive UX", $sMsg)
 
-        If $iRetValue = 1 Then
+        If $iRetValue = $IDOK Then
             ; user pressed ok
             $bPendingChanges = False
-        ElseIf $iRetValue = 2 Then
+        ElseIf $iRetValue = $IDCANCEL Then
             ; user pressed cancel
-            $bPendingChanges = True
-        ElseIf $iRetValue = 0 Then
-            ; user closed the dialog, assume cancel
             $bPendingChanges = True
         EndIf
 
@@ -1679,36 +1671,25 @@ Func WM_NOTIFY($hWnd, $iMsg, $wParam, $lParam)
 
         Switch $dwStage
             Case $CDDS_PREPAINT
-                ; Remove focus rectangle from slider
-                DllStructSetData($tNMCD, "ItemState", BitXOR(DllStructGetData($tNMCD, "ItemState"), $CDIS_FOCUS))
-                Return $CDRF_NOTIFYITEMDRAW ; request per-item notifications
+                $tNMCD.ItemState = BitXOR($tNMCD.ItemState, $CDIS_FOCUS)
+                Return $CDRF_NOTIFYSUBITEMDRAW
 
-            Case $CDDS_ITEMPREPAINT
-                Local Const $TBCD_TICS = 0x0001    ; tick marks
-                Local Const $TBCD_THUMB = 0x0002   ; draggable thumb
-                Local Const $TBCD_CHANNEL = 0x0003 ; slider channel/track
-
-                Local $tRECT = DllStructCreate($tagRECT)
-                $tRECT.left = $tNMCD.left
-                $tRECT.top = $tNMCD.top
-                $tRECT.right = $tNMCD.right
-                $tRECT.bottom = $tNMCD.bottom
-
+            Case 0x00010001 ;BitOR($CDDS_SUBITEM, $CDDS_ITEMPREPAINT)
                 Switch $dwItemSpec
-                    Case $TBCD_TICS
-                        ; Let Windows draw tick marks normally
-                        Return $CDRF_DODEFAULT
-
                     Case $TBCD_THUMB
-                        ; Draw thumb as a pentagon (rectangle + downward arrow)
                         Local $iL = $tNMCD.left
                         Local $iT = $tNMCD.top
-                        Local $iR = $tNMCD.right - 1     ; -1 to stay within bounds and avoid paint artifacts
+                        Local $iR = $tNMCD.right - 1
                         Local $iB = $tNMCD.bottom
-                        Local $iMid = ($iL + $iR) / 2         ; horizontal center (tip of arrow)
-                        Local $iSplit = $iB - ($iR - $iL) / 2 ; y-position where rectangle ends and arrow begins
+                        Local $iMid   = ($iL + $iR) / 2
+                        Local $iSplit = $iB - ($iR - $iL) / 2
 
-                        ; Pentagon points: top-left, top-right, right-middle, bottom-tip, left-middle
+                        ; Hover check via cursor position
+                        Local $tPt = DllStructCreate($tagPOINT)
+                        DllCall($hUser32Dll, "bool", "GetCursorPos", "struct*", $tPt)
+                        DllCall($hUser32Dll, "bool", "ScreenToClient", "hwnd", $hWndFrom, "struct*", $tPt)
+                        Local $bHot = ($tPt.X >= $iL And $tPt.X <= $iR And $tPt.Y >= $iT And $tPt.Y <= $iB - 1)
+
                         Local $tPoints = DllStructCreate("int p[10]")
                         $tPoints.p((1)) = $iL
                         $tPoints.p((2)) = $iT
@@ -1721,25 +1702,30 @@ Func WM_NOTIFY($hWnd, $iMsg, $wParam, $lParam)
                         $tPoints.p((9)) = $iL
                         $tPoints.p((10)) = $iSplit
 
-                        ; Fill and outline thumb with blue accent color
-                        Local $hBrush = __WinAPI_CreateSolidBrush(_ColorToCOLORREF(0x0078D4))
-                        Local $hPen = __WinAPI_CreatePen(0, 1, _ColorToCOLORREF($GUI_InputBackColor))
+                        Local $hBrush = __WinAPI_CreateSolidBrush(_ColorToCOLORREF($bHot ? __WinAPI_ColorAdjustLuma(0x0078D4, 30) : 0x0078D4))
+                        Local $hPen   = __WinAPI_CreatePen(0, 1, _ColorToCOLORREF($GUI_InputBackColor))
                         Local $hOldBrush = __WinAPI_SelectObject($hDC, $hBrush)
-                        Local $hOldPen = __WinAPI_SelectObject($hDC, $hPen)
+                        Local $hOldPen   = __WinAPI_SelectObject($hDC, $hPen)
                         DllCall($hGdi32Dll, "bool", "Polygon", "handle", $hDC, "struct*", $tPoints, "int", 5)
                         __WinAPI_SelectObject($hDC, $hOldBrush)
                         __WinAPI_SelectObject($hDC, $hOldPen)
                         __WinAPI_DeleteObject($hBrush)
                         __WinAPI_DeleteObject($hPen)
-                        Return $CDRF_SKIPDEFAULT ; skip default drawing
+                        Return $CDRF_SKIPDEFAULT
 
                     Case $TBCD_CHANNEL
-                        ; Fill channel with border color
                         Local $hBrush = __WinAPI_CreateSolidBrush(_ColorToCOLORREF($GUI_InputBackColor))
-                        __WinAPI_FillRect($hDC, $tRECT, $hBrush)
+                        Local $tRECT2 = DllStructCreate($tagRECT)
+                        $tRECT2.Left = $tNMCD.left
+                        $tRECT2.Top    = $tNMCD.top
+                        $tRECT2.Right = $tNMCD.right
+                        $tRECT2.Bottom = $tNMCD.bottom
+                        __WinAPI_FillRect($hDC, $tRECT2, $hBrush)
                         __WinAPI_DeleteObject($hBrush)
-                        Return $CDRF_SKIPDEFAULT ; skip default drawing
+                        Return $CDRF_SKIPDEFAULT
 
+                    Case Else
+                        Return $CDRF_DODEFAULT ; channel + ticks drawn by Windows
                 EndSwitch
         EndSwitch
     EndIf
@@ -1882,7 +1868,7 @@ EndFunc
 
 Func idComboRuleList()
     ; unsaved changes dialog
-    _SavedChangesMsgBox()
+    _SavedChangesMsgBoxEx()
     If $bPendingChanges Then Return
 
     GUICtrlSetData($idInput, GUICtrlRead($RuleListCombo))
@@ -1954,7 +1940,7 @@ EndFunc
 
 Func hBtnAddRule()
     ; unsaved changes dialog
-    _SavedChangesMsgBox()
+    _SavedChangesMsgBoxEx()
     If $bPendingChanges Then Return
 
     GUICtrlSetState($TargetInput, $GUI_ENABLE)
@@ -2106,21 +2092,17 @@ Func hBtnDeleteRule()
     $sMsg = " This will delete the following rule: " & $SectionName & @CRLF
 	$sMsg &= " " & @CRLF
 	$sMsg &= " Do you want to continue? " & @CRLF
-	$iRetValue = _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 4, $sProdName, $sMsg)
+    $iRetValue = MsgBoxEx(BitOR($MB_TOPMOST, $MB_YESNO), "Immersive UX", $sMsg)
 
-	If $iRetValue = 1 Then
+	If $iRetValue = $IDYES Then
         For $i = 0 To Ubound($aCustomRules)-1
             If $aCustomRules[$i][16] = $SectionName Then
                 IniDelete($IniFile, $aCustomRules[$i][15])
             EndIf
         Next
-	ElseIf $iRetValue = 2 Then
+	ElseIf $iRetValue = $IDNO Then
 		Return
 	EndIf
-
-    ;GUICtrlSetData($RuleListCombo, "")
-    ;_GUICtrlComboBox_SetCurSel($RuleListCombo, -1)
-    ;_GUICtrlComboBox_ResetContent($RuleListCombo)
 
     ; need to reload array and combo
     _ReloadRulesCombo()
@@ -2143,7 +2125,7 @@ EndFunc
 
 Func hBtnReloadRules()
     ; unsaved changes dialog
-    _SavedChangesMsgBox()
+    _SavedChangesMsgBoxEx()
     If $bPendingChanges Then Return
 
     ; first check if engine is running, start it if not
@@ -2263,7 +2245,8 @@ Func _WriteIniSection()
     Local $Target = GUICtrlRead($TargetInput)
 
     If $Target = "" Then
-        _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, " Target cannot be blank. " & @CRLF)
+        Local $sMsg = " Target cannot be blank. "
+        MsgBoxEx(BitOR($MB_TOPMOST, $MB_OK), "Immersive UX", $sMsg)
         Return
     EndIf
     Local $DarkTitleBar = GUICtrlRead($idInputDarkTitle)
@@ -2313,7 +2296,8 @@ Func _WriteIniSection()
     Local $aSection[17][2] = [[16, ""], ["RuleType", $RuleType], ["Target", $Target], ["DarkTitleBar", $DarkTitleBar], ["BorderColor", $BorderColor], ["TitleBarColor", $TitleBarColor], ["TitleBarTextColor", $TitleBarTextColor], ["TitleBarBackdrop", $TitleBarBackdrop], ["CornerPreference", $CornerPreference], ["ExtendFrameIntoClient", $ExtendFrameIntoClient], ["EnableBlurBehind", $EnableBlurBehind], ["BlurTintColor", $BlurTintColor], ["TintColorIntensity", $TintColorIntensity], ["BlurTintColorInactive", $BlurTintColorInact],["ColorIntensityInactive", $TintColorIntensityInact], ["Enabled", $RuleEnabled], ["DisplayName", $DisplayName]]
 
     $IniWriteStatus = IniWriteSection($IniFile, $SectionName, $aSection)
-    If $IniWriteStatus = 0 Then _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, " Failed to write changes to file. " & @CRLF)
+    Local $sMsg = " Failed to write changes to file. "
+    If $IniWriteStatus = 0 Then MsgBoxEx(BitOR($MB_TOPMOST, $MB_OK), "Immersive UX", $sMsg)
 
     _SaveReloadRules()
 
@@ -2827,7 +2811,7 @@ Func _GetTaskIntegrityLevel()
     Local $sTaskname = "\" & $sProdName
 
     Local $oService = _TS_Open()
-    If @error <> 0 Then Exit MsgBox($MB_ICONERROR, "Task Scheduler UDF", "Error connecting to the Task Scheduler Service. @error = " & @error & ", @extended = " & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
+    If @error <> 0 Then Exit MsgBoxEx($MB_ICONERROR, "Task Scheduler UDF", "Error connecting to the Task Scheduler Service. @error = " & @error & ", @extended = " & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
 
     $vTaskProperties = _TS_TaskPropertiesGet($oService, $sTaskname, 2, True)
     If Not @error Then
@@ -2843,7 +2827,7 @@ Func _GetTaskIntegrityLevel()
             EndIf
         Next
     Else
-        MsgBox($MB_ICONERROR, "_TS_TaskPropertiesGet", "Returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
+        MsgBoxEx($MB_ICONERROR, "_TS_TaskPropertiesGet", "Returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
     EndIf
 
     _TS_Close($oService)
@@ -2854,7 +2838,7 @@ Func _IsTaskInstalled()
     ; Connect to the Task Scheduler Service
     ; *****************************************************************************
     Local $oService = _TS_Open()
-    If @error <> 0 Then Exit MsgBox($MB_ICONERROR, "Task Scheduler UDF", "Error connecting to the Task Scheduler Service. @error = " & @error & ", @extended = " & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
+    If @error <> 0 Then Exit MsgBoxEx($MB_ICONERROR, "Task Scheduler UDF", "Error connecting to the Task Scheduler Service. @error = " & @error & ", @extended = " & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
 
     ; *****************************************************************************
     ; Check if a tasks exists
@@ -2863,18 +2847,18 @@ Func _IsTaskInstalled()
     Local $iFound = _TS_TaskExists($oService, $sTask)
     If Not @error Then
         If $iFound = 1 Then
-            ;MsgBox($MB_ICONINFORMATION, "_TS_TaskExists", "Task '" & $sTask & "' found!")
+            ;MsgBoxEx($MB_ICONINFORMATION, "_TS_TaskExists", "Task '" & $sTask & "' found!")
             ;$g_iIsTaskSchedInstalled = True
             $TaskInstalled = "Yes"
             Return $TaskInstalled
         Else
-            ;MsgBox($MB_ICONWARNING, "_TS_TaskExists", "Task '" & $sTask & "' not found!")
+            ;MsgBoxEx($MB_ICONWARNING, "_TS_TaskExists", "Task '" & $sTask & "' not found!")
             ;$g_iIsTaskSchedInstalled = False
             $TaskInstalled = "No"
             Return $TaskInstalled
         EndIf
     Else
-        MsgBox($MB_ICONERROR, "_TS_TaskExists", "Returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
+        MsgBoxEx($MB_ICONERROR, "_TS_TaskExists", "Returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
     EndIf
     _TS_Close($oService)
 EndFunc
@@ -2884,7 +2868,7 @@ Func _IsTaskRunning()
     ; Connect to the Task Scheduler Service
     ; *****************************************************************************
     Local $oService = _TS_Open()
-    If @error <> 0 Then Exit MsgBox($MB_ICONERROR, "Task Scheduler UDF", "Error connecting to the Task Scheduler Service. @error = " & @error & ", @extended = " & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
+    If @error <> 0 Then Exit MsgBoxEx($MB_ICONERROR, "Task Scheduler UDF", "Error connecting to the Task Scheduler Service. @error = " & @error & ", @extended = " & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
 
     ; *****************************************************************************
     ; List all running tasks. Show hidden tasks.
@@ -2900,7 +2884,7 @@ Func _IsTaskRunning()
             EndIf
         Next
     Else
-        MsgBox($MB_ICONERROR, "_TS_RunningTaskList", "Returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
+        MsgBoxEx($MB_ICONERROR, "_TS_RunningTaskList", "Returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
     EndIf
 
     _TS_Close($oService)
@@ -2930,7 +2914,7 @@ Func _TaskSched_End()
 	; Connect to the Task Scheduler Service
 	; *****************************************************************************
 	Local $oService = _TS_Open()
-	If @error <> 0 Then Exit MsgBox($MB_ICONERROR, "Task Scheduler UDF", "Error connecting to the Task Scheduler Service. @error = " & @error & ", @extended = " & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
+	If @error <> 0 Then Exit MsgBoxEx($MB_ICONERROR, "Task Scheduler UDF", "Error connecting to the Task Scheduler Service. @error = " & @error & ", @extended = " & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
 	
 	Local $sFolder = "\"    ; Folder where to create the task
 	Local $sName = $sProdName  ; Name of the task to create
@@ -2938,8 +2922,8 @@ Func _TaskSched_End()
 	; Stop the task immediately
 	;Sleep(2000)
 	_TS_TaskStop($oService, $sFolder & "\" & $sName)
-	If @error Then Exit MsgBox($MB_ICONERROR, "_TS_TaskStop", "_TS_TaskStop returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
-	;MsgBox($MB_ICONINFORMATION, "_TS_TaskStop", "_TS_TaskStop stopped!")
+	If @error Then Exit MsgBoxEx($MB_ICONERROR, "_TS_TaskStop", "_TS_TaskStop returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
+	;MsgBoxEx($MB_ICONINFORMATION, "_TS_TaskStop", "_TS_TaskStop stopped!")
 
 	_TS_Close($oService)
 EndFunc
@@ -2949,15 +2933,15 @@ Func _TaskSched_Run()
 	; Connect to the Task Scheduler Service
 	; *****************************************************************************
 	Local $oService = _TS_Open()
-	If @error <> 0 Then Exit MsgBox($MB_ICONERROR, "Task Scheduler UDF", "Error connecting to the Task Scheduler Service. @error = " & @error & ", @extended = " & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
+	If @error <> 0 Then Exit MsgBoxEx($MB_ICONERROR, "Task Scheduler UDF", "Error connecting to the Task Scheduler Service. @error = " & @error & ", @extended = " & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
 	
 	Local $sFolder = "\"    ; Folder where to create the task
 	Local $sName = $sProdName  ; Name of the task to create
 
 	; Run the task immediately
-	;MsgBox($MB_ICONINFORMATION, "_TS_TaskRun", "Task Start time has been set to 20 minutes but we want to start the task now - will stop it after 2 seconds again!")
+	;MsgBoxEx($MB_ICONINFORMATION, "_TS_TaskRun", "Task Start time has been set to 20 minutes but we want to start the task now - will stop it after 2 seconds again!")
 	_TS_TaskRun($oService, $sFolder & "\" & $sName)
-	If @error Then Exit MsgBox($MB_ICONERROR, "_TS_TaskRun", "_TS_TaskRun returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
+	If @error Then Exit MsgBoxEx($MB_ICONERROR, "_TS_TaskRun", "_TS_TaskRun returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
 
 	_TS_Close($oService)
 EndFunc
@@ -2967,7 +2951,7 @@ Func _TaskSched_Uninstall()
 	; Connect to the Task Scheduler Service
 	; *****************************************************************************
 	Local $oService = _TS_Open()
-	If @error <> 0 Then Exit MsgBox($MB_ICONERROR, "Task Scheduler UDF", "Error connecting to the Task Scheduler Service. @error = " & @error & ", @extended = " & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
+	If @error <> 0 Then Exit MsgBoxEx($MB_ICONERROR, "Task Scheduler UDF", "Error connecting to the Task Scheduler Service. @error = " & @error & ", @extended = " & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
 
 	; *****************************************************************************
 	; Delete task "Test-Task" from folder "\Test"
@@ -2975,9 +2959,9 @@ Func _TaskSched_Uninstall()
 	Local $sTaskPath = "\" & $sProdName    ; Folder and name of the task to be deleted
 	_TS_TaskDelete($oService, $sTaskPath)
 	If Not @error Then
-		;MsgBox($MB_ICONINFORMATION, "_TS_TaskDelete", "Task '" & $sTaskPath & "' successfully deleted!")
+		;MsgBoxEx($MB_ICONINFORMATION, "_TS_TaskDelete", "Task '" & $sTaskPath & "' successfully deleted!")
 	Else
-		MsgBox($MB_ICONERROR, "_TS_TaskDelete", "Returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
+		MsgBoxEx($MB_ICONERROR, "_TS_TaskDelete", "Returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
 	EndIf
 	_TS_Close($oService)
 EndFunc
@@ -2999,7 +2983,7 @@ Func _TaskSched_Install()
 	; Connect to the Task Scheduler Service
 	; *****************************************************************************
 	Local $oService = _TS_Open()
-	If @error <> 0 Then Exit MsgBox($MB_ICONERROR, "Task Scheduler UDF", "Error connecting to the Task Scheduler Service. @error = " & @error & ", @extended = " & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
+	If @error <> 0 Then Exit MsgBoxEx($MB_ICONERROR, "Task Scheduler UDF", "Error connecting to the Task Scheduler Service. @error = " & @error & ", @extended = " & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
 
 	; *****************************************************************************
 	; Delete a task in the same folder with the same name
@@ -3007,14 +2991,14 @@ Func _TaskSched_Install()
 	Local $sTaskPath = "\" & $sProdName    ; Folder and name of the task to be deleted
 	_TS_TaskDelete($oService, $sTaskPath)
 	;_TS_TaskDelete($oService, $sFolder & "\" & $sName)
-	; If @error <> 0 And @error <> 2 Then Exit MsgBox($MB_ICONERROR, "_TS_TaskCreate", "_TS_TaskDelete returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
+	; If @error <> 0 And @error <> 2 Then Exit MsgBoxEx($MB_ICONERROR, "_TS_TaskCreate", "_TS_TaskDelete returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
 
 	; *****************************************************************************
 	; Create a new task
 	; *****************************************************************************
 	; Create the Task Definition object
 	Local $oTaskDefinition = _TS_TaskCreate($oService)
-	If @error Then Exit MsgBox($MB_ICONERROR, "_TS_TaskCreate", "_TS_TaskCreate returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
+	If @error Then Exit MsgBoxEx($MB_ICONERROR, "_TS_TaskCreate", "_TS_TaskCreate returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
 
 	; Set all task properties
 	Local $aProperties[] = [ _
@@ -3034,32 +3018,32 @@ Func _TaskSched_Install()
 			"TRIGGERS|UserId|" & @UserName _
 			]
 	_TS_TaskPropertiesSet($oTaskDefinition, $aProperties)
-	If @error Then Exit MsgBox($MB_ICONERROR, "_TS_TaskCreate", "_TS_TaskPropertiesSet for the TaskDefinition returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
+	If @error Then Exit MsgBoxEx($MB_ICONERROR, "_TS_TaskCreate", "_TS_TaskPropertiesSet for the TaskDefinition returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
 
 	; Create a Logon trigger
 	Local $oTrigger = _TS_TriggerCreate($oTaskDefinition, $TASK_TRIGGER_LOGON, "Test-Trigger1")
-	If @error Then Exit MsgBox($MB_ICONERROR, "_TS_TaskCreate", "Creating the Trigger returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
+	If @error Then Exit MsgBoxEx($MB_ICONERROR, "_TS_TaskCreate", "Creating the Trigger returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
 	_TS_TaskPropertiesSet($oTrigger, $aProperties)
-	If @error Then Exit MsgBox($MB_ICONERROR, "_TS_TaskCreate", "_TS_TaskPropertiesSet for the Trigger returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
+	If @error Then Exit MsgBoxEx($MB_ICONERROR, "_TS_TaskCreate", "_TS_TaskPropertiesSet for the Trigger returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
 
 	; Create an Action
 	Local $oAction = _TS_ActionCreate($oTaskDefinition, $TASK_ACTION_EXEC)
-	If @error Then Exit MsgBox($MB_ICONERROR, "_TS_TaskCreate", "Creating the Action returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
+	If @error Then Exit MsgBoxEx($MB_ICONERROR, "_TS_TaskCreate", "Creating the Action returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
 	_TS_TaskPropertiesSet($oAction, $aProperties)
-	If @error Then Exit MsgBox($MB_ICONERROR, "_TS_TaskCreate", "_TS_TaskPropertiesSet for the Action returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
+	If @error Then Exit MsgBoxEx($MB_ICONERROR, "_TS_TaskCreate", "_TS_TaskPropertiesSet for the Action returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
 
 	; List properties of the Task Definition
 	Local $aTaskProperties = _TS_TaskPropertiesGet($oService, $oTaskDefinition,1 , True)
 	If Not @error Then
 		;_ArrayDisplay($aTaskProperties, "Properties of the task to be created")
 	Else
-		MsgBox($MB_ICONERROR, "_TS_TaskPropertiesGet", "Returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
+		MsgBoxEx($MB_ICONERROR, "_TS_TaskPropertiesGet", "Returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
 	EndIf
 
 	; Register the task
 	Local $oTask = _TS_TaskRegister($oService, $sFolder, $sName, $oTaskDefinition)
-	If @error Then Exit MsgBox($MB_ICONERROR, "_TS_TaskCreate", "_TS_TaskRegister returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
-	;MsgBox($MB_ICONINFORMATION, "_TS_TaskCreate", "Task " & $sName & " has been created!")
+	If @error Then Exit MsgBoxEx($MB_ICONERROR, "_TS_TaskCreate", "_TS_TaskRegister returned @error=" & @error & ", @extended=" & @extended & @CRLF & @CRLF & _TS_ErrorText(@error))
+	;MsgBoxEx($MB_ICONINFORMATION, "_TS_TaskCreate", "Task " & $sName & " has been created!")
 
 	_TS_Close($oService)
 EndFunc
@@ -3220,7 +3204,7 @@ Func _VSCode_mod()
 	If Not @error Then
 		; Enumerate through the array displaying the keys and their respective values.
 		For $i = 1 To $aArray[0][0]
-			;MsgBox($MB_SYSTEMMODAL, "", "Key: " & $aArray[$i][0] & @CRLF & "Value: " & $aArray[$i][1])
+			;MsgBoxEx($MB_SYSTEMMODAL, "", "Key: " & $aArray[$i][0] & @CRLF & "Value: " & $aArray[$i][1])
 			If $aArray[$i][1] <> "" Then
                 Local $sReplace = StringReplace($aArray[$i][1], "C:\Program Files", @ProgramFilesDir)
                 Local $sReplace = StringReplace($aArray[$i][1], "C:\Users\username\AppData\Local", @LocalAppDataDir)
@@ -3232,7 +3216,7 @@ Func _VSCode_mod()
                 If $iFileExists Then
 					If StringInStr($aArray[$i][1], @ProgramFilesDir) And Not IsAdmin() Then
 						Local $sMsg = "Error: Please restart Immersive UX as Admin to modify files in this location." & @CRLF
-        				_ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+                        MsgBoxEx(BitOR($MB_TOPMOST, $MB_OK), "Immersive UX", $sMsg)
 					Else
 						_VSCode_mod_install($aArray[$i][1])
 						_VSCode_mod_files($aArray[$i][1])
@@ -3258,7 +3242,7 @@ Func _VSCode_mod_json($sJsonPath)
         $sMsg &= "Patching this installation will be skipped to prevent any possibility" & @CRLF
         $sMsg &= "of losing your original settings." & @CRLF & @CRLF
         $sMsg &= "Please validate your JSON file and try again." & @CRLF
-        _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+        MsgBoxEx(BitOR($MB_TOPMOST, $MB_OK), "Immersive UX", $sMsg)
         Return
     EndIf
 
@@ -3341,7 +3325,7 @@ Func _VSCode_mod_install($sVSCodePath)
         ; Open the file for writing (append to the end of a file) and store the handle to a variable.
         Local $hFileOpen = FileOpen($sMainjsPath, $FO_APPEND)
         If $hFileOpen = -1 Then
-            MsgBox($MB_SYSTEMMODAL, "", "An error occurred whilst writing the temporary file.")
+            MsgBoxEx($MB_SYSTEMMODAL, "", "An error occurred whilst writing the temporary file.")
             Return False
         EndIf
 
@@ -3376,7 +3360,7 @@ Func _VSCode_mod_uninstall()
 	If Not @error Then
 		; Enumerate through the array displaying the keys and their respective values.
 		For $i = 1 To $aArray[0][0]
-			;MsgBox($MB_SYSTEMMODAL, "", "Key: " & $aArray[$i][0] & @CRLF & "Value: " & $aArray[$i][1])
+			;MsgBoxEx($MB_SYSTEMMODAL, "", "Key: " & $aArray[$i][0] & @CRLF & "Value: " & $aArray[$i][1])
 			If $aArray[$i][1] <> "" Then
                 Local $sReplace = StringReplace($aArray[$i][1], "C:\Program Files", @ProgramFilesDir)
                 Local $sReplace = StringReplace($aArray[$i][1], "C:\Users\username\AppData\Local", @LocalAppDataDir)
@@ -3388,7 +3372,7 @@ Func _VSCode_mod_uninstall()
                 If $iFileExists Then
 					If StringInStr($aArray[$i][1], @ProgramFilesDir) And Not IsAdmin() Then
 						Local $sMsg = "Error: Please restart Immersive UX as Admin to modify files in this location." & @CRLF
-        				_ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+                        MsgBoxEx(BitOR($MB_TOPMOST, $MB_OK), "Immersive UX", $sMsg)
 					Else
 						_VSCode_mod_patch_remove($aArray[$i][1])
 						_VSCode_mod_files_remove($aArray[$i][1])
@@ -3459,7 +3443,7 @@ Func _Terminal_patch_Json($sTerminalJson)
         $sMsg &= "Patching this installation will be skipped to prevent any possibility" & @CRLF
         $sMsg &= "of losing your original settings." & @CRLF & @CRLF
         $sMsg &= "Please validate your JSON file and try again." & @CRLF
-        _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+        MsgBoxEx(BitOR($MB_TOPMOST, $MB_OK), "Immersive UX", $sMsg)
         Return
     EndIf
 
@@ -3650,9 +3634,10 @@ Func idGUI()
 EndFunc
 
 Func _About()
-	;MsgBox(0, "Immersive UX", "Version: " & $iVersion & @CRLF & "Created by: " & "WildByDesign")
-    Local $sMsg = "Version:         " & $iVersion & @CRLF & @CRLF & "Created by:   " & "WildByDesign" & @CRLF
-    _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", " ", "Immersive UX", $sMsg, 1000)
+    $sMsg = " Version: " & $iVersion & @CRLF
+	$sMsg &= " Created by: " & "WildByDesign" & @CRLF & @CRLF
+	$sMsg &= " This program is free and open source. " & @CRLF
+	MsgBoxEx(BitOR($MB_TOPMOST, $MB_OK), "Immersive UX", $sMsg)
 EndFunc
 
 Func _Exit()
@@ -3911,15 +3896,15 @@ Func _VSCodePatch()
     $sMsg &= "This message is harmless. Click on the cogwheel and select Don't Show Again." & @CRLF
     $sMsg &= " " & @CRLF
     $sMsg &= "Do you want to continue?" & @CRLF
-    $iRetValue = _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 4, $sProdName, $sMsg)
+    $iRetValue = MsgBoxEx(BitOR($MB_TOPMOST, $MB_YESNO), "Immersive UX", $sMsg)
 
-    If $iRetValue = 1 Then
+    If $iRetValue = $IDYES Then
         _VSCode_mod()
         $sMsg = "VSCode/VScodium patches have been applied." & @CRLF & @CRLF
         $sMsg &= "You will need to close and reopen any running instances of" & @CRLF
         $sMsg &= "VSCode/VSCodium to reflect the changes." & @CRLF
-        _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
-    ElseIf $iRetValue = 2 Then
+        MsgBoxEx(BitOR($MB_TOPMOST, $MB_OK), "Immersive UX", $sMsg)
+    ElseIf $iRetValue = $IDNO Then
         Return
     EndIf
 EndFunc
@@ -3930,7 +3915,7 @@ Func _VSCodeUnpatch()
     $sMsg = "VSCode/VScodium patches have been removed." & @CRLF & @CRLF
     $sMsg &= "You will need to close and reopen any running instances of" & @CRLF
     $sMsg &= "VSCode/VSCodium to reflect the changes." & @CRLF
-    _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+    MsgBoxEx(BitOR($MB_TOPMOST, $MB_OK), "Immersive UX", $sMsg)
 EndFunc
 
 Func _TerminalPatch()
@@ -3939,15 +3924,15 @@ Func _TerminalPatch()
     $sMsg &= "This works by adding a Mica theme to the Terminal settings file." & @CRLF
     $sMsg &= " " & @CRLF
     $sMsg &= "Do you want to continue?" & @CRLF
-    $iRetValue = _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 4, $sProdName, $sMsg)
+    $iRetValue = MsgBoxEx(BitOR($MB_TOPMOST, $MB_YESNO), "Immersive UX", $sMsg)
 
-    If $iRetValue = 1 Then
+    If $iRetValue = $IDYES Then
         _Terminal_patch()
         $sMsg = "The ImmersiveUX theme has been added to your Windows Terminal settings." & @CRLF & @CRLF
         $sMsg &= "Changes should be reflected immediately in any running instances" & @CRLF
         $sMsg &= "of Windows Terminal." & @CRLF
-        _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
-    ElseIf $iRetValue = 2 Then
+        MsgBoxEx(BitOR($MB_TOPMOST, $MB_OK), "Immersive UX", $sMsg)
+    ElseIf $iRetValue = $IDNO Then
         Return
     EndIf
 EndFunc
@@ -3958,7 +3943,7 @@ Func _TerminalUnpatch()
     $sMsg = "Your original Windows Terminal settings have been restored." & @CRLF & @CRLF
     $sMsg &= "Changes should be reflected immediately in any running instances" & @CRLF
     $sMsg &= "of Windows Terminal." & @CRLF
-    _ExtMsgBox(0 & ";" & @ScriptDir & "\" & $sEngName & ".exe", 0, $sProdName, $sMsg)
+    MsgBoxEx(BitOR($MB_TOPMOST, $MB_OK), "Immersive UX", $sMsg)
 EndFunc
 
 Func _TaskInstallAdmin()
@@ -4039,7 +4024,7 @@ Func _TaskUninstall()
             Return
         Else
             ; otherwise notify user to start GUI as admin
-            MsgBox(0, "Error", "Need to run as Admin to uninstall Admin level task.")
+            MsgBoxEx(0, "Error", "Need to run as Admin to uninstall Admin level task.")
             Return
         EndIf
     Else

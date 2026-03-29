@@ -4,6 +4,7 @@
 #include <Misc.au3>
 #include <WinAPISysWin.au3>
 #include <WinAPIsysinfoConstants.au3>
+#include <WinAPIGdi.au3>
 
 #Region DPI Constants
 ;https://learn.microsoft.com/en-us/windows/win32/api/windef/ne-windef-dpi_awareness
@@ -88,7 +89,7 @@ Func _GDIPlus_GetDPI($hGUI = 0)
     Return $aResult[2]
 EndFunc   ;==>_GDIPlus_GetDPI
 
-Func _WinAPI_GetDPI($hWnd = 0)
+Func _WinAPI_GetDPI2($hWnd = 0)
     $hWnd = Not $hWnd ? _WinAPI_GetDesktopWindow() : $hWnd
     Local Const $hDC = _WinAPI_GetDC($hWnd)
     If @error Then Return SetError(1, 0, 0)
@@ -99,7 +100,7 @@ Func _WinAPI_GetDPI($hWnd = 0)
     EndIf
     _WinAPI_ReleaseDC($hWnd, $hDC)
     Return $iDPI
-EndFunc   ;==>_WinAPI_GetDPI
+EndFunc   ;==>_WinAPI_GetDPI2
 
 ;https://learn.microsoft.com/en-us/windows/win32/api/shellscalingapi/nf-shellscalingapi-getdpiformonitor
 Func _WinAPI_GetDpiForPrimaryMonitor($hMOnitor = 0, $dpiType = $MDT_DEFAULT)
@@ -241,7 +242,7 @@ Func _WinAPI_SetDPIAwareness($DPIAwareContext = $DPI_AWARENESS_CONTEXT_PER_MONIT
     EndSwitch
     Local $iDPI
     If @OSBuild < 9200 Then
-        $iDPI = _WinAPI_GetDPI()
+        $iDPI = _WinAPI_GetDPI2()
         If @error Or Not $iDPI Then Return SetError(5, 0, 0)
     Else
         $iDPI = _WinAPI_GetDpiForPrimaryMonitor()
