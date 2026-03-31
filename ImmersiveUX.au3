@@ -5,9 +5,9 @@
 #AutoIt3Wrapper_Compression=0
 #AutoIt3Wrapper_UseX64=y
 #AutoIt3Wrapper_Res_Description=Immersive UX GUI
-#AutoIt3Wrapper_Res_Fileversion=2.3.0
+#AutoIt3Wrapper_Res_Fileversion=2.4.0
 #AutoIt3Wrapper_Res_ProductName=Immersive UX GUI
-#AutoIt3Wrapper_Res_ProductVersion=2.3.0
+#AutoIt3Wrapper_Res_ProductVersion=2.4.0
 #AutoIt3Wrapper_Res_LegalCopyright=@ 2026 WildByDesign
 #AutoIt3Wrapper_Res_Language=1033
 #AutoIt3Wrapper_Res_HiDpi=n
@@ -16,7 +16,7 @@
 #AutoIt3Wrapper_res_Compatibility=Win10
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
-Global $iVersion = '2.3.0'
+Global $iVersion = '2.4.0'
 
 #include <MsgBoxConstants.au3>
 #include <WinAPIFiles.au3>
@@ -3087,6 +3087,7 @@ Func _TaskStatusUpdate_adlib()
 EndFunc
 
 Func _TaskStatusUpdate_adlib20()
+    Local $iVal
     $TaskIntegrity = "No"
     $TaskInstalled = _IsTaskInstalled()
     ;Global $TaskRunning = "No"
@@ -3102,62 +3103,34 @@ Func _TaskStatusUpdate_adlib20()
     _UpdateTaskMenu()
     _UpdateLiveMenu()
 
-    GUICtrlSetData($idPart2, "Task Installed: " & $TaskInstalled)
+    $iVal = GUICtrlRead($idPart2)
+    If $iVal <> "Task Installed: " & $TaskInstalled Then GUICtrlSetData($idPart2, "Task Installed: " & $TaskInstalled)
 EndFunc
 
 Func _IsEngineProcRunning()
-    Local $iPID
+    Local $iPID, $iVal
     Local $bElevated = _ToBoolean(IniRead($IniFile, "StartupInfoOnly", "Elevated", "False"))
     Local $sEngineStatus, $sElevatedStatus
 
-    If @Compiled Then
-        If WinExists("Immersive UX Engine") Then
+    If WinExists("Immersive UX Engine") Then
+        ; engine is running
+        If $bElevated Then
+            ; engine is running as admin
+            $sEngineStatus = "Engine Running: Yes"
+            $sElevatedStatus = "Engine Elevated: Yes"
+        ElseIf Not $bElevated Then
             ; engine is running
-            If $bElevated Then
-                ; engine is running as admin
-                $sEngineStatus = "Engine Running: Yes"
-                $sElevatedStatus = "Engine Elevated: Yes"
-                GUICtrlSetData($idPart1, $sEngineStatus)
-                GUICtrlSetData($idPart3, $sElevatedStatus)
-            ElseIf Not $bElevated Then
-                ; engine is running
-                $sEngineStatus = "Engine Running: Yes"
-                $sElevatedStatus = "Engine Elevated: No"
-                GUICtrlSetData($idPart1, $sEngineStatus)
-                GUICtrlSetData($idPart3, $sElevatedStatus)
-            EndIf
-        Else
-            $sEngineStatus = "Engine Running: No"
+            $sEngineStatus = "Engine Running: Yes"
             $sElevatedStatus = "Engine Elevated: No"
-            GUICtrlSetData($idPart1, $sEngineStatus)
-            GUICtrlSetData($idPart3, $sElevatedStatus)
         EndIf
+    Else
+        $sEngineStatus = "Engine Running: No"
+        $sElevatedStatus = "Engine Elevated: No"
     EndIf
-
-    If Not @Compiled Then
-        $iPID = Int(IniRead($IniFile, "StartupInfoOnly", "PID", ""))
-        If $iPID <> "" Then
-            ; engine is running
-            If $bElevated Then
-                ; engine is running as admin
-                $sEngineStatus = "Engine Running: Yes"
-                $sElevatedStatus = "Engine Elevated: Yes"
-                GUICtrlSetData($idPart1, $sEngineStatus)
-                GUICtrlSetData($idPart3, $sElevatedStatus)
-            ElseIf Not $bElevated Then
-                ; engine is running
-                $sEngineStatus = "Engine Running: Yes"
-                $sElevatedStatus = "Engine Elevated: No"
-                GUICtrlSetData($idPart1, $sEngineStatus)
-                GUICtrlSetData($idPart3, $sElevatedStatus)
-            EndIf
-        ElseIf $iPID = "" Then
-            $sEngineStatus = "Engine Running: No"
-            $sElevatedStatus = "Engine Elevated: No"
-            GUICtrlSetData($idPart1, $sEngineStatus)
-            GUICtrlSetData($idPart3, $sElevatedStatus)
-        EndIf
-    EndIf
+    $iVal = GUICtrlRead($idPart1)
+    If $iVal <> $sEngineStatus Then GUICtrlSetData($idPart1, $sEngineStatus)
+    $iVal = GUICtrlRead($idPart3)
+    If $iVal <> $sElevatedStatus Then GUICtrlSetData($idPart3, $sElevatedStatus)
 EndFunc
 
 Func _ToBoolean($sString)
